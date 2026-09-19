@@ -164,6 +164,25 @@ def test_the_handoff_is_the_pitch_and_not_a_buried_option():
         assert "browser_goal" in head, f"{path.name} buries the handoff below the fold"
 
 
+def test_the_on_ramp_comes_before_the_argument_for_it():
+    """Install first, argument second.
+
+    The commands and the first thing to say are what a reader came for; the case for the project is
+    what convinces them to stay. Putting the second above the first costs the reader the thing they
+    were looking for, so the on-ramp is asserted to be at the top rather than left to drift.
+    """
+    for path, quick, story in (
+        (README, "## Quick start", "## Why another browser MCP?"),
+        (README_ZH, "## 快速开始", "## 为什么还要再造一个浏览器 MCP"),
+    ):
+        text = path.read_text(encoding="utf-8")
+        head = "\n".join(text.splitlines()[:40])
+
+        assert "git clone" in head, f"{path.name} hides the install below the fold"
+        assert "install.py" in head, f"{path.name} never says how to write a client config"
+        assert text.index(quick) < text.index(story), f"{path.name} argues before it onboards"
+
+
 def test_the_one_line_summaries_sell_the_handoff():
     """A registry listing and a package description are a search result: they get one sentence."""
     entry = json.loads((ROOT / "server.json").read_text(encoding="utf-8"))

@@ -10,6 +10,68 @@
 
 **Hand the browser work off — an MCP server that drives the page for your agent.**
 
+## Quick start
+
+One clone, one install line for your client, one restart.
+
+```bash
+git clone https://github.com/jiawei686/jev-ultrafast-mcp.git
+cd jev-ultrafast-mcp
+python3 -m venv .venv
+.venv/bin/pip install -e .          # Windows: .venv\Scripts\pip install -e .
+
+python scripts/install.py           # finds your MCP clients and writes their config
+```
+
+`install.py` looks for WorkBuddy, Claude Code, Claude Desktop, Codex CLI, Cursor, VS Code, Cline,
+Windsurf and Gemini CLI, and writes the format each one expects — **merging** into your existing
+config rather than overwriting it, and saving a `.bak` before it touches anything. Restart the
+client and the ten tools are in its list. Requires Python ≥ 3.10 and a Chromium-family browser
+(Chrome, Chromium, Edge or Brave).
+
+Then ask it something — drive it yourself, or hand the whole goal to `browser_goal`:
+
+> **You:** Open example.com and tell me what the page says.
+> **Your agent:** `browser_open` → reads the element table → answers.
+> ([verbatim run](#what-a-session-actually-looks-like))
+
+> **You:** Set this form to 3 adults, tick *Nonstop only*, then submit it.
+> **Your agent:** `browser_goal(goal=…, verify=[…])` — **one** call; the loop runs server-side and
+> the page is checked by code afterwards. ([what that costs](#or-hand-the-whole-thing-off))
+
+<details>
+<summary><b>Installing it as a package, and the installer's flags</b></summary>
+
+No checkout needed if you would rather install it as a package. It is not on PyPI yet, so the
+repository is the source:
+
+```bash
+python3 -m venv ~/.jev-ultrafast-mcp/venv
+~/.jev-ultrafast-mcp/venv/bin/pip install "git+https://github.com/jiawei686/jev-ultrafast-mcp"
+```
+
+That gives you a `jev-ultrafast-mcp` console script and a stable interpreter path to put in a
+client config — verified against the latest `mcp` SDK on Python 3.13, every one of the ten tools
+listed.
+
+```bash
+python scripts/install.py --list              # what is installed, and the file each one reads
+python scripts/install.py --print             # show the config it would write, change nothing
+python scripts/install.py -c cursor,codex     # only these two
+python scripts/install.py --headed            # keep a visible browser window
+python scripts/install.py --allow-domains example.com,*.example.org
+python scripts/install.py --uninstall         # take the entry back out
+```
+
+Runtime dependencies: `mcp`, `websockets`, `httpx`. No Playwright, no Selenium, no
+`browser-harness`.
+
+</details>
+
+---
+
+## What it is
+
 Browser automation usually makes the *agent* do the driving: read the page, pick one element, act,
 read again to see whether that worked. Ten clicks is ten turns, the page passes through the agent's
 context every time, and a mis-click rarely announces itself.
@@ -46,8 +108,8 @@ TypeSafe's typed-question API. Independent project, not affiliated with either �
 [`docs/DESIGN.md`](docs/DESIGN.md) for what is different and why.
 
 **Contents** ·
-[What a session looks like](#what-a-session-actually-looks-like) ·
 [Quick start](#quick-start) ·
+[What a session looks like](#what-a-session-actually-looks-like) ·
 [Connecting an agent](#connecting-an-agent) ·
 [What you can ask it to do](#what-you-can-ask-it-to-do) ·
 [What the agent reads](#what-the-agent-actually-reads) ·
@@ -144,49 +206,6 @@ browser_assert([{url_contains, text: "q="}, {count_at_least, role: "link", min: 
 ```
 
 That is a verbatim run against the live web — `scripts/live_check.py` reproduces it end to end.
-
----
-
-## Quick start
-
-Two commands. Nothing else to configure.
-
-```bash
-git clone https://github.com/jiawei686/jev-ultrafast-mcp.git
-cd jev-ultrafast-mcp
-python3 -m venv .venv
-.venv/bin/pip install -e .          # Windows: .venv\Scripts\pip install -e .
-
-python scripts/install.py           # finds your MCP clients and writes their config
-```
-
-No checkout needed if you would rather install it as a package. It is not on PyPI yet, so the
-repository is the source:
-
-```bash
-python3 -m venv ~/.jev-ultrafast-mcp/venv
-~/.jev-ultrafast-mcp/venv/bin/pip install "git+https://github.com/jiawei686/jev-ultrafast-mcp"
-```
-
-That gives you a `jev-ultrafast-mcp` console script and a stable interpreter path to put in a client
-config — verified against the latest `mcp` SDK on Python 3.13, every one of the ten tools listed.
-
-`install.py` looks for WorkBuddy, Claude Code, Claude Desktop, Codex CLI, Cursor, VS Code, Cline,
-Windsurf and Gemini CLI, and writes the format each one expects. It **merges** into your existing
-config rather than overwriting it, saves a `.bak` before touching anything, and never invents a
-path. Restart the client, and ask it to open a page.
-
-```bash
-python scripts/install.py --list              # what is installed, and the file each one reads
-python scripts/install.py --print             # show the config it would write, change nothing
-python scripts/install.py -c cursor,codex     # only these two
-python scripts/install.py --headed            # keep a visible browser window
-python scripts/install.py --allow-domains example.com,*.example.org
-python scripts/install.py --uninstall         # take the entry back out
-```
-
-Requires Python ≥ 3.10 and a Chromium-family browser (Chrome, Chromium, Edge or Brave). Runtime
-dependencies: `mcp`, `websockets`, `httpx`. No Playwright, no Selenium, no `browser-harness`.
 
 ---
 

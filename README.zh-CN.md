@@ -10,6 +10,64 @@
 
 **把浏览器里的活交出去 —— 一个能替你的 agent 开页面、点按钮的 MCP server。**
 
+## 快速开始
+
+克隆一次、给客户端写一行配置、重启一次。
+
+```bash
+git clone https://github.com/jiawei686/jev-ultrafast-mcp.git
+cd jev-ultrafast-mcp
+python3 -m venv .venv
+.venv/bin/pip install -e .          # Windows: .venv\Scripts\pip install -e .
+
+python scripts/install.py           # 自动识别你装了的 MCP 客户端并写入配置
+```
+
+`install.py` 会去找 WorkBuddy、Claude Code、Claude Desktop、Codex CLI、Cursor、VS Code、Cline、
+Windsurf、Gemini CLI，并按各自要求的格式写配置 —— 它是**合并**而不是覆盖，动手前先存一份 `.bak`。
+重启客户端，十个工具就在它的工具列表里了。依赖：Python ≥ 3.10，以及一个 Chromium 系浏览器
+（Chrome / Chromium / Edge / Brave）。
+
+然后对它说句话试试 —— 自己握着方向盘，或者把整个目标交给 `browser_goal`：
+
+> **你**：打开 example.com，告诉我页面上写了什么。
+> **它**：`browser_open` 读出元素表然后回答 —— [逐字实录](#一次会话实际长什么样)。
+
+> **你**：把这个表单设成 3 个成人、勾上 *Nonstop only*、然后提交。
+> **它**：`browser_goal(goal=…, verify=[…])` —— **只调一次**；循环在服务端跑完，跑完由代码核对
+> 页面 —— [交出去要花多少](#或者把整件事交出去)。
+
+<details>
+<summary><b>当包装装、以及安装脚本的各个开关</b></summary>
+
+不想克隆也可以，直接当包装。它还没上 PyPI，所以就从仓库装：
+
+```bash
+python3 -m venv ~/.jev-ultrafast-mcp/venv
+~/.jev-ultrafast-mcp/venv/bin/pip install "git+https://github.com/jiawei686/jev-ultrafast-mcp"
+```
+
+这会给你一个 `jev-ultrafast-mcp` 命令，以及一个可以填进客户端配置的稳定解释器路径 —— 已在
+Python 3.13 + 最新 `mcp` SDK 上实测：十个工具全部正常列出。
+
+```bash
+python scripts/install.py --list              # 看装了哪些、各自读哪个文件
+python scripts/install.py --print             # 只打印将要写入的配置，不动任何文件
+python scripts/install.py -c cursor,codex     # 只装这两个
+python scripts/install.py --headed            # 保留可见的浏览器窗口
+python scripts/install.py --allow-domains example.com,*.example.org
+python scripts/install.py --uninstall         # 把条目删回去
+```
+
+运行时只依赖 `mcp`、`websockets`、`httpx` —— 不用 Playwright、不用 Selenium、不用
+browser-harness。
+
+</details>
+
+---
+
+## 这是什么
+
 大多数浏览器自动化是让 **agent 自己开**：读页面、挑一个元素、动手、再读一遍确认成不成功。点十次就是十个回合，页面每次都要过一遍 agent 的上下文，而点错元素通常不会有任何提示。
 
 这个服务可以把这活接过来。`browser_goal` 对你的 agent 来说只是**一次**工具调用；循环在这里、在服务端跑，由 Jev（TypeSafe 的决策模型）决定每一步。它**从不写选择器**：它只在页面真实存在的元素里挑，挑不中服务端就拒绝执行而不是猜。结束时 `browser_assert` 用代码核对它留下的页面，而**断言通过就压过模型自己的说辞**。
@@ -36,8 +94,8 @@ typed-question API 启发。本项目是独立实现，与两者均无隶属关�
 [`docs/DESIGN.md`](docs/DESIGN.md)。
 
 **目录** ·
-[一次会话长什么样](#一次会话实际长什么样) ·
 [快速开始](#快速开始) ·
+[一次会话长什么样](#一次会话实际长什么样) ·
 [接入各类 agent](#接入各类-agent) ·
 [可以拿它做什么](#可以拿它做什么) ·
 [agent 实际读到的东西](#agent-实际读到的东西) ·
@@ -131,47 +189,6 @@ browser_assert([{url_contains, text: "q="}, {count_at_least, role: "link", min: 
 ```
 
 这段是**真实联网跑出来的原样输出**，`scripts/live_check.py` 可以完整复现。
-
----
-
-## 快速开始
-
-两条命令，没有别的要配。
-
-```bash
-git clone https://github.com/jiawei686/jev-ultrafast-mcp.git
-cd jev-ultrafast-mcp
-python3 -m venv .venv
-.venv/bin/pip install -e .          # Windows: .venv\Scripts\pip install -e .
-
-python scripts/install.py           # 自动识别你装了的 MCP 客户端并写入配置
-```
-
-不想克隆也可以，直接当包装。它还没上 PyPI，所以就从仓库装：
-
-```bash
-python3 -m venv ~/.jev-ultrafast-mcp/venv
-~/.jev-ultrafast-mcp/venv/bin/pip install "git+https://github.com/jiawei686/jev-ultrafast-mcp"
-```
-
-这会给你一个 `jev-ultrafast-mcp` 命令，以及一个可以填进客户端配置的稳定解释器路径 —— 已在
-Python 3.13 + 最新 `mcp` SDK 上实测：十个工具全部正常列出。
-
-`install.py` 会去找 WorkBuddy、Claude Code、Claude Desktop、Codex CLI、Cursor、VS Code、Cline、
-Windsurf、Gemini CLI，并按各自要求的格式写配置。它是**合并**而不是覆盖，动手前先存一份 `.bak`
-备份，也不会自己编造路径。重启客户端，然后让它打开一个网页就行。
-
-```bash
-python scripts/install.py --list              # 看装了哪些、各自读哪个文件
-python scripts/install.py --print             # 只打印将要写入的配置，不动任何文件
-python scripts/install.py -c cursor,codex     # 只装这两个
-python scripts/install.py --headed            # 保留可见的浏览器窗口
-python scripts/install.py --allow-domains example.com,*.example.org
-python scripts/install.py --uninstall         # 把条目删回去
-```
-
-依赖：Python ≥ 3.10，以及一个 Chromium 系浏览器（Chrome / Chromium / Edge / Brave）。
-运行时只依赖 `mcp`、`websockets`、`httpx` —— 不用 Playwright、不用 Selenium、不用 browser-harness。
 
 ---
 
