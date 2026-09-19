@@ -6,13 +6,19 @@
 
 [English](README.md) · **简体中文**
 
-**给你的 AI agent 一双能真正操作浏览器的手。**
+![给你的 AI agent 一双能真正操作浏览器的手](assets/social-preview.png)
+
+**给你的 AI agent 一双能真正操作浏览器的手 —— 一个做浏览器自动化的 MCP server。**
 
 打开网页、点按钮、填表单、读结果 —— 通过 WorkBuddy、Claude Code、Codex、Cursor、VS Code 这类
 MCP 客户端调用。**该做什么由你的 agent 决定**，这个服务负责把页面读得便宜、把点错元素变成不可能。
+不用 Playwright、不用 Selenium、也没有截图管线：它直接和本机的 Chrome 讲 CDP。
 
-- **不需要任何 API key**，没什么要注册的。
-- **不需要第二个模型**。你的 agent 本身就是大脑，这里只是手和眼睛。
+- **起步不需要任何 API key**。打开网页、读页面、点击、断言、录宏、回放 —— 整个浏览器工具面都能用，
+  没什么要注册的，也没有 key 要填。
+- **这条路径上没有第二个模型**。你的 agent 本身就是大脑，这里只是手和眼睛。`browser_goal` 是唯一的
+  可选例外：把目标交给它，它就用一个决策模型（TypeSafe，或用一把 key 走 OpenRouter）在服务端自己
+  把循环跑完。
 - **不用截图**。页面被读成一张带编号的控件表，而不是一堆像素。
 
 ```
@@ -22,6 +28,19 @@ browser_open  →  元素表  →  browser_act [refs]  →  browser_assert
 思路受 [`browser-use/jev-ultrafast`](https://github.com/browser-use/jev-ultrafast) 和 TypeSafe 的
 typed-question API 启发。本项目是独立实现，与两者均无隶属关系；差异化的取舍见
 [`docs/DESIGN.md`](docs/DESIGN.md)。
+
+**目录** ·
+[一次会话长什么样](#一次会话实际长什么样) ·
+[快速开始](#快速开始) ·
+[接入各类 agent](#接入各类-agent) ·
+[可以拿它做什么](#可以拿它做什么) ·
+[agent 实际读到的东西](#agent-实际读到的东西) ·
+[为什么再造一个浏览器 MCP](#为什么还要再造一个浏览器-mcp) ·
+[工具](#工具) ·
+[配置](#配置) ·
+[常见问题](#常见问题) ·
+[不接 agent 也能试](#不接-agent-也能试) ·
+[相关项目](#相关项目)
 
 ---
 
@@ -81,6 +100,16 @@ python3 -m venv .venv
 
 python scripts/install.py           # 自动识别你装了的 MCP 客户端并写入配置
 ```
+
+不想克隆也可以，直接当包装。它还没上 PyPI，所以就从仓库装：
+
+```bash
+python3 -m venv ~/.jev-ultrafast-mcp/venv
+~/.jev-ultrafast-mcp/venv/bin/pip install "git+https://github.com/jiawei686/jev-ultrafast-mcp"
+```
+
+这会给你一个 `jev-ultrafast-mcp` 命令，以及一个可以填进客户端配置的稳定解释器路径 —— 已在
+Python 3.13 + 最新 `mcp` SDK 上实测：十个工具全部正常列出。
 
 `install.py` 会去找 WorkBuddy、Claude Code、Claude Desktop、Codex CLI、Cursor、VS Code、Cline、
 Windsurf、Gemini CLI，并按各自要求的格式写配置。它是**合并**而不是覆盖，动手前先存一份 `.bak`
@@ -278,8 +307,8 @@ e12  btn    Delete account
 | | 原语型浏览器 MCP | **jev-ultrafast-mcp** |
 |---|---|---|
 | agent 怎么瞄目标 | 自己写选择器 / 坐标 / JS | 从元素表里挑一个 `ref` |
-| 额外模型调用 | 无 | **无 —— 你的 agent 就是 policy** |
-| 需要的 API key | 无 | **无** |
+| 额外模型调用 | 无 | **无 —— 你的 agent 就是 policy**（可选的 `browser_goal` 会自己跑循环） |
+| 需要的 API key | 无 | **浏览器工具都不需要**；只有用 `browser_goal` 才需要一把决策模型的 key |
 | ref 生命周期 | 不适用（每步重造） | **跨观测稳定** |
 | 重读页面 | 每次全量 dump | **增量**：`+` 新增 / `~` 变更 / `-` 移除 / `= no change` |
 | 往返次数 | 每个动作一次 | **批量**：多个 op 一次往返 |
@@ -389,6 +418,7 @@ e12  btn    Delete account
 | `JEVMCP_HEADLESS` | `1` | `0` 显示窗口 |
 | `JEVMCP_FOREGROUND` | `0` | `1` 激活自有标签页 |
 | `JEVMCP_SANDBOX` | `auto` | 浏览器启动即崩时，`auto` 会用 `--no-sandbox` 重试 |
+| `JEVMCP_WINDOW` | `1280x860` | 浏览器窗口尺寸 |
 | `JEVMCP_PROFILE_DIR` | `~/.jev-ultrafast-mcp/chrome-profile` | 持久化 profile —— 手动登录一次，之后一直保持 |
 | `JEVMCP_ALLOW_DOMAINS` | *（不限）* | 逗号分隔；导航到其他域名会被拒绝 |
 | `JEVMCP_DENY_DOMAINS` | *（无）* | 逗号分隔黑名单 |
@@ -400,8 +430,17 @@ e12  btn    Delete account
 | `JEVMCP_SETTLE_TIMEOUT` | `4.0` | 页面渲染慢时，最多等多久让控件出现 |
 | `JEVMCP_SETTLE_POLL_MS` | `120` | 等待期间多久重读一次 |
 | `JEVMCP_STATE_DIR` | `~/.jev-ultrafast-mcp` | profile、宏、截图的存放位置 |
-| `TYPESAFE_API_KEY` | — | 可选；开启 `browser_goal` |
-| `TEXT_MODEL_API_KEY` | — | 可选；只用于 `browser_goal` 模式下的输入 |
+| `TYPESAFE_API_KEY` | — | 可选；开启 `browser_goal`，直连 TypeSafe |
+| `TYPESAFE_BASE_URL` | `https://api.typesafe.ai/v1/systemone` | 决策模型在哪；指到 `https://openrouter.ai/api/alpha/decisions` 即可改走 OpenRouter |
+| `OPENROUTER_API_KEY` | — | 当 `TYPESAFE_BASE_URL` 是 OpenRouter 地址时，作为决策模型的 key |
+| `TYPESAFE_MODEL` | `jev-latest` | 决策模型的 slug |
+| `TEXT_MODEL_API_KEY` | — | 可选；只给 `browser_goal` 用的小文本助手（往输入框里写值） |
+| `TEXT_MODEL_BASE_URL` | `https://api.deepseek.com/v1` | 该助手的地址 |
+| `TEXT_MODEL` | `deepseek-chat` | 该助手用的模型 |
+
+上面最后七行之前的所有变量都是本地的：它们配置的是你机器上的浏览器。只有「决策模型」这一组会联外，
+而且只在 `browser_goal` 真正跑起来时才会。把 `TYPESAFE_BASE_URL` 指到 OpenRouter，那么一把
+`OPENROUTER_API_KEY` 就同时覆盖决策模型和文本助手，也不需要 TypeSafe 账号。
 
 如果你要拿它操作自己的账号，有两个值得先设上：`JEVMCP_ALLOW_DOMAINS` 把浏览器钉死在一组域名内，
 之外一律拒绝；配一个持久的 `JEVMCP_PROFILE_DIR`，让你手动登录一次，而不是把密码教给模型。
@@ -411,8 +450,10 @@ e12  btn    Delete account
 ## 常见问题
 
 **需要 API key 或账号吗？**
-不需要。所有东西都在你自己机器上跑，没有遥测、没有回传。可选的 `browser_goal` 工具在你提供 key
-时可以用 TypeSafe，但默认路径完全不用。
+浏览器工具都不需要。`browser_open`、`browser_observe`、`browser_act`、`browser_assert`、
+`browser_macro` 以及标签页 / 会话类工具**从不外联** —— 没有遥测、没有回传，没有任何东西离开
+你的机器。`browser_goal` 是例外，而且它是可选的：它会把你的目标和当前元素表发给一个决策模型，
+所以才需要 key。只要不用这一个工具，页面上的任何东西都不会出门。
 
 **会不会弹出一个浏览器窗口抢我的屏幕？**
 不会。默认无头运行，驱动的是**自己拥有的后台标签页** —— 动画和菜单照常工作，但不抢焦点。
@@ -429,10 +470,22 @@ e12  btn    Delete account
 **有验证码，它能过吗？**
 不能，而且这是刻意的 —— 它不看像素。这种场景请换"截图 + 视觉"的 agent。
 
+**上 PyPI 了吗？进 MCP registry 了吗？**
+都还没有。`pip install "git+https://github.com/jiawei686/jev-ultrafast-mcp"` 装到的和发布版完全
+一样。[`server.json`](server.json) 已经在仓库里备好，给
+[官方 registry](https://github.com/modelcontextprotocol/registry) 用 —— 它发布的是包，所以会和第一次
+PyPI 发布同一步落地。相关进展见 [发布](CONTRIBUTING.md#publishing)。
+
 **和 Playwright MCP 有什么区别？**
 Playwright 的服务端暴露的是页面原语，选择器和坐标由 agent 自己写。这个暴露的是一张带编号的控件表，
 遇到歧义会拒绝。需要像素级控制或成熟的录制测试生态 → 用 Playwright；想要一个不会悄悄点错按钮的
 agent → 用这个。
+
+**和 browser-use 是竞争关系吗？**
+同一个问题，从两头解决。[`browser-use`](https://github.com/browser-use/browser-use) 是一个在进程内
+自己跑 agent 循环的库；这个是一个 MCP server，把类似的一双手交给**你已有的 agent**。这里可选的
+turbo 路径移植自 [`browser-use/jev-ultrafast`](https://github.com/browser-use/jev-ultrafast) ——
+每一步向决策模型问一个带类型的问题，而不是自由文本。
 
 **让它操作我的账号安全吗？**
 它的设计前提就是「不应该被完全信任」。听起来危险的点击会以 `needs_confirmation` 返回而不是直接执行，
@@ -545,6 +598,11 @@ scripts/
   checkin.py       真实签到：用模型学一次，之后零成本回放
 examples/
   checkin.html     checkin.py 驱动的那个「每日按钮」页面
+assets/
+  social-preview.png      仓库被分享时 GitHub 展示的那张卡片
+  make_social_preview.py  生成它 —— 上面的字是排出来的，不是模型画的
+llms.txt                  这个服务是什么，给「先读再推荐」的 agent 看
+server.json               官方 MCP registry 条目（等包上了 PyPI 才生效）
 ```
 
 ## 开发
@@ -559,6 +617,16 @@ examples/
 
 CI 会在 Python 3.10 / 3.12 / 3.13 上、对着无头 Chrome 全跑一遍。改「目标解析」那部分逻辑之前
 请先读 [`CONTRIBUTING.md`](CONTRIBUTING.md) —— 那是这个项目的全部意义所在。
+
+## 相关项目
+
+- [`browser-use/jev-ultrafast`](https://github.com/browser-use/jev-ultrafast) —— 可选 turbo 路径
+  移植自它：每一步向决策模型问一个带类型的问题。
+- [TypeSafe](https://typesafe.ai) —— `browser_goal` 背后的 typed-question 决策 API。
+- [Model Context Protocol](https://modelcontextprotocol.io) —— 本项目所讲的协议。
+- [官方 MCP registry](https://github.com/modelcontextprotocol/registry) —— 客户端来这里找像这样的服务。
+- [Chrome DevTools Protocol](https://chromedevtools.github.io/devtools-protocol/) —— 它驱动浏览器的
+  方式，中间没有 wrapper 库。
 
 ## 许可证
 

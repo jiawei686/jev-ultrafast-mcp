@@ -6,14 +6,20 @@
 
 **English** · [简体中文](README.zh-CN.md)
 
-**Give your AI agent a browser it can actually drive.**
+![Give your AI agent a browser it can actually drive](assets/social-preview.png)
+
+**Give your AI agent a browser it can actually drive — an MCP server for browser automation.**
 
 Open a page, click a button, fill a form, read the result — from an MCP client like WorkBuddy,
 Claude Code, Codex, Cursor or VS Code. The agent decides *what* to do. This server makes the page
-cheap to read and hard to mis-click.
+cheap to read and hard to mis-click. No Playwright, no Selenium, no screenshot pipeline: it speaks
+CDP directly to a Chrome you already have.
 
-- **No API keys.** Nothing to sign up for.
-- **No second model.** Your agent is already the brain; this is just hands and eyes.
+- **No API key to start.** Open, read, click, assert, record, replay — the whole browser surface
+  works with nothing to sign up for and no key to paste.
+- **No second model on that path.** Your agent is already the brain; this is just hands and eyes.
+  `browser_goal` is the one opt-in exception: hand it a goal and it drives the loop itself with a
+  decision model — TypeSafe, or OpenRouter with a single key.
 - **No screenshots.** The page is read as a numbered list of controls, not as pixels.
 
 ```
@@ -23,6 +29,19 @@ browser_open  →  element table  →  browser_act [refs]  →  browser_assert
 Inspired by [`browser-use/jev-ultrafast`](https://github.com/browser-use/jev-ultrafast) and
 TypeSafe's typed-question API. Independent project, not affiliated with either — see
 [`docs/DESIGN.md`](docs/DESIGN.md) for what is different and why.
+
+**Contents** ·
+[What a session looks like](#what-a-session-actually-looks-like) ·
+[Quick start](#quick-start) ·
+[Connecting an agent](#connecting-an-agent) ·
+[What you can ask it to do](#what-you-can-ask-it-to-do) ·
+[What the agent reads](#what-the-agent-actually-reads) ·
+[Why another browser MCP?](#why-another-browser-mcp) ·
+[Tools](#tools) ·
+[Configuration](#configuration) ·
+[FAQ](#faq) ·
+[Try it without an agent](#try-it-without-an-agent) ·
+[See also](#see-also)
 
 ---
 
@@ -82,6 +101,17 @@ python3 -m venv .venv
 
 python scripts/install.py           # finds your MCP clients and writes their config
 ```
+
+No checkout needed if you would rather install it as a package. It is not on PyPI yet, so the
+repository is the source:
+
+```bash
+python3 -m venv ~/.jev-ultrafast-mcp/venv
+~/.jev-ultrafast-mcp/venv/bin/pip install "git+https://github.com/jiawei686/jev-ultrafast-mcp"
+```
+
+That gives you a `jev-ultrafast-mcp` console script and a stable interpreter path to put in a client
+config — verified against the latest `mcp` SDK on Python 3.13, every one of the ten tools listed.
 
 `install.py` looks for WorkBuddy, Claude Code, Claude Desktop, Codex CLI, Cursor, VS Code, Cline,
 Windsurf and Gemini CLI, and writes the format each one expects. It **merges** into your existing
@@ -289,8 +319,8 @@ guesses.
 | | primitives-based browser MCP | **jev-ultrafast-mcp** |
 |---|---|---|
 | How the agent aims | writes a selector / coordinate / JS | picks a `ref` from an element table |
-| Extra model calls | none | **none — your agent is the policy** |
-| API keys required | none | **none** |
+| Extra model calls | none | **none — your agent is the policy** (opt-in `browser_goal` drives the loop itself) |
+| API keys required | none | **none for the browser tools**; a decision-model key only if you use `browser_goal` |
 | Ref lifetime | n/a (agent re-invents each step) | **stable across observations** |
 | Re-reading the page | full dump every time | **delta** — `+` added, `~` changed, `-` removed, `= no change` |
 | Round trips | one per action | **batched — many ops per call** |
@@ -404,6 +434,7 @@ All optional; the defaults are the point.
 | `JEVMCP_HEADLESS` | `1` | `0` for a visible window |
 | `JEVMCP_FOREGROUND` | `0` | `1` activates the owned tab |
 | `JEVMCP_SANDBOX` | `auto` | `auto` retries with `--no-sandbox` if the browser aborts on startup |
+| `JEVMCP_WINDOW` | `1280x860` | browser window size |
 | `JEVMCP_PROFILE_DIR` | `~/.jev-ultrafast-mcp/chrome-profile` | persistent profile — log in once, stay logged in |
 | `JEVMCP_ALLOW_DOMAINS` | *(all)* | comma-separated; navigation elsewhere is refused |
 | `JEVMCP_DENY_DOMAINS` | *(none)* | comma-separated blocklist |
@@ -415,8 +446,18 @@ All optional; the defaults are the point.
 | `JEVMCP_SETTLE_TIMEOUT` | `4.0` | how long to wait for a late-rendering page to show controls |
 | `JEVMCP_SETTLE_POLL_MS` | `120` | how often to re-read while waiting |
 | `JEVMCP_STATE_DIR` | `~/.jev-ultrafast-mcp` | profile, macros and screenshots |
-| `TYPESAFE_API_KEY` | — | optional; enables `browser_goal` |
-| `TEXT_MODEL_API_KEY` | — | optional; only for typing in `browser_goal` mode |
+| `TYPESAFE_API_KEY` | — | optional; enables `browser_goal` against TypeSafe directly |
+| `TYPESAFE_BASE_URL` | `https://api.typesafe.ai/v1/systemone` | where the decision model lives; point it at `https://openrouter.ai/api/alpha/decisions` to route through OpenRouter instead |
+| `OPENROUTER_API_KEY` | — | used as the decision-model key when `TYPESAFE_BASE_URL` is an OpenRouter URL |
+| `TYPESAFE_MODEL` | `jev-latest` | decision-model slug |
+| `TEXT_MODEL_API_KEY` | — | optional; only for the small text helper `browser_goal` uses to type a value into a field |
+| `TEXT_MODEL_BASE_URL` | `https://api.deepseek.com/v1` | endpoint for that helper |
+| `TEXT_MODEL` | `deepseek-chat` | model for that helper |
+
+Everything above the last seven rows is local: it configures a browser on your machine. Only the
+decision-model group talks to the network, and only when `browser_goal` actually runs. Pointing
+`TYPESAFE_BASE_URL` at OpenRouter means one `OPENROUTER_API_KEY` covers both the decision model and
+the text helper, and needs no TypeSafe account.
 
 Two of these are worth setting before you point an agent at your own accounts:
 `JEVMCP_ALLOW_DOMAINS` pins the browser to a set of hosts and refuses everything else, and a
@@ -428,8 +469,11 @@ password.
 ## FAQ
 
 **Do I need an API key or an account?**
-No. Nothing leaves your machine. There is no telemetry and no phone-home. The optional
-`browser_goal` tool can use TypeSafe if you have a key, but the default path never does.
+Not for the browser tools. `browser_open`, `browser_observe`, `browser_act`, `browser_assert`,
+`browser_macro` and the tab/session tools never call out — no telemetry, no phone-home, nothing
+leaves your machine. `browser_goal` is the exception, and it is opt-in: it sends your goal and the
+current element table to a decision model, which is why it needs a key. Leave that one tool unused
+and nothing about the page goes anywhere.
 
 **Will a browser window pop up and take over my screen?**
 No. It runs headless by default and drives a **background tab it owns** — animations and menus still
@@ -449,11 +493,25 @@ element table will show it — look for the overlay warning in the observation h
 **There is a captcha. Can it solve it?**
 No, and that is deliberate — it never looks at pixels. Use a screenshot-and-vision agent for that.
 
+**Is it on PyPI? Is it in the MCP registry?**
+Not yet. `pip install "git+https://github.com/jiawei686/jev-ultrafast-mcp"` installs exactly what a
+release would. [`server.json`](server.json) is already in the repo for the
+[official registry](https://github.com/modelcontextprotocol/registry), which publishes a package —
+so it lands there in the same step as the first PyPI release. See
+[Publishing](CONTRIBUTING.md#publishing) for the state of that.
+
 **How is this different from the Playwright MCP?**
 Playwright's server exposes page primitives; the agent writes selectors and coordinates. This one
 exposes a numbered table of controls and refuses ambiguous targets. If you need pixel-level control
 or a mature recorded-testing ecosystem, use Playwright. If you want an agent that cannot silently
 click the wrong button, use this.
+
+**Is this an alternative to browser-use?**
+They solve the same problem from opposite ends. [`browser-use`](https://github.com/browser-use/browser-use)
+is a library that runs the agent loop in-process; this is an MCP server that gives *your* existing
+agent the same kind of hands. The optional turbo path here is a port of
+[`browser-use/jev-ultrafast`](https://github.com/browser-use/jev-ultrafast), which asks a decision
+model one typed question per step instead of free-form text.
 
 **Is it safe to let it loose on my accounts?**
 It is built assuming it should not be trusted. Destructive-sounding clicks come back as
@@ -575,6 +633,11 @@ scripts/
   checkin.py       a real check-in: learn once with the model, then replay for free
 examples/
   checkin.html     the daily-button page checkin.py drives
+assets/
+  social-preview.png      the card GitHub shows when this repository is shared
+  make_social_preview.py  renders it, so the words on it are placed rather than generated
+llms.txt                  what this server is, for agents that read before recommending it
+server.json               the MCP registry entry (lands once the package is on PyPI)
 ```
 
 ## Development
@@ -590,6 +653,17 @@ examples/
 All of it runs in CI on Python 3.10, 3.12 and 3.13 against headless Chrome. Read
 [`CONTRIBUTING.md`](CONTRIBUTING.md) before changing how targets are resolved — that logic is the
 whole point of the project.
+
+## See also
+
+- [`browser-use/jev-ultrafast`](https://github.com/browser-use/jev-ultrafast) — the project the
+  optional turbo path is a port of: one typed question per step, answered by a decision model.
+- [TypeSafe](https://typesafe.ai) — the typed-question decision API behind `browser_goal`.
+- [Model Context Protocol](https://modelcontextprotocol.io) — the protocol this server speaks.
+- [The official MCP registry](https://github.com/modelcontextprotocol/registry) — where clients go
+  looking for servers like this one.
+- [Chrome DevTools Protocol](https://chromedevtools.github.io/devtools-protocol/) — what it drives
+  the browser with, through no wrapper library.
 
 ## License
 

@@ -1,7 +1,11 @@
 """Configuration. Everything is environment-driven so an MCP client can set it.
 
-No API keys are required for the default path. TypeSafe is opt-in: without
-TYPESAFE_API_KEY the server still exposes the full observe/act/assert surface.
+No key is needed for the browser path: open, observe, act, assert and macro all
+run against a local Chrome and never call out. A decision model is opt-in. Set
+TYPESAFE_API_KEY to reach TypeSafe directly, or set TYPESAFE_BASE_URL to an
+OpenRouter decisions URL so OPENROUTER_API_KEY pays for it instead. Without
+either, `browser_goal` reports `turbo_unavailable` and executes nothing, while
+the rest of the surface is unaffected.
 """
 
 from __future__ import annotations

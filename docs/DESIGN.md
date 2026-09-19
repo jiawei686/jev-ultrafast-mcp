@@ -23,7 +23,7 @@ Everything below follows from that one decision.
 
 ## Seven differentiators
 
-### 1. Zero extra model calls, zero API keys
+### 1. Zero extra model calls, zero keys on the default path
 
 The default path needs no TypeSafe key and no text model. `browser_open` returns an indexed element
 table; the host agent picks a ref; `browser_act` executes it. One model call per step — the one the
