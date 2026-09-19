@@ -129,6 +129,19 @@ def test_the_readmes_say_the_decision_model_is_the_only_thing_that_calls_out():
         assert "TYPESAFE_MODEL" in text, f"{path.name} must document the model slug"
 
 
+def test_the_readmes_promise_attach_mode_leaves_the_users_browser_alone():
+    """The one claim in here that, if wrong, costs a user every tab they had open.
+
+    `attach` mode drives the browser the user is already using, so "close the session" has to mean
+    detach rather than quit. The code now separates the two (see test_attach_mode.py); this keeps the
+    README from quietly dropping the promise that makes attach mode reasonable to enable.
+    """
+    for path, word in ((README, "detach"), (README_ZH, "断开")):
+        text = path.read_text(encoding="utf-8")
+        assert "JEVMCP_CDP_URL" in text, path.name
+        assert word in text, f"{path.name} documents attach mode without saying it detaches"
+
+
 def test_local_links_in_the_readmes_resolve():
     """A README whose screenshots and design notes are 404s reads as an abandoned project."""
     pattern = re.compile(r"\]\((?!https?://|#)([^)]+)\)")

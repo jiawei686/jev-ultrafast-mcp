@@ -93,6 +93,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Attach mode quit the user's own browser on shutdown.** `JEVMCP_MODE=attach` drives the browser
+  the user is already using, but `shutdown()` sent `Browser.close` unconditionally — correct in
+  `launch` mode, where the browser belongs to this process, and wrong in `attach`, where it means
+  closing every window the user has open. `browser_close(shutdown_browser=True)` reached it, and so
+  did `atexit`, so the same mistake also fired when the server exited for any reason. Teardown now
+  detaches in attach mode (`BrowserManager.owns_browser`), `browser_close` reports
+  "detached (your browser is still running)" instead of "browser stopped", and `browser_doctor` no
+  longer promises to launch a browser it will not launch.
 - **`browser_goal` reported `status: blocked` for goals that had visibly succeeded.** `status` is the
   model's own summary and `verify` is checked by code, but the two were reported side by side with no
   rule for which wins when they disagree — and they disagree in the ordinary case where a goal's last

@@ -511,6 +511,10 @@ e12  btn    Delete account
 | `TEXT_MODEL_BASE_URL` | `https://api.deepseek.com/v1` | 该助手的地址 |
 | `TEXT_MODEL` | `deepseek-chat` | 该助手用的模型 |
 
+`JEVMCP_MODE=attach` 是「用我已经开着的那个浏览器」这条路 —— 需要的登录态本来就在你自己的 profile
+里时，走这条。attach 模式只会碰它自己打开的那个标签页：`browser_close` 是**断开**而不是退出，服务进程
+结束时也一样。你其他的窗口、以及里面的登录态，不会被关掉。
+
 上面最后七行之前的所有变量都是本地的：它们配置的是你机器上的浏览器。只有「决策模型」这一组会联外，
 而且只在 `browser_goal` 真正跑起来时才会。把 `TYPESAFE_BASE_URL` 指到 OpenRouter，那么一把
 `OPENROUTER_API_KEY` 就同时覆盖决策模型和文本助手，也不需要 TypeSafe 账号。

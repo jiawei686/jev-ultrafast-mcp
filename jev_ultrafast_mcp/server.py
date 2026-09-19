@@ -525,10 +525,16 @@ def browser_sessions() -> str:
 
 @SERVER.tool()
 def browser_close(session: str = "default", shutdown_browser: bool = False) -> str:
-    """Close a session's tab. Set shutdown_browser=True to stop the browser too."""
+    """Close a session's tab. Set shutdown_browser=True to stop the browser too.
+
+    Only a browser this server launched is stopped. In attach mode the browser is
+    yours: shutdown detaches and leaves it, and every other window, running.
+    """
     closed = MANAGER.close(session)
     if shutdown_browser:
         MANAGER.shutdown()
+        if not MANAGER.owns_browser:
+            return f"closed {closed or 'nothing'}; detached (your browser is still running)"
         return f"closed {closed or 'nothing'}; browser stopped"
     return f"closed {closed or 'nothing'}"
 
@@ -549,7 +555,14 @@ def browser_doctor() -> str:
     }
     report["hints"] = []
     if not report.get("connected"):
-        report["hints"].append("Browser is not started yet; it launches on the first browser_open.")
+        if CONFIG.mode == "attach":
+            report["hints"].append(
+                "Attach mode: nothing is started for you. Point JEVMCP_CDP_URL at a browser "
+                f"already exposing CDP (now {CONFIG.cdp_url or 'unset'}) — e.g. the "
+                "chrome://inspect/#remote-debugging toggle. Shutdown detaches, never quits it."
+            )
+        else:
+            report["hints"].append("Browser is not started yet; it launches on the first browser_open.")
     if report.get("chrome_error"):
         report["hints"].append("Set JEVMCP_CHROME to your Chrome/Chromium executable.")
     return json.dumps(report, indent=2, ensure_ascii=False)

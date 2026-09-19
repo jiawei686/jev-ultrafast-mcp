@@ -154,6 +154,19 @@ text.
 | `dry_run` | `browser_act(..., dry_run=True)` reports what would happen and executes nothing |
 | Screenshots | Written to `~/.jev-ultrafast-mcp/shots/` and reported as a **path**. Base64 never enters the context |
 
+## Whose browser it is
+
+`launch` and `attach` look like a one-line config difference and are not, because they differ in
+ownership. In `launch` the browser is this process's: it starts on the first `browser_open`, and
+stopping it on the way out is housekeeping. In `attach` the browser is the user's own — their tabs,
+their logins, possibly their work — and only the tab jev opened is in scope.
+
+That distinction is a safety property, not a nicety, so it is stated in the code
+(`BrowserManager.owns_browser`) rather than inferred at each call site: only an owned browser is sent
+`Browser.close`. Teardown detaches otherwise, and `browser_close` reports the difference instead of
+claiming a stop that did not happen. `atexit` goes through the same path, because a server exiting is
+not a reason to quit a browser it never started.
+
 ## Limits, stated honestly
 
 - Deltas pay off on large pages and idle polls. On the 19-element test page a full table is ~900 B;

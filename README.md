@@ -543,6 +543,11 @@ All optional; the defaults are the point.
 | `TEXT_MODEL_BASE_URL` | `https://api.deepseek.com/v1` | endpoint for that helper |
 | `TEXT_MODEL` | `deepseek-chat` | model for that helper |
 
+`JEVMCP_MODE=attach` is the "use the browser I already have open" route — the one to take when the
+login you need already lives in your own profile. Attach mode only ever touches the tab it opens:
+`browser_close` detaches rather than quitting, and the same holds when the server exits. Your other
+windows, and the session in them, are never closed.
+
 Everything above the last seven rows is local: it configures a browser on your machine. Only the
 decision-model group talks to the network, and only when `browser_goal` actually runs. Pointing
 `TYPESAFE_BASE_URL` at OpenRouter means one `OPENROUTER_API_KEY` covers both the decision model and

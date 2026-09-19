@@ -901,6 +901,17 @@ class BrowserManager:
             closed.append(key)
         return closed
 
+    @property
+    def owns_browser(self) -> bool:
+        """Whether this process may stop the browser.
+
+        In `launch` mode we started it, so stopping it is housekeeping. In
+        `attach` mode the browser is the user's own: their tabs, their logins.
+        `Browser.close` there would quit every window they have open -- and
+        `atexit` would do it when the server exits -- so shutdown only detaches.
+        """
+        return self.cfg.mode != "attach"
+
     def shutdown(self) -> None:
         for session in list(self._sessions.values()):
             try:
@@ -909,10 +920,11 @@ class BrowserManager:
                 pass
         self._sessions.clear()
         if self._cdp is not None:
-            try:
-                self._cdp.call("Browser.close", timeout=3)
-            except Exception:
-                pass
+            if self.owns_browser:
+                try:
+                    self._cdp.call("Browser.close", timeout=3)
+                except Exception:
+                    pass
             self._cdp.close()
             self._cdp = None
         if self._process is not None:
