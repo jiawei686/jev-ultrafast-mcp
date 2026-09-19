@@ -22,7 +22,8 @@ import httpx
 from .config import Config
 from .observe import Observation
 
-ENDPOINT = "https://api.typesafe.ai/v1/systemone"
+# The endpoint comes from Config: TypeSafe direct by default, or OpenRouter's
+# Decisions route when TYPESAFE_BASE_URL points there. Same contract either way.
 CLIENT = httpx.Client(http2=True, timeout=30)
 
 NEXT_ACTION = """Advance the user's entire goal from the CURRENT page using one operation.
@@ -67,19 +68,36 @@ def available(cfg: Config) -> bool:
     return bool(cfg.typesafe_key)
 
 
+def _http_reason(status: int) -> str:
+    """Turn a provider status into something the caller can act on.
+
+    The decision model is reachable through more than one route, so name the
+    failure in terms of what to fix rather than which company answered.
+    """
+    if status == 401:
+        return ("Decision model rejected the key (HTTP 401). Check TYPESAFE_API_KEY, or "
+                "OPENROUTER_API_KEY when TYPESAFE_BASE_URL points at OpenRouter. "
+                "No action executed.")
+    if status == 402:
+        return ("OpenRouter has no credits on this account (HTTP 402). Add credits at "
+                "https://openrouter.ai/settings/credits, or point TYPESAFE_BASE_URL back "
+                "at TypeSafe and use TYPESAFE_API_KEY. No action executed.")
+    return f"Decision model returned HTTP {status}; no action executed."
+
+
 def _post(url: str, key: str, body: dict) -> dict:
     for attempt in range(3):
         try:
             response = CLIENT.post(url, json=body, headers={"Authorization": f"Bearer {key}"})
         except httpx.HTTPError:
-            raise TurboUnavailable("TypeSafe unreachable; no action executed.") from None
+            raise TurboUnavailable("Decision model unreachable; no action executed.") from None
         if response.status_code in {429, 529, 503} and attempt < 2:
             time.sleep(0.5 * 2 ** attempt)
             continue
         if response.is_error:
-            raise TurboUnavailable(f"TypeSafe returned HTTP {response.status_code}; no action executed.")
+            raise TurboUnavailable(_http_reason(response.status_code))
         return response.json()
-    raise TurboUnavailable("TypeSafe unavailable")
+    raise TurboUnavailable("Decision model unavailable")
 
 
 def _validate(answer: dict, ids: set[str]) -> dict:
@@ -96,7 +114,7 @@ def _validate(answer: dict, ids: set[str]) -> dict:
     except (KeyError, TypeError, ValueError):
         valid = False
     if not valid:
-        raise TurboUnavailable("TypeSafe returned a malformed answer; no action executed.")
+        raise TurboUnavailable("Decision model returned a malformed answer; no action executed.")
     return answer
 
 
@@ -117,7 +135,10 @@ def _operation_heads(observation: Observation) -> tuple[set[str], dict[str, list
 def choose(cfg: Config, observation: Observation, goal: str, history: list[dict]) -> dict:
     """One TypeSafe request: which operation, and which target for each operation."""
     if not cfg.typesafe_key:
-        raise TurboUnavailable("Turbo mode needs TYPESAFE_API_KEY")
+        raise TurboUnavailable(
+            "Turbo mode needs a key for the decision model: TYPESAFE_API_KEY, or "
+            "OPENROUTER_API_KEY with TYPESAFE_BASE_URL=https://openrouter.ai/api/alpha/decisions"
+        )
 
     operations, heads = _operation_heads(observation)
     if not operations:
@@ -165,7 +186,7 @@ def choose(cfg: Config, observation: Observation, goal: str, history: list[dict]
     body = {"model": cfg.typesafe_model, "state": state, "questions": questions}
 
     started = time.perf_counter()
-    result = _post(ENDPOINT, cfg.typesafe_key, body)
+    result = _post(cfg.typesafe_endpoint, cfg.typesafe_key, body)
     operation_answer = _validate(result["answers"]["operation"], operations | {"DONE", "BLOCKED"})
     operation = operation_answer["choice"]
     decision = {
@@ -214,7 +235,7 @@ def _pick_option(cfg: Config, element, goal: str, observation: Observation) -> s
         },
     }
     try:
-        answer = _post(ENDPOINT, cfg.typesafe_key, body)["answers"]["option"]
+        answer = _post(cfg.typesafe_endpoint, cfg.typesafe_key, body)["answers"]["option"]
         return answer.get("choice")
     except (TurboUnavailable, KeyError):
         return None

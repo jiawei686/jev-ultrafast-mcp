@@ -44,6 +44,32 @@ def _env_list(name: str) -> list[str]:
     return [part.strip() for part in raw.replace(";", ",").split(",") if part.strip()]
 
 
+TYPESAFE_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
+OPENROUTER_ENDPOINT = "https://openrouter.ai/api/alpha/decisions"
+
+
+def _turbo_backend() -> tuple[str, str | None]:
+    """Resolve (endpoint, api key) for the decision model.
+
+    TypeSafe's own endpoint is the default. Every route speaks the same
+    request/response contract -- `{model, state, questions}` in, typed
+    `answers` out -- so switching routes changes only the URL and whose
+    credits pay for it. Pointing TYPESAFE_BASE_URL at OpenRouter lets a
+    single OPENROUTER_API_KEY drive both the decision model and the text
+    helper, and needs no TypeSafe account.
+    """
+    url = os.environ.get("TYPESAFE_BASE_URL", "").strip()
+    if not url:
+        return TYPESAFE_ENDPOINT, os.environ.get("TYPESAFE_API_KEY")
+    url = url.rstrip("/")
+    if "openrouter.ai" in url:
+        if not url.endswith("/decisions"):
+            url += "/api/alpha/decisions"
+        key = os.environ.get("TYPESAFE_API_KEY") or os.environ.get("OPENROUTER_API_KEY")
+        return url, key
+    return url, os.environ.get("TYPESAFE_API_KEY")
+
+
 def find_chrome(explicit: str | None = None) -> str:
     """Locate a Chromium-family browser binary."""
     if explicit:
@@ -99,6 +125,12 @@ class Config:
     secret_patterns: list[str] = field(default_factory=lambda: list(DEFAULT_SECRET_PATTERNS))
     typesafe_key: str | None = None
     typesafe_model: str = "jev-latest"
+    # Where the decision model lives. Same wire contract at every route, so the
+    # only thing that changes is the URL and whose credits pay for it.
+    #   TypeSafe direct : https://api.typesafe.ai/v1/systemone   (TYPESAFE_API_KEY)
+    #   OpenRouter      : https://openrouter.ai/api/alpha/decisions (OPENROUTER key;
+    #                     note the path is outside /api/v1)
+    typesafe_endpoint: str = "https://api.typesafe.ai/v1/systemone"
     text_model_key: str | None = None
     text_model_base: str = "https://api.deepseek.com/v1"
     text_model: str = "deepseek-chat"
@@ -110,6 +142,7 @@ class Config:
     @classmethod
     def from_env(cls) -> "Config":
         profile = os.environ.get("JEVMCP_PROFILE_DIR")
+        turbo_endpoint, turbo_key = _turbo_backend()
         window = os.environ.get("JEVMCP_WINDOW", "1280x860")
         try:
             w, h = (int(part) for part in window.lower().split("x", 1))
@@ -134,8 +167,9 @@ class Config:
             allow_js=_env_bool("JEVMCP_ALLOW_JS", False),
             allow_uploads=_env_bool("JEVMCP_ALLOW_UPLOADS", True),
             confirm_patterns=_env_list("JEVMCP_CONFIRM_PATTERNS") or list(DEFAULT_DENY_PATTERNS),
-            typesafe_key=os.environ.get("TYPESAFE_API_KEY"),
+            typesafe_key=turbo_key,
             typesafe_model=os.environ.get("TYPESAFE_MODEL", "jev-latest"),
+            typesafe_endpoint=turbo_endpoint,
             text_model_key=os.environ.get("TEXT_MODEL_API_KEY"),
             text_model_base=os.environ.get("TEXT_MODEL_BASE_URL", "https://api.deepseek.com/v1"),
             text_model=os.environ.get("TEXT_MODEL", "deepseek-chat"),

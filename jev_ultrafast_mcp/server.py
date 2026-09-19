@@ -307,18 +307,24 @@ def browser_macro(action: str, session: str = "default", name: str = "",
 @SERVER.tool()
 def browser_goal(goal: str, session: str = "default", max_steps: int = 20,
                  verify: list[dict] | None = None, verbose: bool = False) -> str:
-    """Run a whole goal inside the server (turbo mode). Needs TYPESAFE_API_KEY.
+    """Run a whole goal inside the server (turbo mode). Needs a decision-model key.
 
-    Each step costs one TypeSafe request (operation + every target head in a
-    single speculative fan-out). Use this when you want the browser driven end
+    Each step costs one request (operation + every target head in a single
+    speculative fan-out). Use this when you want the browser driven end
     to end without spending a host turn per click. Without a key, use
     browser_observe + browser_act instead.
+
+    The key is TYPESAFE_API_KEY, or OPENROUTER_API_KEY when TYPESAFE_BASE_URL
+    points at https://openrouter.ai/api/alpha/decisions -- same model, same
+    contract, no TypeSafe account needed.
 
     `verify` runs browser_assert-style checks on the final page, so the result
     is a fact rather than a model's claim of success.
     """
     if not policy.available(CONFIG):
-        return ("turbo_unavailable: TYPESAFE_API_KEY is not set.\n"
+        return ("turbo_unavailable: no decision-model key is set.\n"
+                "Set TYPESAFE_API_KEY, or OPENROUTER_API_KEY with "
+                "TYPESAFE_BASE_URL=https://openrouter.ai/api/alpha/decisions.\n"
                 "Drive the same loop yourself: browser_observe → pick a ref → browser_act.")
     try:
         tab = _session(session)
