@@ -23,7 +23,9 @@ ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
 README_ZH = ROOT / "README.zh-CN.md"
 
-TOOL_RE = re.compile(r"@SERVER\.tool\(\)\s*\ndef\s+([a-z_][a-z0-9_]*)\(", re.MULTILINE)
+TOOL_RE = re.compile(
+    r"@SERVER\.tool\(.*?\)\s*\ndef\s+([a-z_][a-z0-9_]*)\(", re.MULTILINE,
+)
 
 
 def _registered_tools() -> list[str]:

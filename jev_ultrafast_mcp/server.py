@@ -14,6 +14,7 @@ import json
 import time
 
 from mcp.server import MCPServer
+from mcp.types import ToolAnnotations
 
 from . import assertions as assertions_mod
 from . import macros as macros_mod
@@ -60,6 +61,25 @@ SERVER = MCPServer(
 CONFIG = Config.from_env()
 MANAGER = BrowserManager(CONFIG)
 atexit.register(MANAGER.shutdown)
+
+
+# ----------------------------------------------------------------- annotations
+#
+# How a host decides whether a tool call needs a human. Leaving these off is not
+# neutral: an unannotated tool reads as "could do anything", so a careful client
+# confirms *every* call — including the reads that make up most of an agent loop
+# (observe, assert, sessions, doctor). Declaring reads as reads is what lets a
+# host stop interrupting them, and the hint is cheap insurance even where the
+# client ignores it.
+READ_ONLY = ToolAnnotations(
+    readOnlyHint=True, idempotentHint=True, openWorldHint=False,
+)
+WRITES = ToolAnnotations(
+    readOnlyHint=False, destructiveHint=False, openWorldHint=True,
+)
+WRITES_LOCAL = ToolAnnotations(
+    readOnlyHint=False, destructiveHint=False, openWorldHint=False,
+)
 
 
 # ----------------------------------------------------------------- helpers
@@ -162,7 +182,7 @@ def _render_act(payload: dict, verbose: bool = False) -> str:
 # -------------------------------------------------------------------- tools
 
 
-@SERVER.tool()
+@SERVER.tool(annotations=WRITES)
 def browser_open(url: str, session: str = "default", hint: str = "") -> str:
     """Open a URL in a new owned tab and return the element table.
 
@@ -181,7 +201,7 @@ def browser_open(url: str, session: str = "default", hint: str = "") -> str:
         return _error(exc)
 
 
-@SERVER.tool()
+@SERVER.tool(annotations=READ_ONLY)
 def browser_observe(session: str = "default", mode: str = "auto",
                     include_text: bool = True, include_json: bool = False) -> str:
     """Re-read the page: new element table, or a delta if little changed.
@@ -201,7 +221,7 @@ def browser_observe(session: str = "default", mode: str = "auto",
         return _error(exc)
 
 
-@SERVER.tool()
+@SERVER.tool(annotations=WRITES)
 def browser_act(ops: list[dict], session: str = "default", dry_run: bool = False,
                 stop_on_error: bool = True, observe_after: bool = True) -> str:
     """Execute one or more ops in order, then return a delta observation.
@@ -239,7 +259,7 @@ def browser_act(ops: list[dict], session: str = "default", dry_run: bool = False
         return _error(exc)
 
 
-@SERVER.tool()
+@SERVER.tool(annotations=READ_ONLY)
 def browser_assert(checks: list[dict], session: str = "default") -> str:
     """Verify the current page against deterministic checks. Returns pass/fail.
 
@@ -271,7 +291,7 @@ def browser_assert(checks: list[dict], session: str = "default") -> str:
         return _error(exc)
 
 
-@SERVER.tool()
+@SERVER.tool(annotations=WRITES)
 def browser_macro(action: str, session: str = "default", name: str = "",
                   params: dict | None = None, goal: str = "",
                   start_url: str = "", threshold: float = 0.7) -> str:
@@ -347,7 +367,7 @@ STALE_REF_REASONS = {"detached", "page_changed", "target_changed", "unknown_ref"
 STALE_REF_RETRIES = 3
 
 
-@SERVER.tool()
+@SERVER.tool(annotations=WRITES)
 def browser_goal(goal: str, session: str = "default", max_steps: int = 20,
                  verify: list[dict] | None = None, verbose: bool = False) -> str:
     """Run a whole goal inside the server (turbo mode). Needs a decision-model key.
@@ -485,7 +505,7 @@ def browser_goal(goal: str, session: str = "default", max_steps: int = 20,
         return _error(exc)
 
 
-@SERVER.tool()
+@SERVER.tool(annotations=WRITES_LOCAL)
 def browser_tabs(session: str = "default", action: str = "list", index: int = -1,
                  target_id: str = "", url: str = "about:blank") -> str:
     """List, open, switch to, or close tabs.
@@ -517,13 +537,13 @@ def browser_tabs(session: str = "default", action: str = "list", index: int = -1
         return _error(exc)
 
 
-@SERVER.tool()
+@SERVER.tool(annotations=READ_ONLY)
 def browser_sessions() -> str:
     """List open sessions (independent owned tabs)."""
     return "\n".join(f"  {name}" for name in sorted(MANAGER._sessions)) or "no sessions"
 
 
-@SERVER.tool()
+@SERVER.tool(annotations=WRITES_LOCAL)
 def browser_close(session: str = "default", shutdown_browser: bool = False) -> str:
     """Close a session's tab. Set shutdown_browser=True to stop the browser too.
 
@@ -539,7 +559,7 @@ def browser_close(session: str = "default", shutdown_browser: bool = False) -> s
     return f"closed {closed or 'nothing'}"
 
 
-@SERVER.tool()
+@SERVER.tool(annotations=READ_ONLY)
 def browser_doctor() -> str:
     """Report environment: browser binary, connection, keys, and policy envelope.
 
