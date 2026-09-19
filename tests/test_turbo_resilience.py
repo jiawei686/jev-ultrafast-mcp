@@ -286,3 +286,67 @@ def test_a_provider_failure_mid_goal_keeps_what_the_goal_already_did(monkeypatch
 
     assert "turbo_unavailable" in out, out
     assert "1. CLICK e1" in out and "2. CLICK e1" in out, out
+
+
+# --------------------------------------------------------------- what it cost
+
+@pytest.mark.parametrize(
+    "usage,expected",
+    [
+        ({"total_tokens": 500, "prompt_tokens": 400, "completion_tokens": 100}, 500),
+        ({"prompt_tokens": 400, "completion_tokens": 100}, 500),
+        ({"input_tokens": 400, "output_tokens": 100}, 500),
+        ({"totalTokens": 500}, 500),
+        ({}, 0),
+        (None, 0),
+        ("500", 0),
+        ({"total_tokens": True}, 0),
+        ({"cached_tokens": 12}, 0),
+    ],
+    ids=["total-wins", "prompt-completion", "input-output", "camel", "empty", "none", "not-a-dict",
+         "bool-is-not-a-count", "unknown-key"],
+)
+def test_the_token_count_does_not_double_count_a_total(usage, expected):
+    """Routes name the same two numbers differently, and some add a total.
+
+    Summing every key that contains "token" would add a total to its own parts
+    and report twice what the goal spent — an inflated number in the one line a
+    reader uses to judge whether delegating is worth it.
+    """
+    assert server._tokens(usage) == expected
+
+
+def test_a_goal_reports_what_the_handoff_cost(monkeypatch):
+    """The claim is that delegating saves the caller turns; this is the bill.
+
+    Both halves matter: how many decisions the server made on the caller's
+    behalf, and how much of the wall time was the model versus the page. A
+    server that spends the caller's money owes them the count.
+    """
+    session = _FakeSession([_ok(), _ok()])
+    decisions = [
+        {"operation": "CLICK", "ref": "e1", "confidence": 0.9, "latency_ms": 300,
+         "usage": {"prompt_tokens": 400, "completion_tokens": 20}},
+        {"operation": "CLICK", "ref": "e1", "confidence": 0.9, "latency_ms": 300,
+         "usage": {"total_tokens": 500, "prompt_tokens": 400, "completion_tokens": 100}},
+        {"operation": "DONE", "ref": None, "confidence": 0.9, "latency_ms": 250,
+         "usage": {"prompt_tokens": 300, "completion_tokens": 10}},
+    ]
+
+    out, _seen = _drive(monkeypatch, session, decisions)
+
+    assert "turbo: 3 decisions" in out, out
+    assert "1,230 tokens" in out, out
+    assert "0.8s model" in out, out
+
+
+def test_a_goal_that_never_reached_the_model_reports_no_cost(monkeypatch):
+    """A refused plan costs nothing, and must not print a budget that implies otherwise."""
+    session = _FakeSession([])
+    monkeypatch.setattr(server.policy, "available", lambda _cfg: False)
+    monkeypatch.setattr(server, "_session", lambda _name: session)
+
+    out = server.browser_goal("do the thing", verbose=True)
+
+    assert "turbo_unavailable" in out, out
+    assert "turbo: " not in out, out

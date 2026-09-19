@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import atexit
 import json
+import time
 
 from mcp.server import MCPServer
 
@@ -108,6 +109,27 @@ def _error(exc: Exception) -> str:
         # there is no key; a key that stopped working is the same instruction.
         return f"turbo_unavailable: {exc}"
     return f"error({type(exc).__name__}): {exc}"
+
+
+def _tokens(usage: object) -> int:
+    """The token count a provider reported, under whichever names it chose.
+
+    Routes spell the same two numbers differently and some add a total: summing
+    every key that contains "token" would count a total alongside its own parts
+    and report double what was spent. Prefer the total when it is there.
+    """
+    if not isinstance(usage, dict):
+        return 0
+    for key in ("total_tokens", "totalTokens"):
+        value = usage.get(key)
+        if isinstance(value, int) and not isinstance(value, bool):
+            return value
+    total = 0
+    for key in ("prompt_tokens", "input_tokens", "completion_tokens", "output_tokens"):
+        value = usage.get(key)
+        if isinstance(value, int) and not isinstance(value, bool):
+            total += value
+    return total
 
 
 def _render_act(payload: dict, verbose: bool = False) -> str:
@@ -349,12 +371,17 @@ def browser_goal(goal: str, session: str = "default", max_steps: int = 20,
                 "Drive the same loop yourself: browser_observe → pick a ref → browser_act.")
     try:
         tab = _session(session)
+        started = time.perf_counter()
         observation = tab.observe()
         trace: list[str] = []
         status = "running"
         steps = 0
         stale = 0        # re-observations spent on the step currently in flight
         recovered = 0    # re-observations spent by the goal as a whole
+        calls = 0        # decision requests, including the one that said DONE
+        model_ms = 0     # time spent waiting on the decision model
+        browser_ms = 0   # time spent waiting on the page
+        tokens = 0
         while steps < max_steps:
             history = [{"op": step.op, "ref": step.ref, "target": step.target, "ok": step.ok}
                        for step in tab.history[-10:]]
@@ -368,6 +395,9 @@ def browser_goal(goal: str, session: str = "default", max_steps: int = 20,
                 status = f"turbo_unavailable: {exc}"
                 trace.append(f"  !   step {steps + 1}: {exc}")
                 break
+            calls += 1
+            model_ms += decision.get("latency_ms") or 0
+            tokens += _tokens(decision.get("usage"))
             operation = decision["operation"]
             if operation in {"DONE", "BLOCKED"}:
                 status = operation.lower()
@@ -400,6 +430,7 @@ def browser_goal(goal: str, session: str = "default", max_steps: int = 20,
                 observation = tab.observe()
                 continue
             stale = 0
+            browser_ms += step_result.get("ms") or 0
             trace.append(
                 f"  {steps}. {operation} {decision.get('ref') or ''} "
                 f"{decision.get('target') or ''} → {'ok' if step_result['ok'] else error} "
@@ -430,6 +461,16 @@ def browser_goal(goal: str, session: str = "default", max_steps: int = 20,
                 status = "done"
 
         lines = [f"goal: {goal}", f"status: {status}", f"steps: {steps}"]
+        if calls:
+            # What the handoff cost, in units the caller can check for itself.
+            # The whole argument for delegating a browser flow is that the agent
+            # spends one turn instead of one per click, so the numbers behind
+            # that claim belong in the answer rather than in a README.
+            lines.append(
+                f"turbo: {calls} decision{'s' if calls != 1 else ''} · {tokens:,} tokens · "
+                f"{model_ms / 1000:.1f}s model + {browser_ms / 1000:.1f}s page · "
+                f"{time.perf_counter() - started:.1f}s wall"
+            )
         if verbose:
             lines.append("trace:")
             lines.extend(trace)
