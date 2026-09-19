@@ -1,0 +1,1843 @@
+{
+  "generator": "chrome-extension/test/make_fixtures.py",
+  "note": "Every `expected` string is produced by the real Python renderer (observe.Observation.from_raw(...).render(...)). The JavaScript port in chrome-extension/lib/render.js must reproduce each one exactly.",
+  "server_max_text": 6000,
+  "cases": [
+    {
+      "name": "flags-and-bodies",
+      "why": "every flag (*, ⊘, », ▾, ✓, ·) and every body shape (plain, editable, secret, options, file, context) in one table",
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "Search flights — one way or round trip.",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 11,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "link",
+            "name": "Skip to main content",
+            "label": "Skip to main content",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "name": "Submit",
+            "label": "Submit",
+            "value": "",
+            "editable": false,
+            "occluded": true,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e3",
+            "role": "textbox",
+            "name": "Where from?",
+            "label": "Where from?",
+            "value": "San Francisco",
+            "editable": true,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e4",
+            "role": "textbox",
+            "name": "Password",
+            "label": "Password",
+            "value": "hunter2",
+            "editable": true,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": true,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e5",
+            "role": "combobox",
+            "name": "Passengers",
+            "label": "Passengers",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": "1 adult",
+            "options": [
+              {
+                "ref": "e5:1",
+                "label": "1 adult",
+                "value": "1",
+                "selected": true
+              },
+              {
+                "ref": "e5:2",
+                "label": "2 adults",
+                "value": "2",
+                "selected": false
+              },
+              {
+                "ref": "e5:3",
+                "label": "3 adults",
+                "value": "3",
+                "selected": false
+              }
+            ],
+            "opts_total": 3,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e6",
+            "role": "checkbox",
+            "name": "Nonstop only",
+            "label": "Nonstop only",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": true,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e7",
+            "role": "radio",
+            "name": "Round trip",
+            "label": "Round trip",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": false,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e8",
+            "role": "button",
+            "name": "Advanced options",
+            "label": "Advanced options",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": "true",
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e9",
+            "role": "button",
+            "name": "Off-screen button",
+            "label": "Off-screen button",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": false,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e10",
+            "role": "file",
+            "name": "Upload CV",
+            "label": "Upload CV",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": ".pdf,.txt",
+            "multiple": true
+          },
+          {
+            "ref": "e11",
+            "role": "button",
+            "name": "Book",
+            "label": "Book",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "Outbound",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e12",
+            "role": "link",
+            "name": "Book",
+            "label": "Book",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "Return",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e13",
+            "role": "spinbutton",
+            "name": "Adults",
+            "label": "Adults",
+            "value": "2",
+            "editable": true,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 1,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "previous": null,
+      "new_tabs": [],
+      "options": {
+        "mode": "auto",
+        "includeText": true,
+        "focus": null,
+        "maxText": 6000,
+        "sequence": 3,
+        "maskSecrets": true
+      },
+      "expected": "[obs#3] https://example.com/flights  \"Flights\"  scroll=0/1240  reachable=11/13  (offscreen 1, » = will scroll on act)\ne1   lnk    Skip to main content\ne2   btn⊘   Submit\ne3   inp*   Where from? ▸ \"San Francisco\"\ne4   inp*   Password ▸ \"«hidden»\"\ne5   cmb    Passengers ▸ 1 adult opts{1 adult=1 | 2 adults=2 | 3 adults=3}\ne6   chk✓   Nonstop only\ne7   rad·   Round trip\ne8   btn▾   Advanced options\ne9   btn»   Off-screen button\ne10  file    Upload CV accept=.pdf,.txt [multiple]\ne11  btn    Book  @Outbound\ne12  lnk    Book  @Return\ne13  spin*   Adults ▸ \"2\"\ntext:\nSearch flights — one way or round trip."
+    },
+    {
+      "name": "truncation",
+      "why": "the _short limits (160/120/100/24/18) and the code-point ellipsis, with an emoji straddling the cut so UTF-16 slicing would diverge from Python",
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "text": "w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w ",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 4,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "🚀 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "label": "🚀 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "textbox",
+            "name": "Notes",
+            "label": "Notes",
+            "value": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+            "editable": true,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e3",
+            "role": "combobox",
+            "name": "City",
+            "label": "City",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ",
+            "options": [
+              {
+                "ref": "e3:1",
+                "label": "🛫 llllllllllllllllllllllllllllllllllllllll",
+                "value": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
+              },
+              {
+                "ref": "e3:2",
+                "label": "short",
+                "value": "short"
+              }
+            ],
+            "opts_total": 2,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e4",
+            "role": "button",
+            "name": "Long context button",
+            "label": "Long context button",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "previous": null,
+      "new_tabs": [],
+      "options": {
+        "mode": "auto",
+        "includeText": true,
+        "focus": null,
+        "maxText": 6000,
+        "sequence": 3,
+        "maskSecrets": true
+      },
+      "expected": "[obs#3] https://example.com/flights  \"TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT…\"  scroll=0/1240  reachable=4/4\ne1   btn    🚀 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…\ne2   inp*   Notes ▸ \"yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…\"\ne3   cmb    City ▸ ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ… opts{🛫 lllllllllllllllllllll…=vvvvvvvvvvvvvvvvv… | short}\ne4   btn    Long context button  @ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc…\ntext:\nw w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w w…"
+    },
+    {
+      "name": "option-overflow",
+      "why": "12 options against the 8-option cutoff, so the `+4` counter appears; mode=full lifts the cutoff to 20 and also suppresses context",
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "combobox",
+            "name": "Seat",
+            "label": "Seat",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": "12A",
+            "options": [
+              {
+                "ref": "e1:1",
+                "label": "Seat 1",
+                "value": "1",
+                "selected": false
+              },
+              {
+                "ref": "e1:2",
+                "label": "Seat 2",
+                "value": "2",
+                "selected": false
+              },
+              {
+                "ref": "e1:3",
+                "label": "Seat 3",
+                "value": "3",
+                "selected": false
+              },
+              {
+                "ref": "e1:4",
+                "label": "Seat 4",
+                "value": "4",
+                "selected": false
+              },
+              {
+                "ref": "e1:5",
+                "label": "Seat 5",
+                "value": "5",
+                "selected": false
+              },
+              {
+                "ref": "e1:6",
+                "label": "Seat 6",
+                "value": "6",
+                "selected": false
+              },
+              {
+                "ref": "e1:7",
+                "label": "Seat 7",
+                "value": "7",
+                "selected": false
+              },
+              {
+                "ref": "e1:8",
+                "label": "Seat 8",
+                "value": "8",
+                "selected": false
+              },
+              {
+                "ref": "e1:9",
+                "label": "Seat 9",
+                "value": "9",
+                "selected": false
+              },
+              {
+                "ref": "e1:10",
+                "label": "Seat 10",
+                "value": "10",
+                "selected": false
+              },
+              {
+                "ref": "e1:11",
+                "label": "Seat 11",
+                "value": "11",
+                "selected": false
+              },
+              {
+                "ref": "e1:12",
+                "label": "Seat 12",
+                "value": "12",
+                "selected": true
+              }
+            ],
+            "opts_total": 12,
+            "secret": false,
+            "context": "Cabin",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "previous": null,
+      "new_tabs": [],
+      "options": {
+        "mode": "auto",
+        "includeText": true,
+        "focus": null,
+        "maxText": 6000,
+        "sequence": 3,
+        "maskSecrets": true
+      },
+      "expected": "[obs#3] https://example.com/flights  \"Flights\"  scroll=0/1240  reachable=1/1\ne1   cmb    Seat ▸ 12A opts{Seat 1=1 | Seat 2=2 | Seat 3=3 | Seat 4=4 | Seat 5=5 | Seat 6=6 | Seat 7=7 | Seat 8=8 +4}  @Cabin"
+    },
+    {
+      "name": "option-overflow-detail",
+      "why": "the same table at mode=full: 20-option cutoff, no context suffix",
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "combobox",
+            "name": "Seat",
+            "label": "Seat",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": "12A",
+            "options": [
+              {
+                "ref": "e1:1",
+                "label": "Seat 1",
+                "value": "1",
+                "selected": false
+              },
+              {
+                "ref": "e1:2",
+                "label": "Seat 2",
+                "value": "2",
+                "selected": false
+              },
+              {
+                "ref": "e1:3",
+                "label": "Seat 3",
+                "value": "3",
+                "selected": false
+              },
+              {
+                "ref": "e1:4",
+                "label": "Seat 4",
+                "value": "4",
+                "selected": false
+              },
+              {
+                "ref": "e1:5",
+                "label": "Seat 5",
+                "value": "5",
+                "selected": false
+              },
+              {
+                "ref": "e1:6",
+                "label": "Seat 6",
+                "value": "6",
+                "selected": false
+              },
+              {
+                "ref": "e1:7",
+                "label": "Seat 7",
+                "value": "7",
+                "selected": false
+              },
+              {
+                "ref": "e1:8",
+                "label": "Seat 8",
+                "value": "8",
+                "selected": false
+              },
+              {
+                "ref": "e1:9",
+                "label": "Seat 9",
+                "value": "9",
+                "selected": false
+              },
+              {
+                "ref": "e1:10",
+                "label": "Seat 10",
+                "value": "10",
+                "selected": false
+              },
+              {
+                "ref": "e1:11",
+                "label": "Seat 11",
+                "value": "11",
+                "selected": false
+              },
+              {
+                "ref": "e1:12",
+                "label": "Seat 12",
+                "value": "12",
+                "selected": true
+              }
+            ],
+            "opts_total": 12,
+            "secret": false,
+            "context": "Cabin",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "previous": null,
+      "new_tabs": [],
+      "options": {
+        "mode": "full",
+        "includeText": true,
+        "focus": null,
+        "maxText": 6000,
+        "sequence": 3,
+        "maskSecrets": true
+      },
+      "expected": "[obs#3] https://example.com/flights  \"Flights\"  scroll=0/1240  reachable=1/1\ne1   cmb    Seat ▸ 12A opts{Seat 1=1 | Seat 2=2 | Seat 3=3 | Seat 4=4 | Seat 5=5 | Seat 6=6 | Seat 7=7 | Seat 8=8 | Seat 9=9 | Seat 10=10 | Seat 11=11 | Seat 12=12}"
+    },
+    {
+      "name": "empty-table",
+      "why": "a page with no actionable elements still renders a header and says so",
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 0,
+        "actions": [],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "previous": null,
+      "new_tabs": [],
+      "options": {
+        "mode": "auto",
+        "includeText": true,
+        "focus": null,
+        "maxText": 6000,
+        "sequence": 3,
+        "maskSecrets": true
+      },
+      "expected": "[obs#3] https://example.com/flights  \"Flights\"  scroll=0/1240  reachable=0/0\n  (no actionable elements visible)"
+    },
+    {
+      "name": "overlays-and-frames",
+      "why": "the three header warnings: a modal overlay, cross-origin frames, and a new tab",
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Accept",
+            "label": "Accept",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [
+          {
+            "role": "dialog",
+            "name": "Cookie consent",
+            "modal": true
+          },
+          {
+            "role": "alertdialog",
+            "name": "",
+            "modal": false
+          }
+        ],
+        "cross_frames": 2,
+        "cross_frame_srcs": [
+          "https://ads.example.com/a",
+          "https://tracker.example/b"
+        ],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "previous": null,
+      "new_tabs": [
+        {
+          "url": "https://example.com/step2",
+          "target_id": "T2"
+        }
+      ],
+      "options": {
+        "mode": "auto",
+        "includeText": true,
+        "focus": null,
+        "maxText": 6000,
+        "sequence": 3,
+        "maskSecrets": true
+      },
+      "expected": "[obs#3] https://example.com/flights  \"Flights\"  scroll=0/1240  reachable=1/1\n  ! dialog open: Cookie consent [modal]\n  ! dialog open: alertdialog\n  ! 2 cross-origin frame(s) not readable (https://ads.example.com/a, https://tracker.example/b)\n  ! NEW TAB opened: https://example.com/step2 → switch with {'op':'tab','action':'switch','target_id':'T2'}\ne1   btn    Accept"
+    },
+    {
+      "name": "counters",
+      "why": "the `omitted` and `offscreen` counters, which ride in the header rather than on a line",
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Visible",
+            "label": "Visible",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "name": "Below the fold",
+            "label": "Below the fold",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": false,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "name": "Also below",
+            "label": "Also below",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": false,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 7,
+        "offscreen": 2,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "previous": null,
+      "new_tabs": [],
+      "options": {
+        "mode": "auto",
+        "includeText": true,
+        "focus": null,
+        "maxText": 6000,
+        "sequence": 3,
+        "maskSecrets": true
+      },
+      "expected": "[obs#3] https://example.com/flights  \"Flights\"  scroll=0/1240  reachable=1/3  (omitted 7 low-priority)  (offscreen 2, » = will scroll on act)\ne1   btn    Visible\ne2   btn»   Below the fold\ne3   btn»   Also below"
+    },
+    {
+      "name": "no-text",
+      "why": "includeText with an empty page text emits no `text:` block",
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Only",
+            "label": "Only",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "previous": null,
+      "new_tabs": [],
+      "options": {
+        "mode": "auto",
+        "includeText": true,
+        "focus": null,
+        "maxText": 6000,
+        "sequence": 3,
+        "maskSecrets": true
+      },
+      "expected": "[obs#3] https://example.com/flights  \"Flights\"  scroll=0/1240  reachable=1/1\ne1   btn    Only"
+    },
+    {
+      "name": "text-suppressed",
+      "why": "includeText=False drops the block even when the page has text",
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "Some page words.",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Only",
+            "label": "Only",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "previous": null,
+      "new_tabs": [],
+      "options": {
+        "mode": "auto",
+        "includeText": false,
+        "focus": null,
+        "maxText": 6000,
+        "sequence": 3,
+        "maskSecrets": true
+      },
+      "expected": "[obs#3] https://example.com/flights  \"Flights\"  scroll=0/1240  reachable=1/1\ne1   btn    Only"
+    },
+    {
+      "name": "secret-masking",
+      "why": "the observer's own `secret` flag and the server's name-pattern mask both hide the value",
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 4,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "textbox",
+            "name": "Card number",
+            "label": "Card number",
+            "value": "4111111111111111",
+            "editable": true,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "textbox",
+            "name": "Search",
+            "label": "Search",
+            "value": "not a secret",
+            "editable": true,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e3",
+            "role": "textbox",
+            "name": "API key",
+            "label": "API key",
+            "value": "sk-live-abc",
+            "editable": true,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e4",
+            "role": "textbox",
+            "name": "Empty secret",
+            "label": "Empty secret",
+            "value": "",
+            "editable": true,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": true,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "previous": null,
+      "new_tabs": [],
+      "options": {
+        "mode": "auto",
+        "includeText": true,
+        "focus": null,
+        "maxText": 6000,
+        "sequence": 3,
+        "maskSecrets": true
+      },
+      "expected": "[obs#3] https://example.com/flights  \"Flights\"  scroll=0/1240  reachable=4/4\ne1   inp*   Card number ▸ \"«hidden»\"\ne2   inp*   Search ▸ \"not a secret\"\ne3   inp*   API key ▸ \"«hidden»\"\ne4   inp*   Empty secret ▸ \"\""
+    },
+    {
+      "name": "delta-no-change",
+      "why": "an identical re-observation collapses to one line instead of the whole table",
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "Same text.",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 3,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "textbox",
+            "name": "Where from?",
+            "label": "Where from?",
+            "value": "Zurich",
+            "editable": true,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "checkbox",
+            "name": "Nonstop only",
+            "label": "Nonstop only",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": false,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "name": "Search",
+            "label": "Search",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "previous": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "Same text.",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 3,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "textbox",
+            "name": "Where from?",
+            "label": "Where from?",
+            "value": "Zurich",
+            "editable": true,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "checkbox",
+            "name": "Nonstop only",
+            "label": "Nonstop only",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": false,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "name": "Search",
+            "label": "Search",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "new_tabs": [],
+      "options": {
+        "mode": "auto",
+        "includeText": true,
+        "focus": null,
+        "maxText": 6000,
+        "sequence": 3,
+        "maskSecrets": true
+      },
+      "expected": "[delta#3] https://example.com/flights  \"Flights\"  scroll=0/1240  reachable=3/3\n  = no change (3 elements)"
+    },
+    {
+      "name": "delta-changes",
+      "why": "added, changed (with the was/now notes) and removed all at once, plus the tally line",
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "Same text.",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 3,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "textbox",
+            "name": "Where from?",
+            "label": "Where from?",
+            "value": "Lyon",
+            "editable": true,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "checkbox",
+            "name": "Nonstop only",
+            "label": "Nonstop only",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": true,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e4",
+            "role": "button",
+            "name": "Reset",
+            "label": "Reset",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "previous": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "Same text.",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 3,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "textbox",
+            "name": "Where from?",
+            "label": "Where from?",
+            "value": "Zurich",
+            "editable": true,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "checkbox",
+            "name": "Nonstop only",
+            "label": "Nonstop only",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": false,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "name": "Search",
+            "label": "Search",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "new_tabs": [],
+      "options": {
+        "mode": "auto",
+        "includeText": true,
+        "focus": null,
+        "maxText": 6000,
+        "sequence": 3,
+        "maskSecrets": true
+      },
+      "expected": "[delta#3] https://example.com/flights  \"Flights\"  scroll=0/1240  reachable=3/3\n+ e4   btn    Reset\n~ e1   inp*   Where from? ▸ \"Lyon\"   (was \"Zurich\")\n~ e2   chk✓   Nonstop only\n- e3  (removed)\n  2 changed, 1 new, 1 gone"
+    },
+    {
+      "name": "delta-occlusion-note",
+      "why": "a change that is only occlusion reports (now covered) rather than a value diff",
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "Same text.",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 2,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "textbox",
+            "name": "Where from?",
+            "label": "Where from?",
+            "value": "Zurich",
+            "editable": true,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "checkbox",
+            "name": "Nonstop only",
+            "label": "Nonstop only",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": false,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "name": "Search",
+            "label": "Search",
+            "value": "",
+            "editable": false,
+            "occluded": true,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "previous": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "Same text.",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 3,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "textbox",
+            "name": "Where from?",
+            "label": "Where from?",
+            "value": "Zurich",
+            "editable": true,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "checkbox",
+            "name": "Nonstop only",
+            "label": "Nonstop only",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": false,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "name": "Search",
+            "label": "Search",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "new_tabs": [],
+      "options": {
+        "mode": "auto",
+        "includeText": true,
+        "focus": null,
+        "maxText": 6000,
+        "sequence": 3,
+        "maskSecrets": true
+      },
+      "expected": "[delta#3] https://example.com/flights  \"Flights\"  scroll=0/1240  reachable=2/3\n~ e3   btn⊘   Search   (now covered)\n  1 changed, 0 new, 0 gone"
+    },
+    {
+      "name": "delta-forced",
+      "why": "mode=delta with no previous observation degrades to a full table rather than crashing",
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "x",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Only",
+            "label": "Only",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "previous": null,
+      "new_tabs": [],
+      "options": {
+        "mode": "delta",
+        "includeText": true,
+        "focus": null,
+        "maxText": 6000,
+        "sequence": 3,
+        "maskSecrets": true
+      },
+      "expected": "[obs#3] https://example.com/flights  \"Flights\"  scroll=0/1240  reachable=1/1\ne1   btn    Only\ntext:\nx"
+    },
+    {
+      "name": "focus-detail",
+      "why": "focus= names a ref, which renders that line in detail (more options, no context)",
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "combobox",
+            "name": "Seat",
+            "label": "Seat",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": "12A",
+            "options": [
+              {
+                "ref": "e1:1",
+                "label": "Seat 1",
+                "value": "1",
+                "selected": false
+              },
+              {
+                "ref": "e1:2",
+                "label": "Seat 2",
+                "value": "2",
+                "selected": false
+              },
+              {
+                "ref": "e1:3",
+                "label": "Seat 3",
+                "value": "3",
+                "selected": false
+              },
+              {
+                "ref": "e1:4",
+                "label": "Seat 4",
+                "value": "4",
+                "selected": false
+              },
+              {
+                "ref": "e1:5",
+                "label": "Seat 5",
+                "value": "5",
+                "selected": false
+              },
+              {
+                "ref": "e1:6",
+                "label": "Seat 6",
+                "value": "6",
+                "selected": false
+              },
+              {
+                "ref": "e1:7",
+                "label": "Seat 7",
+                "value": "7",
+                "selected": false
+              },
+              {
+                "ref": "e1:8",
+                "label": "Seat 8",
+                "value": "8",
+                "selected": false
+              },
+              {
+                "ref": "e1:9",
+                "label": "Seat 9",
+                "value": "9",
+                "selected": false
+              },
+              {
+                "ref": "e1:10",
+                "label": "Seat 10",
+                "value": "10",
+                "selected": false
+              },
+              {
+                "ref": "e1:11",
+                "label": "Seat 11",
+                "value": "11",
+                "selected": false
+              },
+              {
+                "ref": "e1:12",
+                "label": "Seat 12",
+                "value": "12",
+                "selected": true
+              }
+            ],
+            "opts_total": 12,
+            "secret": false,
+            "context": "Cabin",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "previous": null,
+      "new_tabs": [],
+      "options": {
+        "mode": "auto",
+        "includeText": true,
+        "focus": [
+          "e1"
+        ],
+        "maxText": 6000,
+        "sequence": 3,
+        "maskSecrets": true
+      },
+      "expected": "[obs#3] https://example.com/flights  \"Flights\"  scroll=0/1240  reachable=1/1\ne1   cmb    Seat ▸ 12A opts{Seat 1=1 | Seat 2=2 | Seat 3=3 | Seat 4=4 | Seat 5=5 | Seat 6=6 | Seat 7=7 | Seat 8=8 | Seat 9=9 | Seat 10=10 | Seat 11=11 | Seat 12=12}"
+    },
+    {
+      "name": "cjk",
+      "why": "CJK names and a CJK title, which is the normal case for half this project's readers",
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "机票搜索",
+        "text": "单程或往返",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 2,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "提交",
+            "label": "提交",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "textbox",
+            "name": "出发地",
+            "label": "出发地",
+            "value": "北京",
+            "editable": true,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "previous": null,
+      "new_tabs": [],
+      "options": {
+        "mode": "auto",
+        "includeText": true,
+        "focus": null,
+        "maxText": 6000,
+        "sequence": 3,
+        "maskSecrets": true
+      },
+      "expected": "[obs#3] https://example.com/flights  \"机票搜索\"  scroll=0/1240  reachable=2/2\ne1   btn    提交\ne2   inp*   出发地 ▸ \"北京\"\ntext:\n单程或往返"
+    }
+  ]
+}

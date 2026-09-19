@@ -157,11 +157,19 @@ def _confirm_alive(port: int, process: subprocess.Popen, probes: int = 4, gap: f
             raise ChromeLaunchError(f"Chrome debugging endpoint stopped answering: {exc}") from None
 
 
-def launch_chrome(cfg: Config, *, headless: bool | None = None) -> tuple[Cdp, subprocess.Popen, Path]:
+def launch_chrome(cfg: Config, *, headless: bool | None = None,
+                  allow_extensions: bool = False) -> tuple[Cdp, subprocess.Popen, Path]:
     """Start a Chromium-family browser with remote debugging and connect to it.
 
     `sandbox="auto"` retries with `--no-sandbox` when the browser aborts on
     startup, which is what happens inside most CI/container runtimes.
+
+    `allow_extensions` is off by default because `--disable-extensions` is what keeps a
+    developer's own extensions out of a run, and a run that reads pages should not be at the mercy
+    of whatever else is installed. Turning it on is for the one caller that deliberately loads an
+    extension: the flag does not merely deprioritise extensions, it blocks their pages outright, so
+    a browser started with it answers a navigation to `chrome-extension://.../popup.html` with
+    `ERR_BLOCKED_BY_CLIENT` and no explanation of why.
     """
     binary = find_chrome(cfg.chrome)
     headless = cfg.headless if headless is None else headless
@@ -174,7 +182,11 @@ def launch_chrome(cfg: Config, *, headless: bool | None = None) -> tuple[Cdp, su
         f"--user-data-dir={profile}",
         f"--window-size={width},{height}",
         "--no-first-run", "--no-default-browser-check", "--disable-background-networking",
-        "--disable-component-update", "--disable-sync", "--disable-extensions",
+        "--disable-component-update", "--disable-sync",
+    ]
+    if not allow_extensions:
+        base.append("--disable-extensions")
+    base += [
         "--disable-features=Translate,OptimizationHints,MediaRouter",
         "--metrics-recording-only", "--password-store=basic", "--use-mock-keychain",
         "about:blank",

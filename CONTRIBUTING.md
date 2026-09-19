@@ -35,11 +35,16 @@ You need a Chromium-family browser on `PATH`, or point `JEVMCP_CHROME` at one.
 ```bash
 .venv/bin/ruff check .
 .venv/bin/python -m pytest -q
-.venv/bin/python scripts/smoke.py        # 58 checks against a real browser
-.venv/bin/python scripts/mcp_check.py    # 17 checks over real stdio MCP
+.venv/bin/python scripts/smoke.py            # 58 checks against a real browser
+.venv/bin/python scripts/mcp_check.py        # 17 checks over real stdio MCP
+.venv/bin/python scripts/extension_check.py  # 18 checks: the extension's table vs the server's
 ```
 
-All four must pass. `smoke.py --headed` lets you watch the browser drive.
+All five must pass. `smoke.py --headed` lets you watch the browser drive.
+
+`pytest` also runs the Chrome extension's parity test, which needs Node on `PATH`. It is not a
+dependency of this package, so that one case skips — loudly, naming `JEVMCP_NODE` — rather than
+passing quietly when Node is missing. CI installs Node, so a skip there means something is wrong.
 
 `scripts/live_check.py` is the fifth, and it is the only one that is optional: it drives real
 websites (Bing, DuckDuckGo) over real stdio MCP and therefore needs the network. Run it when you
@@ -52,6 +57,20 @@ lets Jev drive the fixture through a goal and then verifies the page with code. 
 touch `policy.py` or the loop in `browser_goal`. Turbo mode is where a bug costs money instead of
 time, and it is the one path no other check enters — a `KeyError` on the model's own correct answer
 lived through a fully green suite because of exactly that gap.
+
+`scripts/extension_check.py` is the seventh, and it is the only one that loads the Chrome extension
+in `chrome-extension/`. Run it whenever you touch `observe.py`, `js/observer.js`, or anything under
+`chrome-extension/`. The extension renders the element table with a port of `observe.py`, so a change
+to the renderer has two places to make it and one of them is JavaScript; the unit tests catch a drift
+between the port and Python, but only this check proves the manifest loads and that the popup reads a
+real page. It is also how both bugs in `observe.py`'s `from_raw` were found — `inViewport` and
+`offscreen` were emitted by the observer and never read, so the header advertised flags no row ever
+drew. Neither was visible from inside the repository.
+
+One thing it cannot check, and says so in its output: `activeTab` is granted by a real toolbar click,
+which no automation can produce, so the comparison runs against a throwaway copy of the extension
+with one added host permission. The shipped manifest is loaded too, and the check is that it declines
+a page it has no access to in words rather than throwing.
 
 `scripts/checkin.py` is not a check but the shortest honest exercise of the whole system, and it runs
 without a key:
@@ -174,13 +193,17 @@ in a user's client.
 
 ### What to keep in sync when releasing
 
-Three places name the project or its version, and stale copies are the ones that mislead a search
+Four places name the project or its version, and stale copies are the ones that mislead a search
 engine or a client:
 
 - `pyproject.toml` — `version`, and the `description` / `keywords` / `classifiers` that are also what
   a search result shows.
 - `server.json` — `version`, and the package version it references.
+- `chrome-extension/manifest.json` — `version`, which tracks the package because the extension ships
+  the package's observer and Chrome shows that number next to the name.
 - `CHANGELOG.md` — the release section, which is the page people land on from the releases tab.
+
+`tests/test_docs.py` fails if any of those disagree, `__init__.py` and `server.py` included.
 
 ## Security
 

@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "jev-ultrafast-mcp — element table",
+  "version": "0.1.4",
+  "description": "See the element table jev-ultrafast-mcp hands a model: the same observer, the same renderer, the same refs.",
+  "homepage_url": "https://github.com/jiawei686/jev-ultrafast-mcp",
+  "minimum_chrome_version": "95",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "action": {
+    "default_title": "Observe this page",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

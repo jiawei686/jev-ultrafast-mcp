@@ -22,6 +22,12 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
+      # The Chrome extension is a port of the renderer, and its parity test runs in Node. Without
+      # this the pytest case skips and the port could drift unnoticed.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Install
         run: |
           python -m pip install --upgrade pip
@@ -65,12 +71,23 @@ jobs:
           set -o pipefail
           python -u scripts/mcp_check.py 2>&1 | tee mcp.log
 
+      # Loads chrome-extension/ into the browser and compares its table with the server's. Unit
+      # tests can prove the port matches Python; only this can prove the manifest loads and that the
+      # popup reads a real page. Exits 0 with a "skipped" line if the browser has no
+      # Extensions.loadUnpacked, so an older Chromium does not fail the build.
+      - name: Extension check (real browser)
+        id: extcheck
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          python -u scripts/extension_check.py 2>&1 | tee extension.log
+
       # Downloading job logs needs repo admin rights; annotations and the step
       # summary do not. So a failing run here is diagnosable from an API call.
       - name: Publish failure detail
-        if: steps.unit.outcome != 'success' || steps.smoke.outcome != 'success' || steps.mcpcheck.outcome != 'success'
+        if: steps.unit.outcome != 'success' || steps.smoke.outcome != 'success' || steps.mcpcheck.outcome != 'success' || steps.extcheck.outcome != 'success'
         run: |
-          for f in pytest.log smoke.log mcp.log; do
+          for f in pytest.log smoke.log mcp.log extension.log; do
             [ -f "$f" ] || continue
             {
               echo "### $f"
@@ -79,11 +96,11 @@ jobs:
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
           done
-          grep -h -F '[FAIL]' smoke.log mcp.log 2>/dev/null | head -25 | while IFS= read -r line; do
+          grep -h -F '[FAIL]' smoke.log mcp.log extension.log 2>/dev/null | head -25 | while IFS= read -r line; do
             echo "::error title=failing check::$(printf '%s' "$line" | sed 's/^ *//' | cut -c1-1800)"
           done
-          if grep -q -F 'Traceback' pytest.log smoke.log mcp.log 2>/dev/null; then
-            echo "::error title=script crashed::$(grep -h -A12 -F 'Traceback' pytest.log smoke.log mcp.log | tr '\n' '|' | cut -c1-1800)"
+          if grep -q -F 'Traceback' pytest.log smoke.log mcp.log extension.log 2>/dev/null; then
+            echo "::error title=script crashed::$(grep -h -A12 -F 'Traceback' pytest.log smoke.log mcp.log extension.log | tr '\n' '|' | cut -c1-1800)"
           fi
           if grep -q -F 'failed' pytest.log 2>/dev/null; then
             echo "::error title=pytest failed::$(grep -h -F 'scenario failed' -A8 pytest.log | tr '\n' '|' | cut -c1-1800)"

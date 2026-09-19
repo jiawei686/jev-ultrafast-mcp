@@ -92,10 +92,16 @@ def test_every_version_in_the_tree_agrees():
     `server.py` belongs in this list because it is the one a *client* sees: it is what the server
     answers `initialize` with. It sat outside this test for four releases -- the other sites were
     checked and the fifth was not -- which is exactly the silent drift the test exists to catch.
+
+    The extension's manifest is here for the same reason: Chrome shows that version next to the
+    name, and the extension ships the server's observer, so the two numbers describing one thing
+    should not be able to disagree.
     """
     entry = json.loads((ROOT / "server.json").read_text(encoding="utf-8"))
     init = (ROOT / "jev_ultrafast_mcp" / "__init__.py").read_text(encoding="utf-8")
     server = (ROOT / "jev_ultrafast_mcp" / "server.py").read_text(encoding="utf-8")
+    manifest = json.loads(
+        (ROOT / "chrome-extension" / "manifest.json").read_text(encoding="utf-8"))
 
     versions = {
         "pyproject.toml": _pyproject()["project"]["version"],
@@ -103,6 +109,7 @@ def test_every_version_in_the_tree_agrees():
         "server.json package": entry["packages"][0]["version"],
         "__init__.py": re.search(r'__version__ = "([^"]+)"', init).group(1),
         "server.py": re.search(r'version="([^"]+)"', server).group(1),
+        "chrome-extension/manifest.json": manifest["version"],
     }
 
     assert len(set(versions.values())) == 1, versions

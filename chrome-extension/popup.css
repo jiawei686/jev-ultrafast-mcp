@@ -1,0 +1,137 @@
+/* The popup is a small terminal for the element table, so it follows the palette the
+ * project already uses in `assets/make_social_preview.py`: dark panel, teal refs,
+ * amber roles. Light mode keeps the same structure and inverts the surfaces. */
+
+:root {
+  --bg: #0d1117;
+  --panel: #161e2a;
+  --edge: #303c4e;
+  --fg: #e6edf3;
+  --muted: #8b949e;
+  --dim: #6e7681;
+  --accent: #56cdb2;
+  --accent-2: #f0b45a;
+  --danger: #f0883e;
+  --radius: 10px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #ffffff;
+    --panel: #f6f8fa;
+    --edge: #d0d7de;
+    --fg: #1f2328;
+    --muted: #59636e;
+    --dim: #818b98;
+    --accent: #0f7b68;
+    --accent-2: #9a6700;
+    --danger: #bc4c00;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  width: 760px;
+  max-height: 600px;
+  margin: 0;
+  padding: 12px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+header { display: flex; flex-direction: column; gap: 2px; }
+
+h1 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.page {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+button {
+  padding: 5px 12px;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) { border-color: var(--muted); }
+button:disabled { opacity: 0.45; cursor: default; }
+
+button.primary {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.toggle {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input { accent-color: var(--accent); margin: 0; }
+
+.note {
+  margin: 0;
+  padding: 6px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--edge);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.note.error { border-color: var(--danger); color: var(--danger); }
+
+.table {
+  flex: 1 1 auto;
+  min-height: 160px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--fg);
+  font: 12px/1.55 "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  white-space: pre;
+  tab-size: 2;
+}
+
+.stats {
+  color: var(--dim);
+  font: 11px/1.4 "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

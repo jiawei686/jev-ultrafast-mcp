@@ -74,6 +74,10 @@ class Element:
             accept=raw.get("accept"),
             multiple=bool(raw.get("multiple")),
             label=_short(raw.get("label") or "", 160),
+            # The observer reports this as `inViewport`. Dropping it left `in_viewport`
+            # permanently True, so the `»` flag never rendered even though the header
+            # advertises it and counts the same elements in `offscreen`.
+            in_viewport=bool(raw.get("inViewport", True)),
         )
 
     # ---------------------------------------------------------------- helpers
@@ -198,6 +202,10 @@ class Observation:
             overlays=raw.get("overlays") or [],
             cross_frames=int(raw.get("cross_frames") or 0),
             cross_frame_srcs=raw.get("cross_frame_srcs") or [],
+            # The observer emits this; the header renders it. Reading it here is what makes the
+            # "(offscreen N, » = will scroll on act)" note truthful -- it used to be dropped, so
+            # the header promised a scroll affordance it never counted.
+            offscreen=int(raw.get("offscreen") or 0),
         )
 
     def find(self, role: str | None = None, name: str | None = None) -> list[Element]:

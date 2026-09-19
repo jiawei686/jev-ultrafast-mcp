@@ -858,8 +858,11 @@ def _error_code(exc: Exception) -> str:
 class BrowserManager:
     """Owns the browser connection and the named sessions on top of it."""
 
-    def __init__(self, cfg: Config):
+    def __init__(self, cfg: Config, *, allow_extensions: bool = False):
         self.cfg = cfg
+        # Only the extension check sets this. Everything else wants the browser a developer's own
+        # extensions cannot reach into -- see `launch_chrome`.
+        self.allow_extensions = allow_extensions
         self._cdp: Cdp | None = None
         self._process = None
         self._profile: Path | None = None
@@ -881,7 +884,8 @@ class BrowserManager:
                     open_timeout=max(60.0, self.cfg.call_timeout),
                 )
             else:
-                self._cdp, self._process, self._profile = launch_chrome(self.cfg)
+                self._cdp, self._process, self._profile = launch_chrome(
+                    self.cfg, allow_extensions=self.allow_extensions)
         return self._cdp
 
     def session(self, name: str = "default") -> Session:

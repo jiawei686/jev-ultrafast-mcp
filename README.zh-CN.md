@@ -395,6 +395,16 @@ e12  btn    Delete account
 [{"op": "click", "ok": false, "ref": "e999", "error": "detached"}]
 ```
 
+### 亲眼看看你自己页面的这张表
+
+[`chrome-extension/`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/chrome-extension/README.md)
+里的浏览器插件就是开在这张表上的一个窗口。以「加载已解压的扩展程序」装好后，在任意页面点一下，你看到的
+就是模型看到的那几行 —— 用的是**同一个 observer** 和 `observe.py` 的一份移植渲染器，所以插件里的 `ref`
+和会话里的 `ref` 指的是同一个东西。同一页面的第二次读取会渲染成 delta，正好用来看页面怎么变。
+
+它只要三个权限，且不要任何站点访问权：`activeTab`（只限你点它的那个标签页）、`scripting`、`storage`。
+插件不会对页面做任何操作 —— 它是用来读的，不是第二条驱动路径。
+
 ---
 
 ## 为什么还要再造一个浏览器 MCP？
@@ -737,14 +747,19 @@ scripts/
   mcp_check.py     走真实 stdio MCP 协议驱动服务端
   live_check.py    同上，但打真实网站（需要联网）
   turbo_check.py   让决策模型真的驱动一个浏览器（需要 key）
+  extension_check.py  加载 Chrome 插件，把它渲染的表和服务端的表逐字符对比
   checkin.py       真实签到：用模型学一次，之后零成本回放
+chrome-extension/
+  lib/observer.js  与 jev_ultrafast_mcp/js/observer.js 逐字节相同的副本
+  lib/render.js    observe.py 的移植版，用生成的 fixture 钉住它和真渲染器一致
 examples/
   checkin.html     checkin.py 驱动的那个「每日按钮」页面
 assets/
   social-preview.png      仓库被分享时 GitHub 展示的那张卡片
   make_social_preview.py  生成它 —— 上面的字是排出来的，不是模型画的
 llms.txt                  这个服务是什么，给「先读再推荐」的 agent 看
-server.json               官方 MCP registry 条目（等包上了 PyPI 才生效）
+server.json               官方 MCP registry 条目（它指向的包已在 PyPI 上；
+                          提交到 registry 这一步还没做）
 ```
 
 ## 开发

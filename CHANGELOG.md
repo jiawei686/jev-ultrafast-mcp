@@ -259,6 +259,46 @@ All notable changes to this project are documented here. The format follows
   because downloading job logs requires repo admin rights and a red X on a public repo was otherwise
   undiagnosable. Also bumped to `actions/checkout@v7` / `actions/setup-python@v7`.
 
+## [0.1.4] — 2026-09-20
+
+### Added
+
+- **A Chrome extension that shows the element table for the page you are on** —
+  [`chrome-extension/`](chrome-extension/README.md). Click it on any page and you get the same rows
+  the model gets, drawn by the server's own observer and a port of `observe.py`, so a `ref` in the
+  popup means what it means in a session. The second read of a page renders as a delta, which is how
+  you watch a page change. Three permissions and no host access: `activeTab` (the tab you clicked it
+  on, and nothing else), `scripting`, `storage`. Nothing in it acts on the page.
+- **`scripts/extension_check.py`** — loads the extension into a real Chrome and compares its table
+  with the server's, character for character, then does it again after opening the fixture's modal,
+  so the delta path and the overlay warning are covered too. It loads the shipped manifest first and
+  checks that it declines a page it has no access to in words rather than throwing: `activeTab` is
+  granted by a real toolbar click, which no automation can produce, so the comparison then runs
+  against a throwaway copy of the extension with one added host permission. The script says so in its
+  own output rather than leaving it implied.
+- `tests/test_extension.py` — the extension's contracts: the vendored observer is byte-identical to
+  the server's, the fixtures are what the generator produces, the manifest asks for no more than it
+  uses, the port still agrees with Python, and `popup.js` has not started formatting rows itself.
+
+### Fixed
+
+- **Two fields the observer emitted were dropped before the table was rendered.** `inViewport` was
+  never read, so `in_viewport` was permanently `True` and the `»` flag the header documents was
+  unreachable code; `offscreen` was never read, so "(offscreen N, » = will scroll on act)" always
+  printed a zero. Both are the same shape — a field the observer emits and `from_raw` ignores — and
+  neither was visible from inside the repository. They surfaced as parity failures between the port
+  and the real renderer, which is the whole argument for having a port and a parity harness.
+- **`launch_chrome` can now load an extension**, via `allow_extensions=True`. `--disable-extensions`
+  does not merely deprioritise extensions, it blocks their pages outright: a browser started with it
+  answers a navigation to `chrome-extension://…/popup.html` with `ERR_BLOCKED_BY_CLIENT` and no
+  explanation of why.
+
+### Changed
+
+- Both READMEs and `llms.txt` describe the extension, and `CONTRIBUTING.md`'s check list grew from six
+  to seven. `test_every_version_in_the_tree_agrees` now covers `chrome-extension/manifest.json` too,
+  so the two numbers describing one thing cannot drift apart.
+
 ## [0.1.3] — 2026-09-20
 
 ### Fixed
@@ -339,7 +379,8 @@ First public release.
 - **Verification** — 51-check end-to-end smoke suite against a real browser, 17-check real-stdio MCP
   suite, and 5 pytest unit tests.
 
-[Unreleased]: https://github.com/jiawei686/jev-ultrafast-mcp/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/jiawei686/jev-ultrafast-mcp/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/jiawei686/jev-ultrafast-mcp/releases/tag/v0.1.4
 [0.1.3]: https://github.com/jiawei686/jev-ultrafast-mcp/releases/tag/v0.1.3
 [0.1.2]: https://github.com/jiawei686/jev-ultrafast-mcp/releases/tag/v0.1.2
 [0.1.1]: https://github.com/jiawei686/jev-ultrafast-mcp/releases/tag/v0.1.1

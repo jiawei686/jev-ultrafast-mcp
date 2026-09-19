@@ -418,6 +418,19 @@ And a ref that no longer points at anything is refused, with a reason instead of
 [{"op": "click", "ok": false, "ref": "e999", "error": "detached"}]
 ```
 
+### See that table for your own page
+
+The extension in
+[`chrome-extension/`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/chrome-extension/README.md)
+is a window on it. Load it unpacked, click it on any page, and you get the same rows the model gets —
+drawn by the same observer and a port of the same renderer, so a `ref` in the popup means what it
+means in a session. The second read of a page renders as a delta, which is how you watch a page
+change.
+
+It asks for three permissions and no host access at all: `activeTab` (the tab you clicked it on, and
+nothing else), `scripting`, and `storage`. Nothing in it acts on the page; it is a way to read, not a
+second way to drive.
+
 ---
 
 ## Why another browser MCP?
@@ -795,14 +808,19 @@ scripts/
   mcp_check.py     drives the server over real stdio MCP
   live_check.py    the same, against real websites (needs the network)
   turbo_check.py   lets the decision model drive a real browser (needs a key)
+  extension_check.py  loads the Chrome extension and compares its table with the server's
   checkin.py       a real check-in: learn once with the model, then replay for free
+chrome-extension/
+  lib/observer.js  a byte-identical copy of jev_ultrafast_mcp/js/observer.js
+  lib/render.js    a port of observe.py, held to the real renderer by generated fixtures
 examples/
   checkin.html     the daily-button page checkin.py drives
 assets/
   social-preview.png      the card GitHub shows when this repository is shared
   make_social_preview.py  renders it, so the words on it are placed rather than generated
 llms.txt                  what this server is, for agents that read before recommending it
-server.json               the MCP registry entry (lands once the package is on PyPI)
+server.json               the MCP registry entry (the package it points at is on PyPI;
+                          submitting it to the registry is the step still outstanding)
 ```
 
 ## Development

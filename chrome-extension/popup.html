@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Element table</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <h1>Element table</h1>
+    <p id="page" class="page">Reading the active tab…</p>
+  </header>
+
+  <div class="controls">
+    <button id="observe" class="primary" type="button">Observe</button>
+    <button id="copy" type="button" disabled>Copy</button>
+    <label class="toggle">
+      <input id="text" type="checkbox">
+      page text
+    </label>
+  </div>
+
+  <p id="note" class="note" hidden></p>
+  <pre id="table" class="table">Press Observe to read this page.</pre>
+
+  <footer id="stats" class="stats"></footer>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
