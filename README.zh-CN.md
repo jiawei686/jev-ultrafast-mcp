@@ -6,20 +6,26 @@
 
 [English](README.md) · **简体中文**
 
-![给你的 AI agent 一双能真正操作浏览器的手](assets/social-preview.png)
+![把浏览器里的活交出去，让决策模型来跑](assets/social-preview.png)
 
-**给你的 AI agent 一双能真正操作浏览器的手 —— 一个做浏览器自动化的 MCP server。**
+**把浏览器里的活交出去 —— 一个能替你的 agent 开页面、点按钮的 MCP server。**
 
-打开网页、点按钮、填表单、读结果 —— 通过 WorkBuddy、Claude Code、Codex、Cursor、VS Code 这类
-MCP 客户端调用。**该做什么由你的 agent 决定**，这个服务负责把页面读得便宜、把点错元素变成不可能。
-不用 Playwright、不用 Selenium、也没有截图管线：它直接和本机的 Chrome 讲 CDP。
+大多数浏览器自动化是让 **agent 自己开**：读页面、挑一个元素、动手、再读一遍确认成不成功。点十次就是十个回合，页面每次都要过一遍 agent 的上下文，而点错元素通常不会有任何提示。
 
-- **起步不需要任何 API key**。打开网页、读页面、点击、断言、录宏、回放 —— 整个浏览器工具面都能用，
-  没什么要注册的，也没有 key 要填。
-- **这条路径上没有第二个模型**。你的 agent 本身就是大脑，这里只是手和眼睛。`browser_goal` 是唯一的
-  可选例外：把目标交给它，它就用一个决策模型（TypeSafe，或用一把 key 走 OpenRouter）在服务端自己
-  把循环跑完。
-- **不用截图**。页面被读成一张带编号的控件表，而不是一堆像素。
+这个服务可以把这活接过来。`browser_goal` 对你的 agent 来说只是**一次**工具调用；循环在这里、在服务端跑，由 Jev（TypeSafe 的决策模型）决定每一步。它**从不写选择器**：它只在页面真实存在的元素里挑，挑不中服务端就拒绝执行而不是猜。结束时 `browser_assert` 用代码核对它留下的页面，而**断言通过就压过模型自己的说辞**。
+
+- **一次调用顶一长串点击**。仓库里那个端到端实例：3 步的目标，真实页面上跑了 **4 次决策、14,626 tokens、
+  模型 1.8 s + 页面 1.1 s、总计 3.3 s** —— 而你的 agent 只花了一个回合。每次运行都会打印这些数字，
+  所以这是**能自己复核的**，不用听我讲。
+- **准确率来自结构，不来自叮嘱**。目标是元素表里的 `ref`，不是模型自己编出来的选择器或坐标；动作执行前
+  还会拿页面再核对一次。
+- **第一次之后免费**。把路径录下来，之后回放**零模型调用**、连 key 都不需要，页面变了它会拒绝乱点。
+- **只有文字，没有像素**。不截图、不 dump HTML，直接和本机已有的 Chrome 讲 CDP ——
+  不用 Playwright、不用 Selenium、没有截图管线。
+
+除了 `browser_goal` 之外的**所有**工具 —— `browser_open`、`browser_observe`、`browser_act`、
+`browser_assert`、`browser_macro` —— 都不需要 key、不需要账号、除了目标页面本身也不联任何网，
+WorkBuddy、Claude Code、Codex、Cursor、VS Code 都能接。你想自己握着方向盘，这套工具面照样在。
 
 ```
 browser_open  →  元素表  →  browser_act [refs]  →  browser_assert
@@ -62,9 +68,49 @@ browser_observe()
     = no change (1 element)
 ```
 
-然后它回答你。全程没有截图、没有 dump HTML、没有第二个模型参与。
+然后它回答你。全程没有截图、没有 dump HTML，页面也从未进过任何模型的上下文 —— 是你的 agent 自己读的表、自己答的。
 
-再看一个更真实的 —— 在真实站点上搜索：
+### 或者，把整件事交出去
+
+同一个服务，换一种分工。你的 agent 只发目标（不发页面），拿回来六行：
+
+```
+browser_goal(
+  goal="On this flight search form: set Passengers to 3 adults, tick the 'Nonstop only' "
+       "checkbox, then submit the search. Do not type into any city field.",
+  verify=[{"type": "text_contains", "text": "3 adults · nonstop"}],
+)
+
+goal: On this flight search form: set Passengers to 3 adults, …
+status: done
+steps: 3
+turbo: 4 decisions · 14,626 tokens · 1.8s model + 1.1s page · 3.3s wall
+trace:
+  1. SELECT e6 Passengers → ok (759ms model / 30ms browser)
+  2. TOGGLE e7 Nonstop only → ok (336ms model / 692ms browser)
+  3. CLICK e8 Search → ok (370ms model / 410ms browser)
+  4. DONE (conf 0.93)
+verified: PASS
+  ok text_contains: '3 adults · nonstop' found in page text
+```
+
+那三次动作、以及动作之间一次次的「再读一遍页面」，都发生在这里，**不在你 agent 的上下文里**。
+它花了一个回合，而且自始至终没见过元素表。这是**逐字实录**：`scripts/turbo_check.py` 用真实 Chrome
+和真实模型复现这段，跑完再**用代码核对页面**，而不是听模型自称成功。
+
+「谁来干活」是这个项目唯一重要的设计取舍，所以它由你按任务决定：
+
+| | agent 自己开 | **`browser_goal` 开** |
+|---|---|---|
+| 3 步流程的工具调用次数 | 6 次以上（observe、act、observe、act…） | **1 次** |
+| 页面在谁的上下文里 | 你的 agent | **决策模型，在服务端** |
+| 每一步的成本 | 一个 agent 回合 | 一次类型化请求，无截图 |
+| 谁指定目标元素 | 模型写选择器 | **模型从页面自己的元素表里挑 `ref`** |
+| 出错时 | 点错元素，通常无声无息 | **服务端拒绝执行，并给出原因** |
+| 怎么知道做成了 | 模型自己说 | **代码核对的断言，且冲突时断言说了算** |
+| 第二次做同一件事 | 再跑一遍模型 | **回放宏，零模型调用** |
+
+再看一个更真实的 —— 在真实站点上搜索，这次由你的 agent 自己开：
 
 ```
 browser_open("https://duckduckgo.com")
@@ -297,18 +343,25 @@ e12  btn    Delete account
 
 ## 为什么还要再造一个浏览器 MCP？
 
-多数浏览器 MCP 暴露的是 CDP 原语 —— `click_at_xy`、CSS 选择器、`evaluate`。灵活性拉满，安全性
-见底：每一步都依赖模型自己编一个选择器或坐标，编错了要么静默失败，要么更糟 —— 成功点在了错的
-元素上。
+两个不同点，第一个是它存在的理由。
 
-这个项目走反向取舍。模型只负责说**哪个**元素（`ref`）和**做什么**；把这个 ref 变成一次真实点击
-是服务端的事，而服务端**宁可拒绝，也不猜**。
+**允许 agent 不自己开。** 浏览器流程本质是个循环，而在多数服务里这个循环住在**调用方 agent** 身上：
+读页面 → 点一个元素 → 等 → 再读。两步还凑合，二十步就荒谬了 —— 为了做一件小模型一次调用就能干完的
+事，烧掉二十个昂贵上下文的回合。这里你可以把整个目标交出去（`browser_goal`），只付一个回合，让 Jev
+在服务端把循环跑完；也可以自己握着方向盘。两条路径用的是同一套工具、同一套护栏。
+
+**模型永远不会自己编一个目标。** 多数浏览器 MCP 暴露的是 CDP 原语 —— `click_at_xy`、CSS 选择器、
+`evaluate`。灵活性拉满，安全性见底：选择器写错要么静默失败，要么更糟 —— 点在了错的元素上，而它
+看起来成功了。这里目标是页面元素表里的 `ref`，把 ref 变成真实点击是服务端的事，服务端**宁可拒绝，
+也不猜**。这也正是「交出去」安全的由来：无论谁来开，它都是在页面**真实存在的选项**里挑，
+所以准确率不依赖它「足够小心」。
 
 | | 原语型浏览器 MCP | **jev-ultrafast-mcp** |
 |---|---|---|
-| agent 怎么瞄目标 | 自己写选择器 / 坐标 / JS | 从元素表里挑一个 `ref` |
-| 额外模型调用 | 无 | **无 —— 你的 agent 就是 policy**（可选的 `browser_goal` 会自己跑循环） |
-| 需要的 API key | 无 | **浏览器工具都不需要**；只有用 `browser_goal` 才需要一把决策模型的 key |
+| 谁跑这个循环 | 调用方 agent，每一步 | **都可以 —— `browser_goal` 让服务端来跑** |
+| 怎么指定目标 | 模型自己写选择器 / 坐标 / JS | **元素表里的一个 `ref`** |
+| 额外模型调用 | 无 | **自己开不需要；`browser_goal` 是可选的** |
+| 需要的 API key | 无 | **浏览器工具都不需要**；只有 `browser_goal` 需要一把决策模型的 key |
 | ref 生命周期 | 不适用（每步重造） | **跨观测稳定** |
 | 重读页面 | 每次全量 dump | **增量**：`+` 新增 / `~` 变更 / `-` 移除 / `= no change` |
 | 往返次数 | 每个动作一次 | **批量**：多个 op 一次往返 |
@@ -316,7 +369,7 @@ e12  btn    Delete account
 | Shadow DOM / iframe | 通常不支持 | **可穿透，滚动会带上 frame 偏移** |
 | 渲染慢的页面 | 靠 agent 自己 sleep | **等到控件出现为止，且有上限** |
 | 重复流程 | 重跑模型 | **宏回放，零模型成本** |
-| 怎么知道做成了 | 模型自己看页面 | **确定性 `browser_assert`** |
+| 怎么知道做成了 | 模型自己看页面 | **确定性 `browser_assert`，且与模型冲突时断言说了算** |
 | 危险点击 | 模型自己判断 | **`needs_confirmation`、域名白名单、敏感字段脱敏** |
 
 批量和增量不是锦上添花。在仓库自带的端到端测试里，27 个操作及其后续观察一共交给模型
@@ -391,6 +444,9 @@ e12  btn    Delete account
 或者用 `OPENROUTER_API_KEY` 并把 `TYPESAFE_BASE_URL` 指向 OpenRouter 的 decisions 路由。
 给了 `verify` 检查时返回 `verified: PASS/FAIL`。
 
+每次运行还会自报账单 —— `turbo: 4 decisions · 14,626 tokens · 1.8s model + 1.1s page · 3.3s wall`
+—— 交出去到底花了多少，直接写在返回值里，还告诉你总时间里模型占了多少、页面占了多少。
+
 决策模型所有可能的失败方式——没 key、没余额、连不上、返回的形状不对、返回的 body 不是 JSON——
 统一以 `turbo_unavailable:` 返回，且**不会执行任何动作**。已经走过的步骤仍保留在 trace 里，所以
 一个在第 5 步挂掉的 goal 依然会告诉你第 1–4 步做了什么。
@@ -448,6 +504,12 @@ e12  btn    Delete account
 ---
 
 ## 常见问题
+
+**所以这是让另一个模型来干活？那到底谁说了算？**
+你说了算，而且可以按任务挑。`browser_goal` 把**一个目标**的执行权交给 Jev —— 一个小型决策模型：
+该碰页面上的哪个元素，一步一步来。它不是通用 agent，目标之间没有记忆，也从不写代码或选择器，
+只在服务端递给它的选项里挑。**要做什么**仍然是你的 agent 决定的，**有没有做成**由 `verify` 决定。
+你如果想每一步都亲自过手，不调用那一个工具就行 —— 除此之外没有任何东西往外发。
 
 **需要 API key 或账号吗？**
 浏览器工具都不需要。`browser_open`、`browser_observe`、`browser_act`、`browser_assert`、

@@ -10,34 +10,46 @@
 
 ## The gap we fill
 
-jev-ultrafast proves that *choosing* beats *generating* for browser control. But its speed comes
-bundled with a second model on the critical path, and an MCP client **already is a capable model**.
-Pointing that architecture at MCP as-is means paying twice for intelligence and adding a round trip.
+jev-ultrafast proves that *choosing* beats *generating* for browser control, and it does the whole
+job in one process: a 7.1 s Google Flights run, ~101 protocol calls instead of ~1092. What it does
+not offer is a choice about **who drives**. It always spends a decision model on the critical path,
+needs two keys, and has no MCP surface — while the agent calling it is already a capable model
+sitting idle.
 
-So the thesis here is different:
+So the thesis here is that the choice belongs to the caller, and both halves have to be good:
 
-> **The calling agent is the policy. The server's job is to make the page cheap to read and
-> impossible to mis-aim at.**
+> **Hand the loop over when the flow is long enough to be worth it; drive it yourself when it is
+> not. Either way the server makes the page cheap to read and impossible to mis-aim at.**
 
-Everything below follows from that one decision.
+Everything below follows from that. The handoff is `browser_goal` — one tool call, the loop runs
+here, and a decision model picks each step from refs the page actually has. Driving it yourself is
+`browser_open` → `browser_observe` → `browser_act`, where the host agent is the policy and the
+server needs no key and no second model.
 
 ## Seven differentiators
 
-### 1. Zero extra model calls, zero keys on the default path
+### 1. The handoff is a tool call, not an architecture
 
-The default path needs no TypeSafe key and no text model. `browser_open` returns an indexed element
-table; the host agent picks a ref; `browser_act` executes it. One model call per step — the one the
-host was already making.
+A browser flow is a loop. Where that loop lives shapes everything else, and it should not be decided
+once for all tasks: a two-click login is not worth delegating, and a twenty-step checkout is not
+worth twenty turns of a frontier model's context.
 
-jev's architecture cannot do this: without `TYPESAFE_API_KEY` it has no policy at all.
+`browser_goal` runs the loop server-side. Your agent sends the goal — not the page — and pays one
+turn: **measured 4 decisions, 14,626 tokens, 1.8 s model + 1.1 s page, 3.3 s wall** for a three-step
+goal, and every run prints that line so the handoff can be priced rather than argued about.
+
+Driving it yourself is the other half, and it needs no key and no second model at all: `browser_open`
+returns an indexed element table, the host agent picks a ref, `browser_act` executes it. One model
+call per step — the one the host was already making.
+
+`browser-harness` makes the second half available and leaves the first out entirely; jev-ultrafast
+makes the first available and the second impossible. Having both is the point, because the guard
+that makes delegating safe is the same guard that makes driving yourself safe: the model never emits
+a selector, only a ref that the server verifies against the page before acting on it.
 
 Measured over the full 14-section scenario (29 browser ops, 58 assertions): **15,443 bytes of
 observation reached the model — about 133 tokens per browser operation, page text included.**
 A screenshot-per-step loop spends 1,000–1,500 tokens per step on the image alone.
-
-The TypeSafe path is still implemented (`browser_goal`) for when you *want* the server to drive:
-one speculative request carries the operation head plus a target head for every available
-operation, exactly as jev does.
 
 ### 2. Refs are stable; the action space is not
 
@@ -164,7 +176,7 @@ text.
 | `browser_act` | Batch of ops (`click` `type` `select` `toggle` `hover` `upload` `keys` `scroll` `nav` `back` `wait` `wait_for_ref` `wait_for_text` `screenshot` `tab` `eval`) then a delta |
 | `browser_assert` | Deterministic checks → `pass` / `fail` |
 | `browser_macro` | `record_start` · `record_stop` · `run` · `list` · `inspect` · `delete` |
-| `browser_goal` | Run a whole goal server-side via TypeSafe (needs the key) |
+| `browser_goal` | Hand the whole goal over: run the loop server-side via TypeSafe (needs the key) |
 | `browser_tabs` / `browser_sessions` / `browser_close` | Tab and session management |
 | `browser_doctor` | Browser binary, connection, keys, policy envelope |
 

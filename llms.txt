@@ -1,9 +1,12 @@
 # jev-ultrafast-mcp
 
-> An MCP server that gives an AI agent a browser it can actually drive. The page is read as an
-> indexed table of controls, actions address those refs in batches, and assertions — not the
-> model's opinion — decide whether it worked. No Playwright, no Selenium, no screenshots in the
-> loop: it speaks CDP directly to a Chrome you already have.
+> An MCP server that lets an AI agent hand browser work off instead of paying a turn per click. The
+> agent sends a goal; the loop runs server-side, driven by a decision model that picks targets from
+> an indexed table of the page's controls and never writes a selector. Actions address those refs
+> in batches, assertions — not the model's opinion — decide whether it worked, and a discovered
+> path replays with zero model calls. Drive it yourself instead if you prefer: it is the same
+> tools. No Playwright, no Selenium, no screenshots in the loop: it speaks CDP directly to a Chrome
+> you already have.
 
 Works with any MCP client (WorkBuddy, Claude Code, Claude Desktop, Codex CLI, Cursor, VS Code,
 Cline, Windsurf, Gemini CLI). MIT licensed. Requires Python ≥ 3.10 and any Chromium-family browser.
@@ -22,23 +25,29 @@ Cline, Windsurf, Gemini CLI). MIT licensed. Requires Python ≥ 3.10 and any Chr
 
 ## Tools
 
+- `browser_goal(goal, session, max_steps, verify)` — hand the whole goal over: a decision model
+  drives the loop server-side, so the caller spends one turn rather than one per action. Reports
+  what it cost (`turbo: N decisions · N tokens · Ns model + Ns page · Ns wall`).
 - `browser_open(url, session, hint)` — open a URL in a background tab it owns, return the element table
 - `browser_observe(session, mode, include_text, include_json)` — re-read the page; `mode=auto` emits a delta
 - `browser_act(ops, session, dry_run, stop_on_error, observe_after)` — many ops in one round trip
 - `browser_assert(checks, session)` — deterministic PASS/FAIL, no model judgement
 - `browser_macro(action, session, name, params, ...)` — record a flow, replay it at zero model cost
-- `browser_goal(goal, session, max_steps, verify)` — optional: a decision model drives the loop server-side
 - `browser_tabs`, `browser_sessions`, `browser_close`, `browser_doctor` — tabs, sessions, teardown, self-check
 
 ## Notes for a reader deciding whether to use this
 
+- The reason to run it is the handoff: a browser flow is a loop, and here the loop can run in the
+  server instead of in the calling agent's context. `browser_goal` is one tool call, and `verify`
+  is checked by code afterwards — a passing assertion overrules the model's own claim of success.
 - `browser_open`, `browser_observe`, `browser_act`, `browser_assert`, `browser_macro` and the
   tab/session tools make **no network calls and need no API key**. Nothing about the page leaves
   the machine.
-- `browser_goal` is the one opt-in exception. It sends the goal and the current element table to a
-  decision model, so it needs `TYPESAFE_API_KEY`, or `OPENROUTER_API_KEY` with `TYPESAFE_BASE_URL`
-  pointed at `https://openrouter.ai/api/alpha/decisions`. Without either it reports
-  `turbo_unavailable:` and executes nothing.
+- `browser_goal` is the one part that calls out, and it is opt-in. It sends the goal and the
+  current element table to a decision model, so it needs `TYPESAFE_API_KEY`, or
+  `OPENROUTER_API_KEY` with `TYPESAFE_BASE_URL` pointed at
+  `https://openrouter.ai/api/alpha/decisions`. Without either it reports `turbo_unavailable:` and
+  executes nothing.
 - The model never emits a selector, a coordinate or JS. It picks a `ref` from the element table; the
   server turns that into a real click, and refuses with a reason (`occluded`, `detached`,
   `page_changed`, `needs_confirmation`) rather than guessing.

@@ -7,7 +7,8 @@ described this project as needing no key at all for as long as they did because 
 
 So these tests assert the claims that carry weight, not the wording: that the registry entry agrees
 with the package, that the files the READMEs link to exist, that every tool the server registers is
-named where a reader looks for it, and that the two sentences about keys keep saying the true thing.
+named where a reader looks for it, that the sentences about keys keep saying the true thing, and
+that the one-line summaries still say what the project is actually for.
 """
 
 from __future__ import annotations
@@ -109,16 +110,15 @@ def test_every_registered_tool_is_named_where_a_reader_looks():
         assert not missing, f"{path.name} never mentions {missing}"
 
 
-def test_the_readmes_do_not_claim_the_project_needs_no_key():
+def test_the_readmes_still_separate_the_keyless_surface_from_the_model():
     """True of the browser tools, false of the project: `browser_goal` sends a goal to a model."""
     for path in (README, README_ZH):
         text = path.read_text(encoding="utf-8")
         assert "No API keys." not in text, path.name
         assert "不需要任何 API key**，没什么要注册的。" not in text, path.name
-
-    # And the accurate version is the one that is there.
-    assert "`browser_goal` is the one opt-in exception" in README.read_text(encoding="utf-8")
-    assert "`browser_goal` 是唯一的" in README_ZH.read_text(encoding="utf-8")
+        # And the accurate version is still there, on both sides of the line.
+        assert "browser_goal" in text, path.name
+        assert "TYPESAFE_API_KEY" in text, path.name
 
 
 def test_the_readmes_say_the_decision_model_is_the_only_thing_that_calls_out():
@@ -137,3 +137,38 @@ def test_local_links_in_the_readmes_resolve():
             # An anchor addresses a heading, so only the file part has to exist.
             file_part = target.split("#", 1)[0]
             assert (ROOT / file_part).exists(), f"{path.name} links to a missing {target}"
+
+
+# --- what the project says it is for ---------------------------------------------------------
+
+# Ways of saying "the browser work can be handed off" that an honest rewrite would reach for.
+HANDOFF = ("hand ", "hands off", "server-side", "delegate", "交出去", "服务端")
+
+
+def test_the_handoff_is_the_pitch_and_not_a_buried_option():
+    """`browser_goal` is the reason to run this, so a reader meets it before scrolling.
+
+    This project was described for a while as a keyless server with no second model: true of the
+    browser tools, and the reason it read as a smaller thing than it is. What it actually sells is
+    that the agent can decline to drive, so that has to be up front where a reader decides rather
+    than only in the tool reference.
+    """
+    for path in (README, README_ZH, ROOT / "llms.txt"):
+        text = path.read_text(encoding="utf-8")
+        assert "No second model" not in text, f"{path.name} still denies the model it ships"
+        assert "no second model" not in text, path.name
+        assert "没有第二个模型" not in text, path.name
+
+    for path in (README, README_ZH):
+        head = "\n".join(path.read_text(encoding="utf-8").splitlines()[:40])
+        assert "browser_goal" in head, f"{path.name} buries the handoff below the fold"
+
+
+def test_the_one_line_summaries_sell_the_handoff():
+    """A registry listing and a package description are a search result: they get one sentence."""
+    entry = json.loads((ROOT / "server.json").read_text(encoding="utf-8"))
+
+    for label, text in (("server.json", entry["description"]),
+                        ("pyproject.toml", _pyproject()["project"]["description"])):
+        assert any(word in text for word in HANDOFF), f"{label} describes the project without it"
+        assert "server" in text.lower(), label

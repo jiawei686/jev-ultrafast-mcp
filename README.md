@@ -6,21 +6,36 @@
 
 **English** · [简体中文](README.zh-CN.md)
 
-![Give your AI agent a browser it can actually drive](assets/social-preview.png)
+![Hand the browser work off to a decision model](assets/social-preview.png)
 
-**Give your AI agent a browser it can actually drive — an MCP server for browser automation.**
+**Hand the browser work off — an MCP server that drives the page for your agent.**
 
-Open a page, click a button, fill a form, read the result — from an MCP client like WorkBuddy,
-Claude Code, Codex, Cursor or VS Code. The agent decides *what* to do. This server makes the page
-cheap to read and hard to mis-click. No Playwright, no Selenium, no screenshot pipeline: it speaks
-CDP directly to a Chrome you already have.
+Browser automation usually makes the *agent* do the driving: read the page, pick one element, act,
+read again to see whether that worked. Ten clicks is ten turns, the page passes through the agent's
+context every time, and a mis-click rarely announces itself.
 
-- **No API key to start.** Open, read, click, assert, record, replay — the whole browser surface
-  works with nothing to sign up for and no key to paste.
-- **No second model on that path.** Your agent is already the brain; this is just hands and eyes.
-  `browser_goal` is the one opt-in exception: hand it a goal and it drives the loop itself with a
-  decision model — TypeSafe, or OpenRouter with a single key.
-- **No screenshots.** The page is read as a numbered list of controls, not as pixels.
+This server can take that job instead. `browser_goal` is **one** tool call from your agent; the loop
+runs here, server-side, with Jev — TypeSafe's decision model — choosing each step. The model never
+writes a selector: it picks among the elements the page actually has, and the server refuses
+anything that is not on the page rather than guessing. When it stops, `browser_assert` checks the
+page it left behind in code, and a passing assertion outranks the model's own account of what it did.
+
+- **One call, not one per click.** The bundled end-to-end run took a 3-step goal on a real page
+  through **4 decisions, 14,626 tokens, 1.8 s model + 1.1 s page, 3.3 s wall** — for one turn of
+  your agent's context. Every run prints those numbers, so the claim is checkable rather than
+  persuasive.
+- **Accurate by construction.** A target is a `ref` from a numbered table of what is on the page,
+  not a selector or a coordinate the model invented, and the action is re-checked against the page
+  before it runs.
+- **Free after the first run.** Record the path once; replay costs zero model calls, works with no
+  key at all, and refuses to proceed when the page no longer matches.
+- **Text, not pixels.** No screenshots, no HTML dumps. It speaks CDP straight to a Chrome you
+  already have — no Playwright, no Selenium, no screenshot pipeline.
+
+Everything *except* `browser_goal` — `browser_open`, `browser_observe`, `browser_act`,
+`browser_assert`, `browser_macro` — needs no key, no account, and no network beyond the page itself,
+from any MCP client: WorkBuddy, Claude Code, Codex, Cursor or VS Code. If you would rather keep your
+hands on the wheel, that whole surface is still here.
 
 ```
 browser_open  →  element table  →  browser_act [refs]  →  browser_assert
@@ -63,9 +78,52 @@ browser_observe()
     = no change (1 element)
 ```
 
-Then it answers. No screenshot was taken, no HTML was dumped, nothing was sent to a second model.
+Then it answers. No screenshot was taken, no HTML was dumped, and the page never entered a model's
+context: your agent read the table and answered.
 
-A more realistic one — searching a real site:
+### Or hand the whole thing off
+
+Same server, opposite division of labour. Your agent sends the goal — not the page — and gets back
+six lines:
+
+```
+browser_goal(
+  goal="On this flight search form: set Passengers to 3 adults, tick the 'Nonstop only' "
+       "checkbox, then submit the search. Do not type into any city field.",
+  verify=[{"type": "text_contains", "text": "3 adults · nonstop"}],
+)
+
+goal: On this flight search form: set Passengers to 3 adults, …
+status: done
+steps: 3
+turbo: 4 decisions · 14,626 tokens · 1.8s model + 1.1s page · 3.3s wall
+trace:
+  1. SELECT e6 Passengers → ok (759ms model / 30ms browser)
+  2. TOGGLE e7 Nonstop only → ok (336ms model / 692ms browser)
+  3. CLICK e8 Search → ok (370ms model / 410ms browser)
+  4. DONE (conf 0.93)
+verified: PASS
+  ok text_contains: '3 adults · nonstop' found in page text
+```
+
+Three actions — plus the reading and re-reading between them — happened here, not in your agent's
+context. It spent **one** turn and never saw an element table. That is a verbatim run;
+`scripts/turbo_check.py` reproduces it against a real Chrome and the real model, and the page is
+checked by code afterwards rather than trusted.
+
+The division of labour is the whole design decision, so it is yours to make per task:
+
+| | agent drives | `browser_goal` drives |
+|---|---|---|
+| Tool calls for a 3-step flow | 6+ (observe, act, observe, act…) | **1** |
+| Who holds the page in context | your agent | **the decision model, server-side** |
+| Per-step cost | one agent turn | one typed request, no screenshot |
+| Who names the target | the model writes a selector | **the model picks a `ref` from the page's own table** |
+| If it goes wrong | a wrong click, usually silent | **the server refuses, with the reason** |
+| Knowing it worked | the model's summary | **code-checked assertion, which wins the disagreement** |
+| Second time around | run the model again | **macro replay, zero model calls** |
+
+A more realistic one — searching a real site, with your agent doing the driving:
 
 ```
 browser_open("https://duckduckgo.com")
@@ -308,19 +366,27 @@ And a ref that no longer points at anything is refused, with a reason instead of
 
 ## Why another browser MCP?
 
-Most browser MCP servers hand the model CDP primitives — `click_at_xy`, a CSS selector, `evaluate`.
-Maximum flexibility, minimum safety: every step depends on the model inventing a selector or a
-coordinate, and a wrong one fails silently or, worse, succeeds on the wrong element.
+Two differences, and the first one is the reason this exists.
 
-This one takes the opposite trade. The model only ever says *which* element by `ref` and *what* to
-do. Turning that ref into a real click is the server's problem, and the server refuses rather than
-guesses.
+**The agent is allowed to decline the driving.** A browser flow is a loop, and in most servers that
+loop lives in the calling agent: read the page, name one element, wait, read again. Fine for two
+steps, absurd for twenty — twenty turns of an expensive context to do what a smaller model could
+have done in one call. Here you can hand the whole goal over instead and pay a single turn, or keep
+the wheel and drive it yourself. Same tools, same guards, either way.
+
+**The model never invents a target.** Most browser MCP servers hand over CDP primitives —
+`click_at_xy`, a CSS selector, `evaluate`. Maximum flexibility, minimum safety: a wrong selector
+fails silently or, worse, succeeds on the wrong element. Here a target is a `ref` from a numbered
+table of what is on the page, turning that ref into a real click is the server's problem, and the
+server refuses rather than guesses. That is also what makes the handoff safe: whatever is driving
+is choosing among options the page actually has, so accuracy does not rest on it being careful.
 
 | | primitives-based browser MCP | **jev-ultrafast-mcp** |
 |---|---|---|
-| How the agent aims | writes a selector / coordinate / JS | picks a `ref` from an element table |
-| Extra model calls | none | **none — your agent is the policy** (opt-in `browser_goal` drives the loop itself) |
-| API keys required | none | **none for the browser tools**; a decision-model key only if you use `browser_goal` |
+| Who runs the loop | the calling agent, every step | **either — `browser_goal` runs it server-side** |
+| How a target is named | a selector / coordinate / JS the model writes | **a `ref` from an element table** |
+| Extra model calls | none | **none to drive it yourself; `browser_goal` is opt-in** |
+| API keys required | none | **none for the browser tools**; a decision-model key only for `browser_goal` |
 | Ref lifetime | n/a (agent re-invents each step) | **stable across observations** |
 | Re-reading the page | full dump every time | **delta** — `+` added, `~` changed, `-` removed, `= no change` |
 | Round trips | one per action | **batched — many ops per call** |
@@ -328,7 +394,7 @@ guesses.
 | Shadow DOM / iframes | usually unsupported | **traversed, with frame-offset-aware scrolling** |
 | Pages that render late | depends on the agent sleeping | **waits for elements to appear, bounded** |
 | Repeating a flow | re-runs the model | **macro replay at zero model cost** |
-| Knowing it worked | the model eyeballs the page | **deterministic `browser_assert`** |
+| Knowing it worked | the model eyeballs the page | **deterministic `browser_assert`, which overrules the model** |
 | Destructive clicks | whatever the model decides | **`needs_confirmation`, domain envelope, secret redaction** |
 
 Batching and deltas are not cosmetic. In the bundled end-to-end run, 29 ops and their follow-up
@@ -406,6 +472,10 @@ Runs the whole loop server-side using TypeSafe speculative fan-out (one request 
 `TYPESAFE_API_KEY`, or `OPENROUTER_API_KEY` with `TYPESAFE_BASE_URL` pointed at OpenRouter's
 decisions route. Returns `verified: PASS/FAIL` when `verify` checks are supplied.
 
+Every run also reports its own bill — `turbo: 4 decisions · 14,626 tokens · 1.8s model + 1.1s page ·
+3.3s wall` — so what the handoff cost is visible in the answer, alongside how much of the wall time
+was the model and how much was the page.
+
 Every way the decision model can fail — no key, no credits, unreachable, a malformed answer, a body
 that is not JSON — comes back as `turbo_unavailable:` with nothing executed. The trace of the steps
 already taken is kept, so a run that dies on step five still reports what steps one to four did.
@@ -467,6 +537,14 @@ password.
 ---
 
 ## FAQ
+
+**So this is just another model doing the work? Who is in charge?**
+You are, and you choose per task. `browser_goal` puts Jev — a small decision model — in charge of
+one goal: which of the page's elements to touch, one step at a time. It is not a general agent, it
+has no memory between goals, and it never writes code or selectors, only picks from options the
+server hands it. Your agent still decides *what* to ask for, and `verify` decides whether it
+actually happened. If you would rather be in the loop for every step, do not call that one tool —
+nothing else sends anything anywhere.
 
 **Do I need an API key or an account?**
 Not for the browser tools. `browser_open`, `browser_observe`, `browser_act`, `browser_assert`,

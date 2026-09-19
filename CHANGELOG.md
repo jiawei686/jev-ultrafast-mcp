@@ -40,8 +40,21 @@ All notable changes to this project are documented here. The format follows
   demo that came up on a different port every run was a different site as far as the browser was
   concerned: empty `localStorage`, no memory of the previous run, so "already checked in today" could
   not be demonstrated at all on a loopback address.
+- **`browser_goal` reports what it cost** — `turbo: 4 decisions · 14,626 tokens · 1.8s model + 1.1s
+  page · 3.3s wall`. The case for handing a flow off is that the caller spends one turn instead of
+  one per action, and that case is only checkable if the server says what it spent. It also splits
+  the wall time, which tells you whether the next optimisation belongs in the prompt or in the page.
+  Absent when no decision was ever made, so a refusal does not print a budget implying it ran.
 
 ### Changed
+
+- **Both READMEs, `docs/DESIGN.md` and the one-line summaries now lead with the handoff.** They used
+  to sell the project as a keyless server with no second model — descriptionally true of the browser
+  tools and a bad account of the project, which ships a decision model precisely so a long flow does
+  not cost the caller a turn per click. The opening, the session walkthrough, the comparison table,
+  the `browser_goal` reference and the FAQ now say which of the two jobs is being done and who does
+  it, and `tests/test_docs.py` checks that the handoff stays in the pitch rather than migrating back
+  down to the tool reference.
 
 - **The READMEs no longer claim the project needs no key at all.** They opened with "No API keys" and
   "No second model", which was true of the browser tools and false of the project: turbo mode sends

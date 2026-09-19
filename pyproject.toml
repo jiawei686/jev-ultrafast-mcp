@@ -1,7 +1,7 @@
 [project]
 name = "jev-ultrafast-mcp"
 version = "0.1.0"
-description = "MCP server that gives an AI agent a browser it can drive: ref-based element tables, batched actions, deterministic assertions, and macro replay at zero model cost."
+description = "MCP server that lets an AI agent hand browser work off instead of paying a turn per click: a decision model drives the loop server-side over ref-based element tables, with code-checked assertions and zero-model macro replay."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
