@@ -156,6 +156,20 @@ def test_the_readmes_explain_the_chrome_144_404():
         assert "/json/version" in text, f"{path.name} does not name the probe people will run"
 
 
+def test_the_readmes_say_the_approval_is_per_session_not_per_action():
+    """The question that decides whether anyone turns attach mode on: "every time?".
+
+    Chrome approves a debugging client once per browser session, not per connection and not per
+    action -- verified by reconnecting from fresh processes twenty minutes after the click. Left
+    unsaid, a reader assumes the worst and never enables the one mode that reuses their logins.
+    Both READMEs answer it, and both point at the default launch mode as the route with no dialog.
+    """
+    for path, per_session in ((README, "per browser session"), (README_ZH, "按浏览器会话")):
+        text = path.read_text(encoding="utf-8")
+        assert per_session in text, f"{path.name} never says how often the approval is asked"
+        assert "JEVMCP_MODE=launch" in text, f"{path.name} does not name the no-dialog route"
+
+
 def test_local_links_in_the_readmes_resolve():
     """A README whose screenshots and design notes are 404s reads as an abandoned project."""
     pattern = re.compile(r"\]\((?!https?://|#)([^)]+)\)")

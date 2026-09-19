@@ -102,7 +102,11 @@ All notable changes to this project are documented here. The format follows
   data directories, or wherever `JEVMCP_ATTACH_PROFILE_DIR` points), accepts an explicit `ws://` URL
   without probing at all, and reports which of the three it used when none works. The socket is also
   opened with a human-sized `open_timeout`, because Chrome gates each client behind an approval
-  dialog and the handshake waits on that click rather than on the network.
+  dialog and the handshake waits on that click rather than on the network. That approval is per
+  browser session, not per connection and not per action: after one click, reconnects from fresh
+  processes are accepted with no prompt (verified: three new processes twenty minutes later), and
+  no action ever prompts. Both READMEs now say so, because the existing "the first connection waits
+  on that click" reads as "every connection does".
 - **Attach mode quit the user's own browser on shutdown.** `JEVMCP_MODE=attach` drives the browser
   the user is already using, but `shutdown()` sent `Browser.close` unconditionally — correct in
   `launch` mode, where the browser belongs to this process, and wrong in `attach`, where it means

@@ -596,6 +596,14 @@ Chrome 144+ you switch debugging on from `chrome://inspect/#remote-debugging` �
 tabs and logins survive — and Chrome asks you to approve the client. The first connection waits on
 that click, so give it a moment before deciding it failed.
 
+**Do I have to approve that click for every action?**
+No. The approval is per browser session, not per connection and not per action. Once you have
+approved it, every later action rides the same open WebSocket and never prompts again — not even
+from a fresh process (measured: three new processes connecting twenty minutes after the click, all
+accepted with no prompt). So the cost is one click per browser session, not one per operation. To
+drop even that, use the default `JEVMCP_MODE=launch`: it starts its own browser on a real
+debugging port with no approval dialog at all, at the price of logging in once in that profile.
+
 **`curl http://127.0.0.1:9222/json/version` returns 404. Is debugging even on?**
 Probably yes. The server behind `chrome://inspect/#remote-debugging` is **WebSocket-only** and
 deliberately serves no HTTP discovery endpoints, so a 404 there is the documented behaviour rather
