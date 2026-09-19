@@ -259,6 +259,30 @@ All notable changes to this project are documented here. The format follows
   because downloading job logs requires repo admin rights and a red X on a public repo was otherwise
   undiagnosable. Also bumped to `actions/checkout@v7` / `actions/setup-python@v7`.
 
+### Added
+
+- **The MCP registry entry is submitted by the release workflow** —
+  [`.github/workflows/registry.yml`](.github/workflows/registry.yml), which `publish.yml` calls with
+  `needs: publish`. It authenticates over GitHub OIDC (`mcp-publisher login github-oidc`), so the
+  namespace is proved by the workflow's own identity and there is no token to store. It is a separate
+  workflow rather than a job so it can be dispatched on its own: a job that only exists on a tag push
+  can only be tested by cutting a release, and the registry — still in preview, and warning about
+  data resets — is exactly the thing that needs re-submitting without one. It runs
+  `mcp-publisher validate` before publishing, which is the only place the registry's real limits are
+  enforced.
+
+### Fixed
+
+- **`server.json`'s description was over the registry's limit, so the entry would have been
+  rejected.** The registry caps `description` at 100 characters and answers with `422 expected length
+  <= 100`; the file carried 309 — a paragraph written for a README, in a field that stores one
+  sentence. `mcp-publisher validate` against the live service is what found it, and
+  `tests/test_docs.py` now asserts the caps so a local `pytest` catches it first. The replacement is
+  capability-focused, which is what the schema asks for: *"Hand browser work off to a server-side
+  agent: read the page as a table, act, then verify."*
+- Both READMEs said the registry submission was "the step still outstanding". It is wired to happen
+  on every tag now, so they say that instead of describing a manual step nobody had run.
+
 ## [0.1.4] — 2026-09-20
 
 ### Added

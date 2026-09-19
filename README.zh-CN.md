@@ -625,8 +625,9 @@ HTTP 发现接口，所以 404 是**官方预期行为**而不是配置坏了（
 
 **上 PyPI 了吗？进 MCP registry 了吗？**
 PyPI 上了 —— `pip install jev-ultrafast-mcp`，或者 `uvx jev-ultrafast-mcp` 直接跑、什么都不用装。
-registry 那半步还没做，但已经不卡住了：[`server.json`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/server.json) 已经备好，它指的那个包现在能解析，
-而这是提交唯一的门槛。剩下的部分见 [发布](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/CONTRIBUTING.md#publishing)。
+registry 还没进，但已经不需要人工操作了：[`server.json`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/server.json) 能通过 registry 的 schema 校验，
+发布流程会在每次打 tag 时用 OIDC 把它提交上去，所以下一个版本就会进。具体见
+[发布](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/CONTRIBUTING.md#publishing)。
 
 **和 Playwright MCP 有什么区别？**
 Playwright 的服务端暴露的是页面原语，选择器和坐标由 agent 自己写。这个暴露的是一张带编号的控件表，
@@ -758,8 +759,7 @@ assets/
   social-preview.png      仓库被分享时 GitHub 展示的那张卡片
   make_social_preview.py  生成它 —— 上面的字是排出来的，不是模型画的
 llms.txt                  这个服务是什么，给「先读再推荐」的 agent 看
-server.json               官方 MCP registry 条目（它指向的包已在 PyPI 上；
-                          提交到 registry 这一步还没做）
+server.json               官方 MCP registry 条目，由发布流程自动提交
 ```
 
 ## 开发

@@ -672,11 +672,12 @@ No, and that is deliberate — it never looks at pixels. Use a screenshot-and-vi
 
 **Is it on PyPI? Is it in the MCP registry?**
 On PyPI, yes — `pip install jev-ultrafast-mcp`, or `uvx jev-ultrafast-mcp` to run it without
-installing anything. The registry is the half still outstanding, and it is no longer blocked:
-[`server.json`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/server.json) is ready and
-the package it names now resolves, which was the one thing holding the submission back. See
+installing anything. In the registry, not yet, but nothing is left to do by hand:
+[`server.json`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/server.json) validates
+against the registry's schema and the release workflow submits it on every tag over OIDC, so it
+lands with the next release. See
 [Publishing](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/CONTRIBUTING.md#publishing) for
-what is left.
+what that involves.
 
 **How is this different from the Playwright MCP?**
 Playwright's server exposes page primitives; the agent writes selectors and coordinates. This one
@@ -819,8 +820,7 @@ assets/
   social-preview.png      the card GitHub shows when this repository is shared
   make_social_preview.py  renders it, so the words on it are placed rather than generated
 llms.txt                  what this server is, for agents that read before recommending it
-server.json               the MCP registry entry (the package it points at is on PyPI;
-                          submitting it to the registry is the step still outstanding)
+server.json               the MCP registry entry, submitted by the release workflow
 ```
 
 ## Development

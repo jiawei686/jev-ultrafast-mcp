@@ -8,7 +8,9 @@ name: Publish
 # loudly, which is the right outcome -- a release that silently did not publish is worse.
 #
 # Publishing is also what unblocks the MCP registry: `server.json` points at the `pypi` package, so
-# the registry entry can only be submitted once the package resolves.
+# the registry entry can only be submitted once the package resolves. The `registry` job below does
+# that submission, after this one -- it used to be a manual step, which meant it could sit undone
+# indefinitely while the README said it was the only thing left.
 on:
   push:
     tags: ["v*.*.*"]
@@ -39,3 +41,13 @@ jobs:
       # consumer's resolver.
       - name: Publish
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  registry:
+    # After the package, never before: the registry resolves the `pypi` identifier in `server.json`
+    # and rejects an entry whose package it cannot find. The job itself lives in `registry.yml`,
+    # which can also be dispatched on its own -- see the comment at the top of that file.
+    needs: publish
+    uses: ./.github/workflows/registry.yml
+    permissions:
+      id-token: write
+      contents: read

@@ -20,6 +20,9 @@ dist/
 .mypy_cache/
 .coverage
 htmlcov/
+# `pytest --basetemp=.pytest-tmp` is for sandboxes that refuse to create pytest's own directory
+# under the system temp dir; the flag puts the run inside the checkout instead.
+.pytest-tmp/
 
 # Local secrets and state
 .env

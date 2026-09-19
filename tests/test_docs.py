@@ -52,6 +52,36 @@ def test_server_json_is_a_valid_registry_entry():
     assert entry["repository"]["source"] == "github"
 
 
+def test_the_registry_entry_respects_the_limits_the_schema_sets():
+    """The registry validates against its schema and rejects, so the caps are asserted here.
+
+    `description` is capped at 100 characters -- the whole entry is rejected above that, which
+    is how this was found: the pitch that reads well in a README is four times too long for the
+    one field the registry stores. The caps below are transcribed from
+    `static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json`; the tests do not
+    fetch it, because a network round-trip inside a unit test fails for reasons that are not
+    about this file. What is checked is the shape the schema documents, not its exact wording.
+    """
+    entry = json.loads((ROOT / "server.json").read_text(encoding="utf-8"))
+
+    # ServerDetail: name 3..200 matching ^[a-zA-Z0-9.-]+/[a-zA-Z0-9._-]+$, description 1..100,
+    # title 1..100, version a specific version (never "latest").
+    assert 3 <= len(entry["name"]) <= 200, len(entry["name"])
+    assert re.fullmatch(r"[a-zA-Z0-9.-]+/[a-zA-Z0-9._-]+", entry["name"]), entry["name"]
+    assert 1 <= len(entry["description"]) <= 100, (
+        f"the registry caps description at 100 characters; this is {len(entry['description'])}")
+    assert 1 <= len(entry["title"]) <= 100, len(entry["title"])
+    assert entry["version"] != "latest"
+
+    # Package: registryType/identifier/transport are required; a version range is rejected.
+    for package in entry["packages"]:
+        assert package["registryType"] in {"npm", "pypi", "oci", "nuget", "mcpb"}
+        assert package["identifier"] and package["version"] != "latest"
+        assert not re.match(r"^[\^~><=]|\*$", package["version"]), package["version"]
+        # LocalTransport for a package run on the user's machine.
+        assert package["transport"] == {"type": "stdio"}, package["transport"]
+
+
 def test_server_json_points_at_the_real_package():
     entry = json.loads((ROOT / "server.json").read_text(encoding="utf-8"))
     project = _pyproject()["project"]

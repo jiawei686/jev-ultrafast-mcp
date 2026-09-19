@@ -112,22 +112,34 @@ this project exists to prevent, so it gets priority.
 
 ## Publishing
 
-Releases go to PyPI, and a `v*.*.*` tag is the whole trigger. There are two halves, and only one of
-them is done:
+Releases go to PyPI and to the MCP registry, and a `v*.*.*` tag is the whole trigger for both:
 
 1. **PyPI — live.** Tagging publishes `dist/` through PyPI trusted publishing (an OIDC workflow, so
    no API token is stored in this repository). The one-time setup that made it work is recorded
    below; nobody has to repeat it. `0.1.0` onward are on PyPI, so `pip install jev-ultrafast-mcp`
    and `uvx jev-ultrafast-mcp` both resolve.
-2. **The MCP registry — outstanding.** [`server.json`](server.json) carries the registry entry —
-   reverse-DNS name `io.github.jiawei686/jev-ultrafast-mcp`, the repository, and the `pypi` package
-   with a `stdio` transport. The registry publishes a *package*, so this was blocked on the package
-   existing; now that it does, `mcp-publisher publish` takes it from here, and clients that read the
-   registry can find the server without being told about it.
+2. **The MCP registry — wired, submits on the next tag.** [`server.json`](server.json) carries the
+   registry entry — reverse-DNS name `io.github.jiawei686/jev-ultrafast-mcp`, the repository, and the
+   `pypi` package with a `stdio` transport. `.github/workflows/registry.yml` validates it against the
+   live service and submits it over GitHub OIDC, so there is no token to store; `publish.yml` calls
+   that workflow with `needs: publish`, because the registry resolves the package and rejects an
+   entry whose package it cannot find.
+
+   That workflow is also dispatchable on its own (`gh workflow run registry.yml`), which is how a
+   re-submission is made after a registry-side data reset — the registry warns about those while it
+   is in preview — and how the first submission was checked without cutting a release.
+
+   **The limits are enforced only by the service.** `mcp-publisher validate` is the way to find out
+   whether an edit to `server.json` is still acceptable; it answers with a `422` and the offending
+   field. `description` is capped at 100 characters, which is four times shorter than a sentence of
+   this project's prose, and an entry over the cap is rejected outright rather than truncated. The
+   caps are also asserted in `tests/test_docs.py`, so a local `pytest` catches the common case before
+   a tag does.
 
 One trap worth knowing before the next release: Actions evaluates a workflow **at the tagged
 commit**, so a tag pointing at a commit that predates `publish.yml` publishes nothing — and reports
-no failure either. `v0.1.0` was moved to a commit that had the workflow for exactly this reason.
+no failure either. `v0.1.0` was moved to a commit that had the workflow for exactly this reason. The
+same applies to `registry.yml`: a tag cut before it existed submits nothing to the registry.
 
 ### The one-time setup, step by step (done)
 

@@ -1,0 +1,51 @@
+name: MCP registry
+
+# Submits `server.json` to the MCP registry.
+#
+# It is its own workflow rather than a job inside `publish.yml` for one reason: a job that only
+# exists on a tag push can only be tested by cutting a release. This one can be dispatched by hand,
+# against a version that is already on PyPI, which is how the first submission was checked -- and
+# how a re-submission is made after a registry-side data reset, which the registry warns about
+# while it is in preview.
+#
+# `publish.yml` calls it with `needs: publish`, because the registry resolves the `pypi` identifier
+# in `server.json` and rejects an entry whose package it cannot find.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  registry:
+    runs-on: ubuntu-latest
+    # Deliberately no `environment:`. GitHub's OIDC `sub` claim gains an `environment:` segment when
+    # one is set, and the registry ties `io.github.jiawei686/...` to the repository's owner through
+    # that claim. `pypi` is PyPI's trusted-publisher environment and has no business here.
+    permissions:
+      id-token: write        # the OIDC token the registry verifies the namespace against
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      # OIDC, so there is no token to store. A `io.github.<owner>/...` name is proved by the
+      # workflow's own identity -- the one authentication method here that cannot be leaked.
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      # Fails loudly if the entry no longer satisfies the registry's schema. It is validated
+      # against the live service, which is the only place the real limits are enforced -- a
+      # `description` over 100 characters is a 422 here and nowhere else.
+      - name: Validate the entry against the registry
+        run: ./mcp-publisher validate
+
+      - name: Authenticate to the MCP registry
+        run: ./mcp-publisher login github-oidc
+
+      # `server.json` is committed with the version already bumped, and `test_docs.py` fails if it
+      # disagrees with the other five version sites, so this publishes the version in the file
+      # rather than rewriting it here.
+      - name: Publish server to the MCP registry
+        run: ./mcp-publisher publish
