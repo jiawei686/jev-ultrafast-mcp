@@ -102,12 +102,19 @@ The division of labour is the whole design decision, so it is yours to make per 
 <details>
 <summary><b>Installing it as a package, and the installer's flags</b></summary>
 
-No checkout needed if you would rather install it as a package. It is not on PyPI yet, so the
-repository is the source:
+No checkout needed if you would rather install it as a package. It is on PyPI, so the name is
+enough:
+
+```bash
+uvx jev-ultrafast-mcp                  # run it straight from PyPI, nothing installed
+pip install jev-ultrafast-mcp          # or install it yourself
+```
+
+A client config wants a stable interpreter path rather than `uvx`'s cache, so:
 
 ```bash
 python3 -m venv ~/.jev-ultrafast-mcp/venv
-~/.jev-ultrafast-mcp/venv/bin/pip install "git+https://github.com/jiawei686/jev-ultrafast-mcp"
+~/.jev-ultrafast-mcp/venv/bin/pip install jev-ultrafast-mcp
 ```
 
 That gives you a `jev-ultrafast-mcp` console script and a stable interpreter path to put in a
@@ -651,11 +658,12 @@ element table will show it — look for the overlay warning in the observation h
 No, and that is deliberate — it never looks at pixels. Use a screenshot-and-vision agent for that.
 
 **Is it on PyPI? Is it in the MCP registry?**
-Not yet. `pip install "git+https://github.com/jiawei686/jev-ultrafast-mcp"` installs exactly what a
-release would. [`server.json`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/server.json) is already in the repo for the
-[official registry](https://github.com/modelcontextprotocol/registry), which publishes a package —
-so it lands there in the same step as the first PyPI release. See
-[Publishing](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/CONTRIBUTING.md#publishing) for the state of that.
+On PyPI, yes — `pip install jev-ultrafast-mcp`, or `uvx jev-ultrafast-mcp` to run it without
+installing anything. The registry is the half still outstanding, and it is no longer blocked:
+[`server.json`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/server.json) is ready and
+the package it names now resolves, which was the one thing holding the submission back. See
+[Publishing](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/CONTRIBUTING.md#publishing) for
+what is left.
 
 **How is this different from the Playwright MCP?**
 Playwright's server exposes page primitives; the agent writes selectors and coordinates. This one

@@ -97,11 +97,18 @@ verified: PASS
 <details>
 <summary><b>当包装装、以及安装脚本的各个开关</b></summary>
 
-不想克隆也可以，直接当包装。它还没上 PyPI，所以就从仓库装：
+不想克隆也可以，直接当包装。已经上 PyPI 了，有名字就够：
+
+```bash
+uvx jev-ultrafast-mcp                  # 直接从 PyPI 跑，什么都不用装
+pip install jev-ultrafast-mcp          # 或者自己装进环境
+```
+
+客户端配置要的是一个稳定的解释器路径，而不是 `uvx` 的缓存，所以：
 
 ```bash
 python3 -m venv ~/.jev-ultrafast-mcp/venv
-~/.jev-ultrafast-mcp/venv/bin/pip install "git+https://github.com/jiawei686/jev-ultrafast-mcp"
+~/.jev-ultrafast-mcp/venv/bin/pip install jev-ultrafast-mcp
 ```
 
 这会给你一个 `jev-ultrafast-mcp` 命令，以及一个可以填进客户端配置的稳定解释器路径 —— 已在
@@ -607,10 +614,9 @@ HTTP 发现接口，所以 404 是**官方预期行为**而不是配置坏了（
 不能，而且这是刻意的 —— 它不看像素。这种场景请换"截图 + 视觉"的 agent。
 
 **上 PyPI 了吗？进 MCP registry 了吗？**
-都还没有。`pip install "git+https://github.com/jiawei686/jev-ultrafast-mcp"` 装到的和发布版完全
-一样。[`server.json`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/server.json) 已经在仓库里备好，给
-[官方 registry](https://github.com/modelcontextprotocol/registry) 用 —— 它发布的是包，所以会和第一次
-PyPI 发布同一步落地。相关进展见 [发布](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/CONTRIBUTING.md#publishing)。
+PyPI 上了 —— `pip install jev-ultrafast-mcp`，或者 `uvx jev-ultrafast-mcp` 直接跑、什么都不用装。
+registry 那半步还没做，但已经不卡住了：[`server.json`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/server.json) 已经备好，它指的那个包现在能解析，
+而这是提交唯一的门槛。剩下的部分见 [发布](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/CONTRIBUTING.md#publishing)。
 
 **和 Playwright MCP 有什么区别？**
 Playwright 的服务端暴露的是页面原语，选择器和坐标由 agent 自己写。这个暴露的是一张带编号的控件表，

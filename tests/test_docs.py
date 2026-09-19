@@ -64,16 +64,45 @@ def test_server_json_points_at_the_real_package():
     assert package["transport"] == {"type": "stdio"}
 
 
+def test_the_readmes_offer_the_package_the_registry_advertises():
+    """The registry sends every client to PyPI, so the READMEs cannot still send them to a git URL.
+
+    `server.json` resolves to a `pypi` package, and a published release makes the repository one
+    source among several. While the READMEs said "not on PyPI yet" they routed readers through a
+    `git+...` install for something `pip install jev-ultrafast-mcp` already did -- and nothing
+    failed, because a stale claim about your own distribution is invisible from inside the
+    repository. It took reading the live page to notice. So the claim is asserted, not trusted.
+    """
+    package = json.loads((ROOT / "server.json").read_text(encoding="utf-8"))["packages"][0]
+    assert package["registryType"] == "pypi"
+    name = package["identifier"]
+
+    for path in (README, README_ZH):
+        text = path.read_text(encoding="utf-8")
+        assert f"pip install {name}" in text or f"uvx {name}" in text, (
+            f"{path.name} never offers the published package {name}"
+        )
+        for stale in ("not on PyPI yet", "还没上 PyPI"):
+            assert stale not in text, f"{path.name} still says {stale!r}"
+
+
 def test_every_version_in_the_tree_agrees():
-    """A release that bumps one of these and not the others is a release that lies."""
+    """A release that bumps one of these and not the others is a release that lies.
+
+    `server.py` belongs in this list because it is the one a *client* sees: it is what the server
+    answers `initialize` with. It sat outside this test for four releases -- the other sites were
+    checked and the fifth was not -- which is exactly the silent drift the test exists to catch.
+    """
     entry = json.loads((ROOT / "server.json").read_text(encoding="utf-8"))
     init = (ROOT / "jev_ultrafast_mcp" / "__init__.py").read_text(encoding="utf-8")
+    server = (ROOT / "jev_ultrafast_mcp" / "server.py").read_text(encoding="utf-8")
 
     versions = {
         "pyproject.toml": _pyproject()["project"]["version"],
         "server.json": entry["version"],
         "server.json package": entry["packages"][0]["version"],
         "__init__.py": re.search(r'__version__ = "([^"]+)"', init).group(1),
+        "server.py": re.search(r'version="([^"]+)"', server).group(1),
     }
 
     assert len(set(versions.values())) == 1, versions

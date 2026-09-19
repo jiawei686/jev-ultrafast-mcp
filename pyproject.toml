@@ -1,6 +1,6 @@
 [project]
 name = "jev-ultrafast-mcp"
-version = "0.1.2"
+version = "0.1.3"
 description = "MCP server that lets an AI agent hand browser work off instead of paying a turn per click: a decision model drives the loop server-side over ref-based element tables, with code-checked assertions and zero-model macro replay."
 readme = "README.md"
 license = "MIT"

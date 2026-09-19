@@ -93,24 +93,28 @@ this project exists to prevent, so it gets priority.
 
 ## Publishing
 
-Nothing is on PyPI yet, and the repository is the source. The moment that changes, two things happen
-at once, because the MCP registry publishes a *package*:
+Releases go to PyPI, and a `v*.*.*` tag is the whole trigger. There are two halves, and only one of
+them is done:
 
-1. **PyPI.** A `v*.*.*` tag is meant to publish `dist/` through PyPI trusted publishing (an OIDC
-   workflow, so no API token is stored in this repository). That needs a one-time setup on the PyPI
-   side: add a pending publisher for `jev-ultrafast-mcp` pointing at this repository and the workflow
-   file.
-2. **The MCP registry.** [`server.json`](server.json) carries the registry entry — reverse-DNS name
-   `io.github.jiawei686/jev-ultrafast-mcp`, the repository, and the `pypi` package with a `stdio`
-   transport. Once the package exists, `mcp-publisher publish` takes it from there, and clients that
-   read the registry can find the server without being told about it.
+1. **PyPI — live.** Tagging publishes `dist/` through PyPI trusted publishing (an OIDC workflow, so
+   no API token is stored in this repository). The one-time setup that made it work is recorded
+   below; nobody has to repeat it. `0.1.0` onward are on PyPI, so `pip install jev-ultrafast-mcp`
+   and `uvx jev-ultrafast-mcp` both resolve.
+2. **The MCP registry — outstanding.** [`server.json`](server.json) carries the registry entry —
+   reverse-DNS name `io.github.jiawei686/jev-ultrafast-mcp`, the repository, and the `pypi` package
+   with a `stdio` transport. The registry publishes a *package*, so this was blocked on the package
+   existing; now that it does, `mcp-publisher publish` takes it from here, and clients that read the
+   registry can find the server without being told about it.
 
-Until then, `pip install "git+https://github.com/jiawei686/jev-ultrafast-mcp"` installs the same code,
-and the README says so rather than pointing at a package that does not resolve.
+One trap worth knowing before the next release: Actions evaluates a workflow **at the tagged
+commit**, so a tag pointing at a commit that predates `publish.yml` publishes nothing — and reports
+no failure either. `v0.1.0` was moved to a commit that had the workflow for exactly this reason.
 
-### The one-time setup, step by step
+### The one-time setup, step by step (done)
 
-One web page, once, and after that a tag is all a release needs.
+Kept as a record rather than a to-do list: this was carried out once, and the publisher it describes
+is live. A new project would need it; this one does not. One web page, once, and after that a tag is
+all a release needs.
 
 **1. The pending publisher.** <https://pypi.org/manage/account/publishing/> → *Add a new pending
 publisher* → GitHub. Five fields, and every one of them has to match this repository exactly:
@@ -149,7 +153,7 @@ The workflow builds `dist/` and uploads it over OIDC. Watch it under
 guessing: trusted publishing fails loudly on purpose, because a release that silently did not
 publish is worse than one that did not start.
 
-**4. The registry.** Once the package resolves on PyPI, `server.json` is submittable as it stands:
+**3. The registry.** Once the package resolves on PyPI, `server.json` is submittable as it stands:
 
 ```bash
 mcp-publisher publish

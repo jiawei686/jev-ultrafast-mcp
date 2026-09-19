@@ -259,6 +259,29 @@ All notable changes to this project are documented here. The format follows
   because downloading job logs requires repo admin rights and a red X on a public repo was otherwise
   undiagnosable. Also bumped to `actions/checkout@v7` / `actions/setup-python@v7`.
 
+## [0.1.3] — 2026-09-20
+
+### Fixed
+
+- **The READMEs no longer say the project is not on PyPI.** They said it in four places — two per
+  README — and had since before 0.1.0 shipped, so for three releases the install instructions routed
+  readers through a `git+https://…` install for something `pip install jev-ultrafast-mcp` already
+  did. Nothing failed, because a stale claim about your own distribution is invisible from inside
+  the repository: no test read it, and the only way to see it was to read the published page. Both
+  READMEs now offer `uvx jev-ultrafast-mcp` — verified against the published package over real stdio,
+  which answers `initialize` with `serverInfo.version` `0.1.2` — and a guard fails if either README
+  stops naming the package or the old claim comes back.
+- **`server.py` is covered by the version test now.** `test_every_version_in_the_tree_agrees` checked
+  four of the five places a version is written down, and the one it missed is the one a client
+  actually sees: it is what the server answers `initialize` with. A release could have bumped the
+  four and left that one behind with every test still green.
+- **`CONTRIBUTING.md` describes publishing as it is, not as it was planned.** The one-time PyPI
+  setup was still written in the future tense — "a tag is *meant* to publish", "that *needs* a
+  pending publisher" — long after it had been carried out. It is now marked as a record rather than
+  a to-do list, the registry half is named as the one outstanding step, and the numbering gap
+  (1, 2, then 4) is closed. Also written down: the trap that made `v0.1.0` publish nothing, because
+  Actions evaluates a workflow at the tagged commit.
+
 ## [0.1.2] — 2026-09-20
 
 ### Fixed
@@ -316,7 +339,8 @@ First public release.
 - **Verification** — 51-check end-to-end smoke suite against a real browser, 17-check real-stdio MCP
   suite, and 5 pytest unit tests.
 
-[Unreleased]: https://github.com/jiawei686/jev-ultrafast-mcp/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/jiawei686/jev-ultrafast-mcp/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/jiawei686/jev-ultrafast-mcp/releases/tag/v0.1.3
 [0.1.2]: https://github.com/jiawei686/jev-ultrafast-mcp/releases/tag/v0.1.2
 [0.1.1]: https://github.com/jiawei686/jev-ultrafast-mcp/releases/tag/v0.1.1
 [0.1.0]: https://github.com/jiawei686/jev-ultrafast-mcp/releases/tag/v0.1.0
