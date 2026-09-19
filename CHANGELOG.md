@@ -259,6 +259,22 @@ All notable changes to this project are documented here. The format follows
   because downloading job logs requires repo admin rights and a red X on a public repo was otherwise
   undiagnosable. Also bumped to `actions/checkout@v7` / `actions/setup-python@v7`.
 
+## [0.1.2] — 2026-09-20
+
+### Fixed
+
+- **Every README reference is absolute, because PyPI resolves nothing relative.** 0.1.1 moved the
+  billing panel into the hook; on the published PyPI page it arrived as a broken-image icon with the
+  alt text sitting where the evidence should be. GitHub fills a relative path in and PyPI does not,
+  and it does not warn either: a relative link became
+  `https://pypi.org/project/jev-ultrafast-mcp/docs/DESIGN.md` — a 404 page — and a relative image
+  cannot be routed through the camo proxy that PyPI's Content-Security-Policy allows images from, so
+  it renders as a broken box rather than as a 404 anyone would notice. Nine references in each README
+  were affected: both images, the language switch, and the links to `docs/DESIGN.md`, `server.json`,
+  `CONTRIBUTING.md`, `LICENSE` and `pyproject.toml`. All now address the repository directly, and a
+  guard fails if a relative reference comes back. In-page `#anchor` links are untouched — PyPI
+  rewrites those to `user-content-…` and they already worked.
+
 ## [0.1.1] — 2026-09-20
 
 ### Changed
@@ -300,6 +316,7 @@ First public release.
 - **Verification** — 51-check end-to-end smoke suite against a real browser, 17-check real-stdio MCP
   suite, and 5 pytest unit tests.
 
-[Unreleased]: https://github.com/jiawei686/jev-ultrafast-mcp/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/jiawei686/jev-ultrafast-mcp/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/jiawei686/jev-ultrafast-mcp/releases/tag/v0.1.2
 [0.1.1]: https://github.com/jiawei686/jev-ultrafast-mcp/releases/tag/v0.1.1
 [0.1.0]: https://github.com/jiawei686/jev-ultrafast-mcp/releases/tag/v0.1.0

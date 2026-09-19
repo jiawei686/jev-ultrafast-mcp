@@ -1,12 +1,12 @@
 # jev-ultrafast-mcp
 
 [![CI](https://github.com/jiawei686/jev-ultrafast-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/jiawei686/jev-ultrafast-mcp/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/pyproject.toml)
 
-[English](README.md) · **简体中文**
+[English](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/README.md) · **简体中文**
 
-![把浏览器里的活交出去，让决策模型来跑](assets/social-preview.png)
+![把浏览器里的活交出去，让决策模型来跑](https://raw.githubusercontent.com/jiawei686/jev-ultrafast-mcp/main/assets/social-preview.png)
 
 **把浏览器里的活交出去 —— 一个能替你的 agent 开页面、点按钮的 MCP server。**
 
@@ -15,7 +15,7 @@
 
 **花了多少钱。** 当天总共一分钱，面板里两行都算进去，也就这一分钱：
 
-![一张账单面板，当天决策模型花了 $0.01](assets/openrouter-spend.png)
+![一张账单面板，当天决策模型花了 $0.01](https://raw.githubusercontent.com/jiawei686/jev-ultrafast-mcp/main/assets/openrouter-spend.png)
 
 ## 快速开始
 
@@ -153,7 +153,7 @@ browser_open  →  元素表  →  browser_act [refs]  →  browser_assert
 
 思路受 [`browser-use/jev-ultrafast`](https://github.com/browser-use/jev-ultrafast) 和 TypeSafe 的
 typed-question API 启发。本项目是独立实现，与两者均无隶属关系；差异化的取舍见
-[`docs/DESIGN.md`](docs/DESIGN.md)。
+[`docs/DESIGN.md`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/docs/DESIGN.md)。
 
 **目录** ·
 [快速开始](#快速开始) ·
@@ -608,9 +608,9 @@ HTTP 发现接口，所以 404 是**官方预期行为**而不是配置坏了（
 
 **上 PyPI 了吗？进 MCP registry 了吗？**
 都还没有。`pip install "git+https://github.com/jiawei686/jev-ultrafast-mcp"` 装到的和发布版完全
-一样。[`server.json`](server.json) 已经在仓库里备好，给
+一样。[`server.json`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/server.json) 已经在仓库里备好，给
 [官方 registry](https://github.com/modelcontextprotocol/registry) 用 —— 它发布的是包，所以会和第一次
-PyPI 发布同一步落地。相关进展见 [发布](CONTRIBUTING.md#publishing)。
+PyPI 发布同一步落地。相关进展见 [发布](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/CONTRIBUTING.md#publishing)。
 
 **和 Playwright MCP 有什么区别？**
 Playwright 的服务端暴露的是页面原语，选择器和坐标由 agent 自己写。这个暴露的是一张带编号的控件表，
@@ -752,7 +752,7 @@ server.json               官方 MCP registry 条目（等包上了 PyPI 才生�
 ```
 
 CI 会在 Python 3.10 / 3.12 / 3.13 上、对着无头 Chrome 全跑一遍。改「目标解析」那部分逻辑之前
-请先读 [`CONTRIBUTING.md`](CONTRIBUTING.md) —— 那是这个项目的全部意义所在。
+请先读 [`CONTRIBUTING.md`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/CONTRIBUTING.md) —— 那是这个项目的全部意义所在。
 
 ## 相关项目
 
@@ -766,4 +766,4 @@ CI 会在 Python 3.10 / 3.12 / 3.13 上、对着无头 Chrome 全跑一遍。改
 
 ## 许可证
 
-MIT —— 见 [`LICENSE`](LICENSE)。
+MIT —— 见 [`LICENSE`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/LICENSE)。

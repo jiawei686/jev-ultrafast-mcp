@@ -3,7 +3,7 @@
   "name": "io.github.jiawei686/jev-ultrafast-mcp",
   "title": "jev-ultrafast-mcp",
   "description": "An MCP server that lets an AI agent hand browser work off instead of driving it click by click: browser_goal runs the loop server-side over an indexed table of the page's controls, and assertions rather than the model's opinion decide whether it worked. No Playwright, no Selenium, no screenshots in the loop.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "websiteUrl": "https://github.com/jiawei686/jev-ultrafast-mcp",
   "repository": {
     "url": "https://github.com/jiawei686/jev-ultrafast-mcp",
@@ -13,7 +13,7 @@
     {
       "registryType": "pypi",
       "identifier": "jev-ultrafast-mcp",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"

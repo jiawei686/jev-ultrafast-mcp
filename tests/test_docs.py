@@ -172,14 +172,39 @@ def test_the_readmes_say_the_approval_is_per_session_not_per_action():
         assert "JEVMCP_MODE=launch" in text, f"{path.name} does not name the no-dialog route"
 
 
-def test_local_links_in_the_readmes_resolve():
-    """A README whose screenshots and design notes are 404s reads as an abandoned project."""
-    pattern = re.compile(r"\]\((?!https?://|#)([^)]+)\)")
+# The READMEs are read from two places that resolve references differently, and only one of them
+# fills a relative path in. These are the two forms that survive the one that does not.
+SLUG = "jiawei686/jev-ultrafast-mcp"
+BLOB = f"https://github.com/{SLUG}/blob/main/"
+RAW = f"https://raw.githubusercontent.com/{SLUG}/main/"
+REF = re.compile(r"\]\(([^)\s]+)\)")
+
+
+def test_the_readmes_reference_nothing_pypi_cannot_resolve():
+    """Both READMEs are also the PyPI page, and PyPI resolves nothing relative.
+
+    GitHub fills a relative path in for you; PyPI does not, and it does not warn either. A relative
+    link becomes `https://pypi.org/project/jev-ultrafast-mcp/<path>` -- a 404 page -- and a relative
+    image cannot be routed through the camo proxy that PyPI's Content-Security-Policy allows images
+    from, so it renders as a broken-image icon carrying its alt text instead. A README whose
+    screenshots are broken boxes and whose design notes are 404s reads as an abandoned project.
+
+    That asymmetry is what makes this easy to ship: the README looks right in the repository and is
+    broken where most people actually read it. Every reference is therefore absolute, and the ones
+    pointing back into this repository are checked against the tree, because an absolute URL is not
+    automatically a correct one.
+    """
     for path in (README, README_ZH):
-        for target in pattern.findall(path.read_text(encoding="utf-8")):
-            # An anchor addresses a heading, so only the file part has to exist.
-            file_part = target.split("#", 1)[0]
-            assert (ROOT / file_part).exists(), f"{path.name} links to a missing {target}"
+        for target in REF.findall(path.read_text(encoding="utf-8")):
+            assert target.startswith(("http://", "https://", "mailto:", "#")), (
+                f"{path.name} references {target} relatively, which PyPI cannot resolve"
+            )
+            for prefix in (BLOB, RAW):
+                if target.startswith(prefix):
+                    local = target[len(prefix):].split("#", 1)[0]
+                    assert (ROOT / local).exists(), (
+                        f"{path.name} points at {local}, which is not in the tree"
+                    )
 
 
 def test_the_readmes_ship_the_receipt_where_the_claim_is_made():

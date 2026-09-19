@@ -1,12 +1,12 @@
 # jev-ultrafast-mcp
 
 [![CI](https://github.com/jiawei686/jev-ultrafast-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/jiawei686/jev-ultrafast-mcp/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/pyproject.toml)
 
-**English** · [简体中文](README.zh-CN.md)
+**English** · [简体中文](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/README.zh-CN.md)
 
-![Hand the browser work off to a decision model](assets/social-preview.png)
+![Hand the browser work off to a decision model](https://raw.githubusercontent.com/jiawei686/jev-ultrafast-mcp/main/assets/social-preview.png)
 
 **Hand the browser work off — an MCP server that drives the page for your agent.**
 
@@ -16,7 +16,7 @@ server refuses rather than guesses.
 
 **What it cost.** A cent for the whole day, and a cent is all of it:
 
-![A billing dashboard showing $0.01 spent on the decision model for the day](assets/openrouter-spend.png)
+![A billing dashboard showing $0.01 spent on the decision model for the day](https://raw.githubusercontent.com/jiawei686/jev-ultrafast-mcp/main/assets/openrouter-spend.png)
 
 ## Quick start
 
@@ -166,7 +166,7 @@ browser_open  →  element table  →  browser_act [refs]  →  browser_assert
 
 Inspired by [`browser-use/jev-ultrafast`](https://github.com/browser-use/jev-ultrafast) and
 TypeSafe's typed-question API. Independent project, not affiliated with either — see
-[`docs/DESIGN.md`](docs/DESIGN.md) for what is different and why.
+[`docs/DESIGN.md`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/docs/DESIGN.md) for what is different and why.
 
 **Contents** ·
 [Quick start](#quick-start) ·
@@ -652,10 +652,10 @@ No, and that is deliberate — it never looks at pixels. Use a screenshot-and-vi
 
 **Is it on PyPI? Is it in the MCP registry?**
 Not yet. `pip install "git+https://github.com/jiawei686/jev-ultrafast-mcp"` installs exactly what a
-release would. [`server.json`](server.json) is already in the repo for the
+release would. [`server.json`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/server.json) is already in the repo for the
 [official registry](https://github.com/modelcontextprotocol/registry), which publishes a package —
 so it lands there in the same step as the first PyPI release. See
-[Publishing](CONTRIBUTING.md#publishing) for the state of that.
+[Publishing](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/CONTRIBUTING.md#publishing) for the state of that.
 
 **How is this different from the Playwright MCP?**
 Playwright's server exposes page primitives; the agent writes selectors and coordinates. This one
@@ -808,7 +808,7 @@ server.json               the MCP registry entry (lands once the package is on P
 ```
 
 All of it runs in CI on Python 3.10, 3.12 and 3.13 against headless Chrome. Read
-[`CONTRIBUTING.md`](CONTRIBUTING.md) before changing how targets are resolved — that logic is the
+[`CONTRIBUTING.md`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/CONTRIBUTING.md) before changing how targets are resolved — that logic is the
 whole point of the project.
 
 ## See also
@@ -824,4 +824,4 @@ whole point of the project.
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+MIT — see [`LICENSE`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/LICENSE).
