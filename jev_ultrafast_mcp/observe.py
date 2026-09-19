@@ -236,7 +236,8 @@ class Observation:
         if self.new_tabs:
             for tab in self.new_tabs:
                 warnings.append(f"NEW TAB opened: {tab.get('url')} \u2192 switch with "
-                                f"{{'op':'tab','action':'switch','index':{tab.get('index')}}}")
+                                f"{{'op':'tab','action':'switch','target_id':'"
+                                f"{tab.get('target_id')}'}}")
         lines.extend(f"  ! {warning}" for warning in warnings)
 
         detail_refs = set(focus or [])

@@ -83,10 +83,14 @@ def _tabs_list(tab) -> str:
     tabs = tab._refresh_tabs()
     if not tabs:
         return "no tabs"
-    return "\n".join(
-        f"  [{item['index']}] {'*' if item['active'] else ' '} {item['url']}  \"{item['title']}\""
-        for item in tabs
-    )
+    lines = []
+    for item in tabs:
+        handle = "#" + item["target_id"][:8]
+        lines.append(
+            f"  [{item['index']}] {'*' if item['active'] else ' '} {handle}  "
+            f"{item['url']}  \"{item['title']}\""
+        )
+    return "\n".join(lines)
 
 
 def _error(exc: Exception) -> str:
@@ -375,10 +379,16 @@ def browser_goal(goal: str, session: str = "default", max_steps: int = 20,
 
 
 @SERVER.tool()
-def browser_tabs(session: str = "default", action: str = "list", index: int = 0,
-                 url: str = "about:blank") -> str:
-    """List, open, switch to, or close tabs. New tabs opened by the page appear
-    in observations automatically and can be switched to by index."""
+def browser_tabs(session: str = "default", action: str = "list", index: int = -1,
+                 target_id: str = "", url: str = "about:blank") -> str:
+    """List, open, switch to, or close tabs.
+
+    Tabs opened by the page show up in observations on their own. To act on one,
+    prefer `target_id` (the `#handle` printed by action="list"): indexes are
+    positional and get renumbered whenever the tab list changes, so an index
+    read a call ago can address a different tab. `index` is a convenience when
+    listing and acting in the same breath; omit both to mean "the current tab".
+    """
     try:
         tab = _session(session)
         if action == "list":
@@ -387,13 +397,14 @@ def browser_tabs(session: str = "default", action: str = "list", index: int = 0,
             tab.cdp.call("Target.createTarget", url=url, background=not CONFIG.foreground)
             tab._refresh_tabs()
             return "opened new tab\n" + _tabs_list(tab)
+        which = index if index >= 0 else None
         if action == "switch":
-            tab.switch_tab(index)
+            tab.switch_tab(which, target_id=target_id or None)
             observation = tab.observe()
-            return f"switched to tab {index}\n\n" + _view(observation, mode="full")
+            return f"switched to tab {target_id or which}\n\n" + _view(observation, mode="full")
         if action == "close":
-            tab.close_tab(index)
-            return f"closed tab {index}"
+            tab.close_tab(which, target_id=target_id or None)
+            return f"closed tab {target_id or which or 'current'}"
         return f"unknown tab action {action!r}"
     except (ChromeLaunchError, CdpError, PageStale) as exc:
         return _error(exc)

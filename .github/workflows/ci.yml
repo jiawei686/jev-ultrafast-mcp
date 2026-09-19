@@ -30,6 +30,13 @@ jobs:
       - name: Lint
         run: ruff check .
 
+      # The installer writes into files it does not own, so at least prove that
+      # detection and entry-building survive a Linux path layout.
+      - name: Installer dry run
+        run: |
+          python scripts/install.py --list
+          python scripts/install.py --print -c all | tail -20
+
       - name: Unit tests
         id: unit
         continue-on-error: true

@@ -215,11 +215,30 @@ class Session:
         self._call("Page.navigateToHistoryEntry", entryId=entries["entries"][index]["id"])
         self._wait_loaded()
 
-    def switch_tab(self, index: int) -> None:
+    def _resolve_tab(self, index: int | None = None, target_id: str | None = None) -> dict:
+        """Turn a tab reference into a live tab entry.
+
+        An index is positional and the target list is renumbered whenever it
+        changes -- activating a tab alone can reorder it. So an index is only
+        trustworthy if it was read in the same breath as the action that uses
+        it, which is exactly the mistake that makes "close tab 1" close the
+        wrong tab. A `target_id` is stable and is the safe reference to carry
+        across calls.
+        """
         tabs = self._refresh_tabs()
+        if target_id:
+            match = next((tab for tab in tabs if tab["target_id"] == target_id), None)
+            if match is None:
+                raise CdpError(f"No tab with that target_id any more; {len(tabs)} tab(s) open")
+            return match
+        if index is None:
+            raise CdpError("A tab action needs either index or target_id")
         if index < 0 or index >= len(tabs):
             raise CdpError(f"No tab at index {index}; {len(tabs)} tab(s) open")
-        target = tabs[index]
+        return tabs[index]
+
+    def switch_tab(self, index: int | None = None, *, target_id: str | None = None) -> None:
+        target = self._resolve_tab(index, target_id)
         if target["target_id"] == self.target_id:
             return
         self.target_id = target["target_id"]
@@ -232,15 +251,16 @@ class Session:
         self.last = None  # a fresh tab is a fresh observation context
         self._refresh_tabs()
 
-    def close_tab(self, index: int | None = None) -> None:
-        tabs = self._refresh_tabs()
-        if not tabs:
+    def close_tab(self, index: int | None = None, *, target_id: str | None = None) -> None:
+        if not self._refresh_tabs():
             return
-        target = self.target_id if index is None else tabs[index]["target_id"]
+        if target_id or index is not None:
+            target = self._resolve_tab(index, target_id)["target_id"]
+        else:
+            target = self.target_id  # no reference: close the tab we are driving
         if target == self.target_id:
             self.close()
-            remaining = [tab for tab in tabs if tab["target_id"] != target]
-            if remaining:
+            if self._refresh_tabs():
                 self.switch_tab(0)
         else:
             self.cdp.call("Target.closeTarget", targetId=target)
@@ -602,19 +622,22 @@ class Session:
 
             elif op == "tab":
                 action = str(raw_op.get("action") or "list")
-                index = int(raw_op.get("index") or 0)
+                raw_index = raw_op.get("index")
+                index = int(raw_index) if raw_index is not None else None
+                target_id = str(raw_op.get("target_id") or "") or None
                 if dry_run:
                     return Step(op=op, ok=True, detail="dry run")
                 if action == "switch":
-                    self.switch_tab(index)
+                    self.switch_tab(index, target_id=target_id)
                 elif action == "close":
-                    self.close_tab(index)
+                    self.close_tab(index, target_id=target_id)
                 elif action == "new":
                     url = str(raw_op.get("url") or "about:blank")
                     check_url(self.cfg, url)
                     self.cdp.call("Target.createTarget", url=url, background=self.background)
                 self._refresh_tabs()
-                target_label = f"{action} tab {index}"
+                which = target_id or (index if index is not None else "current")
+                target_label = f"{action} tab {which}"
 
             else:
                 raise ValueError(f"unknown op {op!r}")

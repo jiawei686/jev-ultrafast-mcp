@@ -6,6 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **One-command client setup** — `scripts/install.py` detects the MCP clients on the machine
+  (WorkBuddy, Claude Code, Claude Desktop, Codex CLI, Cursor, VS Code, Cline, Windsurf, Gemini CLI)
+  and writes the dialect each one expects. Merges rather than overwrites, backs up to `*.bak`, and
+  supports `--list`, `--print`, `--uninstall`. Stdlib only, so it runs before the dependencies exist.
+- **Chinese README** — [`README.zh-CN.md`](README.zh-CN.md), switchable from the English one.
+- The README now shows real observation output: the element table, a delta, a `= no change` line,
+  duplicate controls carrying `@context`, and a detached-ref refusal.
+
+### Fixed
+
+- **Tab references were positional and short-lived.** `switch_tab` / `close_tab` took a list index,
+  and that list is renumbered whenever it changes — activating a tab alone can reorder it. Carrying
+  an index across calls could close the wrong tab, and an out-of-range index raised a bare
+  `IndexError`. Tab ops and the `browser_tabs` tool now accept a stable `target_id`, `list` prints a
+  `#handle` for each tab, and the new-tab warning suggests the stable reference. `index` still works
+  when it is read in the same breath as the action.
+- The smoke suite clicked a `target=_blank` link and then slept a fixed 0.5s before looking for the
+  new tab — tuned for a warm laptop, and a race on a loaded CI runner. It polls now.
+- `scripts/mcp_check.py` hard-coded the child environment, so any machine whose Chrome is not in a
+  default location (or any CI runner) failed. It inherits `os.environ` and overrides only the keys it
+  controls.
+- CI captures smoke / MCP / pytest output and republishes failures as annotations and a step summary,
+  because downloading job logs requires repo admin rights and a red X on a public repo was otherwise
+  undiagnosable. Also bumped to `actions/checkout@v7` / `actions/setup-python@v7`.
+
 ## [0.1.0] — 2026-09-19
 
 First public release.

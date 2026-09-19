@@ -386,15 +386,18 @@ def run(base: str, headed: bool) -> int:
     check("page-opened tab surfaced", popped is not None or len(observation.tabs) >= 2,
           json.dumps([t["url"] for t in observation.tabs]))
     if popped is not None:
-        session.switch_tab(popped["index"])
+        # Carry the stable target_id, not the index: indexes are positional and
+        # get renumbered whenever the target list changes, so "close tab 1" can
+        # close the wrong tab a call later.
+        session.switch_tab(target_id=popped["target_id"])
         check("switched into the new tab",
               "popup" in (session.last.url if session.last else "")
               or "popup" in (session._safe_eval("location.href") or ""),
               session._safe_eval("location.href"))
-        session.close_tab(popped["index"])
+        session.close_tab(target_id=popped["target_id"])
         back = wait_until(fixture_tab, timeout=15.0)
         if back is not None:
-            session.switch_tab(back["index"])
+            session.switch_tab(target_id=back["target_id"])
         check("closed the tab and returned",
               "fixture" in (session._safe_eval("location.href") or ""),
               session._safe_eval("location.href"))
