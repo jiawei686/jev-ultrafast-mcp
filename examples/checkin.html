@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Daily Rewards — Check in</title>
+<style>
+  body { font: 15px/1.55 -apple-system, system-ui, sans-serif; margin: 0; padding: 28px;
+         max-width: 560px; color: #1c1c1e; }
+  h1 { font-size: 19px; margin: 0 0 2px; }
+  .who { color: #6b7280; font-size: 13px; margin: 0 0 18px; }
+  .card { border: 1px solid #e2e2e6; border-radius: 10px; padding: 18px 20px; }
+  .stats { display: flex; gap: 26px; margin-bottom: 12px; }
+  .stat { font-size: 13px; color: #6b7280; }
+  .stat strong { display: block; font-size: 22px; color: #1c1c1e; font-weight: 650; }
+  #status { margin: 0 0 14px; font-size: 14px; color: #6b7280; }
+  #status.done { color: #157f3d; font-weight: 600; }
+  button { font: inherit; padding: 9px 18px; border-radius: 8px; border: 1px solid transparent;
+           background: #1a73e8; color: #fff; cursor: pointer; }
+  button[disabled] { background: #eceef1; color: #8a8f98; cursor: default; border-color: #dcdfe4; }
+  footer { margin-top: 22px; font-size: 12px; color: #9aa0a8; }
+</style>
+</head>
+<body>
+<h1>Daily Rewards</h1>
+<p class="who">Signed in as demo@example.com</p>
+
+<div class="card">
+  <div class="stats">
+    <div class="stat">Streak<strong id="streak">4</strong></div>
+    <div class="stat">Points<strong id="points">120</strong></div>
+  </div>
+  <p id="status" role="status">Not checked in yet today.</p>
+  <button id="checkin" type="button">Check in</button>
+</div>
+
+<footer>Resets at midnight. One check-in per day.</footer>
+
+<script>
+// Keyed by date so a second visit on the same day shows the already-done state.
+// `?reset` clears it, which is how the demo can be run more than once a day --
+// the page itself has no reset control, so the page the agent sees stays honest.
+const today = new Date().toISOString().slice(0, 10);
+const KEY = "checkin:" + today;
+if (new URLSearchParams(location.search).has("reset")) {
+  localStorage.removeItem(KEY);
+}
+
+const points = document.getElementById("points");
+const streak = document.getElementById("streak");
+const status = document.getElementById("status");
+const button = document.getElementById("checkin");
+
+function render(done) {
+  if (!done) return;
+  points.textContent = "130";
+  streak.textContent = "5";
+  status.textContent = "Checked in today";
+  status.classList.add("done");
+  button.textContent = "Checked in";
+  button.disabled = true;
+}
+
+if (localStorage.getItem(KEY)) render(true);
+
+button.addEventListener("click", () => {
+  localStorage.setItem(KEY, "1");
+  render(true);
+});
+</script>
+</body>
+</html>

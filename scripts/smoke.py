@@ -85,9 +85,16 @@ class _QuietHandler(http.server.SimpleHTTPRequestHandler):
         return
 
 
-def serve(directory: Path) -> tuple[http.server.ThreadingHTTPServer, str]:
+def serve(directory: Path, port: int = 0) -> tuple[http.server.ThreadingHTTPServer, str]:
+    """Serve `directory`. `port=0` picks a free one; pin it to keep the origin.
+
+    The origin of a page is scheme + host + *port*, so a caller that needs two
+    runs to be the same site -- a check-in that must notice it already ran
+    today -- has to pin the port, or the browser sees a different site each
+    time and every run starts from an empty localStorage.
+    """
     handler = partial(_QuietHandler, directory=str(directory))
-    port = free_port()
+    port = port or free_port()
     httpd = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     return httpd, f"http://127.0.0.1:{port}"
