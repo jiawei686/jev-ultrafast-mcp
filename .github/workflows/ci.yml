@@ -15,9 +15,9 @@ jobs:
         python-version: ["3.10", "3.12", "3.13"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -41,7 +41,37 @@ jobs:
           echo "using JEVMCP_CHROME=${JEVMCP_CHROME:-<auto>}"
 
       - name: End-to-end smoke (real browser)
-        run: python scripts/smoke.py
+        id: smoke
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          python -u scripts/smoke.py 2>&1 | tee smoke.log
 
       - name: MCP stdio protocol check
-        run: python scripts/mcp_check.py
+        id: mcpcheck
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          python -u scripts/mcp_check.py 2>&1 | tee mcp.log
+
+      # Downloading job logs needs repo admin rights; annotations and the step
+      # summary do not. So a failing run here is diagnosable from an API call.
+      - name: Publish failure detail
+        if: steps.smoke.outcome != 'success' || steps.mcpcheck.outcome != 'success'
+        run: |
+          for f in smoke.log mcp.log; do
+            [ -f "$f" ] || continue
+            {
+              echo "### $f"
+              echo '```'
+              tail -c 5000 "$f"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
+          grep -h -F '[FAIL]' smoke.log mcp.log 2>/dev/null | head -25 | while IFS= read -r line; do
+            echo "::error title=failing check::$(printf '%s' "$line" | sed 's/^ *//' | cut -c1-700)"
+          done
+          if grep -q -F 'Traceback' smoke.log mcp.log 2>/dev/null; then
+            echo "::error title=script crashed::$(grep -h -A8 -F 'Traceback' smoke.log mcp.log | tr '\n' '|' | cut -c1-900)"
+          fi
+          exit 1

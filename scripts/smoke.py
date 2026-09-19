@@ -46,6 +46,23 @@ def section(title: str) -> None:
     print(f"\n\033[1m{title}\033[0m", flush=True)
 
 
+def wait_until(pred, timeout: float = 10.0, interval: float = 0.1):
+    """Poll `pred` until it returns something truthy, or give up.
+
+    A fixed `time.sleep` is a flake waiting to happen: it is tuned on a warm
+    laptop and then runs on a cold, oversubscribed CI runner. Poll the condition
+    you actually care about instead.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        value = pred()
+        if value:
+            return value
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(interval)
+
+
 # ------------------------------------------------------------------ plumbing
 
 
@@ -357,20 +374,30 @@ def run(base: str, headed: bool) -> int:
     observation = observe(session, mode="full")
     popup = ref_of(observation, "Open popup", "link")
     act(session, [{"op": "click", "ref": popup}])
-    time.sleep(0.5)
+
+    def popup_tab():
+        return next((t for t in session._refresh_tabs() if "popup" in t["url"]), None)
+
+    def fixture_tab():
+        return next((t for t in session._refresh_tabs() if "fixture" in t["url"]), None)
+
+    popped = wait_until(popup_tab, timeout=15.0)
     observation = observe(session)
-    check("page-opened tab surfaced", bool(observation.new_tabs) or len(observation.tabs) >= 2,
+    check("page-opened tab surfaced", popped is not None or len(observation.tabs) >= 2,
           json.dumps([t["url"] for t in observation.tabs]))
-    if len(observation.tabs) >= 2:
-        popup_index = next((t["index"] for t in observation.tabs if "popup" in t["url"]), 1)
-        session.switch_tab(popup_index)
-        check("switched into the new tab", "popup" in (session.last.url if session.last else "")
-              or "popup" in session._safe_eval("location.href").__str__(),
+    if popped is not None:
+        session.switch_tab(popped["index"])
+        check("switched into the new tab",
+              "popup" in (session.last.url if session.last else "")
+              or "popup" in (session._safe_eval("location.href") or ""),
               session._safe_eval("location.href"))
-        session.close_tab(popup_index)
-        session.switch_tab(next(t["index"] for t in session._refresh_tabs()
-                                if "fixture" in t["url"]))
-        check("closed the tab and returned", "fixture" in (session._safe_eval("location.href") or ""))
+        session.close_tab(popped["index"])
+        back = wait_until(fixture_tab, timeout=15.0)
+        if back is not None:
+            session.switch_tab(back["index"])
+        check("closed the tab and returned",
+              "fixture" in (session._safe_eval("location.href") or ""),
+              session._safe_eval("location.href"))
 
     # --------------------------------------------------------- 13. screenshot
     section("13. Screenshot goes to disk, never into the context")
