@@ -41,7 +41,8 @@ def check_url(cfg: Config, url: str) -> None:
     if cfg.allow_domains and not any(_matches(host, pattern) for pattern in cfg.allow_domains):
         raise SafetyError(
             f"Domain {host!r} is outside JEVMCP_ALLOW_DOMAINS "
-            f"({', '.join(cfg.allow_domains)})."
+            f"({', '.join(cfg.allow_domains)}). That list is a setting, not a default — "
+            "browser_doctor reports the whole envelope."
         )
 
 

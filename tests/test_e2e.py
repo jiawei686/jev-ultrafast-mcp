@@ -6,6 +6,7 @@ Chromium-family binary is present. It is the same code path the MCP tools use.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -77,6 +78,64 @@ def test_domain_envelope() -> None:
     cfg2.deny_domains = ["admin.example.com"]
     with pytest.raises(SafetyError):
         check_url(cfg2, "https://admin.example.com/")
+
+
+def test_a_refusal_says_the_envelope_is_a_setting_not_a_default() -> None:
+    """The likeliest way to meet this guard is to have forgotten it is on.
+
+    The envelope is opt-in and off by default, so a reader who runs into it has
+    almost always inherited it from an earlier task rather than chosen it for
+    this one. One clause saying which of the two it is saves a hunt through a
+    config file that nothing else points at.
+    """
+    from jev_ultrafast_mcp.config import Config
+    from jev_ultrafast_mcp.safety import SafetyError, check_url
+
+    cfg = Config.from_env()
+    cfg.allow_domains = ["example.com"]
+    with pytest.raises(SafetyError) as caught:
+        check_url(cfg, "https://pypi.org/")
+
+    message = str(caught.value)
+    assert "pypi.org" in message
+    assert "not a default" in message
+    assert "browser_doctor" in message
+
+
+def test_doctor_announces_an_envelope_that_is_on(monkeypatch) -> None:
+    """`browser_doctor` claims to separate "blocked by policy" from "no browser".
+
+    It reported the lists but never said they were the reason anything failed,
+    so the claim only held for a reader who already knew to look at them.
+    """
+    from jev_ultrafast_mcp import server
+    from jev_ultrafast_mcp.browser import BrowserManager
+    from jev_ultrafast_mcp.config import Config
+
+    manager = BrowserManager(
+        Config(allow_domains=["x.com"], deny_domains=["admin.example.com"]))
+    monkeypatch.setattr(server, "MANAGER", manager)
+    monkeypatch.setattr(server, "CONFIG", manager.cfg)
+
+    hints = " ".join(json.loads(server.browser_doctor())["hints"])
+    assert "JEVMCP_ALLOW_DOMAINS" in hints
+    assert "x.com" in hints
+    assert "JEVMCP_DENY_DOMAINS" in hints
+
+
+def test_doctor_stays_quiet_when_there_is_no_envelope(monkeypatch) -> None:
+    """Off by default has to mean off: nothing for the ordinary setup to read past."""
+    from jev_ultrafast_mcp import server
+    from jev_ultrafast_mcp.browser import BrowserManager
+    from jev_ultrafast_mcp.config import Config
+
+    manager = BrowserManager(Config())
+    monkeypatch.setattr(server, "MANAGER", manager)
+    monkeypatch.setattr(server, "CONFIG", manager.cfg)
+
+    hints = " ".join(json.loads(server.browser_doctor())["hints"])
+    assert "JEVMCP_ALLOW_DOMAINS" not in hints
+    assert "JEVMCP_DENY_DOMAINS" not in hints
 
 
 def test_macro_scoring_and_ambiguity() -> None:

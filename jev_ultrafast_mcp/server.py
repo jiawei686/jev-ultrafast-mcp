@@ -585,6 +585,22 @@ def browser_doctor() -> str:
             report["hints"].append("Browser is not started yet; it launches on the first browser_open.")
     if report.get("chrome_error"):
         report["hints"].append("Set JEVMCP_CHROME to your Chrome/Chromium executable.")
+    # A guard that is on has to say so. The envelope is opt-in and off by
+    # default, so anyone who meets it has almost always inherited it from an
+    # earlier task rather than chosen it — and a site that will not open is
+    # then indistinguishable from a broken browser, which is the one thing this
+    # tool promises to tell apart.
+    if CONFIG.allow_domains:
+        report["hints"].append(
+            "Domain envelope is on: navigation outside JEVMCP_ALLOW_DOMAINS is refused "
+            f"({', '.join(CONFIG.allow_domains)}). That list is set in the client's config, "
+            "not a default — so a site that will not open is this, not a broken browser."
+        )
+    if CONFIG.deny_domains:
+        report["hints"].append(
+            f"JEVMCP_DENY_DOMAINS is set ({', '.join(CONFIG.deny_domains)}); those hosts are "
+            "refused whatever the allowlist says."
+        )
     return json.dumps(report, indent=2, ensure_ascii=False)
 
 
