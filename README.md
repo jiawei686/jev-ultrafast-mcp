@@ -329,7 +329,7 @@ Two of these are worth setting before you point an agent at your own accounts:
 ## Try it without an agent
 
 ```bash
-.venv/bin/python scripts/smoke.py            # headless, 51 checks
+.venv/bin/python scripts/smoke.py            # headless, 52 checks
 .venv/bin/python scripts/smoke.py --headed   # watch it drive
 ```
 
@@ -346,7 +346,7 @@ destructive-click guard, stale refs, macro record/replay, tab handoff and screen
   [ok  ] covered control flagged before any click  — e8 occluded=True
   [ok  ] click on a covered control is refused with a reason  — occluded
 ...
-  51/51 checks passed
+  52/52 checks passed
 ```
 
 ## Layout
@@ -375,7 +375,7 @@ scripts/
 .venv/bin/pip install -e ".[dev]"
 .venv/bin/ruff check .
 .venv/bin/python -m pytest -q
-.venv/bin/python scripts/smoke.py        # 51 checks, real browser
+.venv/bin/python scripts/smoke.py        # 52 checks, real browser
 .venv/bin/python scripts/mcp_check.py    # 17 checks, real stdio MCP
 ```
 

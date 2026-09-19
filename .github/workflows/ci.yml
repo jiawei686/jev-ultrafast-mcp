@@ -80,12 +80,12 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           done
           grep -h -F '[FAIL]' smoke.log mcp.log 2>/dev/null | head -25 | while IFS= read -r line; do
-            echo "::error title=failing check::$(printf '%s' "$line" | sed 's/^ *//' | cut -c1-700)"
+            echo "::error title=failing check::$(printf '%s' "$line" | sed 's/^ *//' | cut -c1-1800)"
           done
           if grep -q -F 'Traceback' pytest.log smoke.log mcp.log 2>/dev/null; then
-            echo "::error title=script crashed::$(grep -h -A8 -F 'Traceback' pytest.log smoke.log mcp.log | tr '\n' '|' | cut -c1-900)"
+            echo "::error title=script crashed::$(grep -h -A12 -F 'Traceback' pytest.log smoke.log mcp.log | tr '\n' '|' | cut -c1-1800)"
           fi
           if grep -q -F 'failed' pytest.log 2>/dev/null; then
-            echo "::error title=pytest failed::$(grep -h -F 'scenario failed' -A6 pytest.log | tr '\n' '|' | cut -c1-900)"
+            echo "::error title=pytest failed::$(grep -h -F 'scenario failed' -A8 pytest.log | tr '\n' '|' | cut -c1-1800)"
           fi
           exit 1

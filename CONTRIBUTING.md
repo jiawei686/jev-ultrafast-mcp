@@ -35,7 +35,7 @@ You need a Chromium-family browser on `PATH`, or point `JEVMCP_CHROME` at one.
 ```bash
 .venv/bin/ruff check .
 .venv/bin/python -m pytest -q
-.venv/bin/python scripts/smoke.py        # 51 checks against a real browser
+.venv/bin/python scripts/smoke.py        # 52 checks against a real browser
 .venv/bin/python scripts/mcp_check.py    # 17 checks over real stdio MCP
 ```
 

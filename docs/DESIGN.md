@@ -31,8 +31,8 @@ host was already making.
 
 jev's architecture cannot do this: without `TYPESAFE_API_KEY` it has no policy at all.
 
-Measured over the full 13-section scenario (26 browser ops, 51 assertions): **12,680 bytes of
-observation reached the model — about 122 tokens per browser operation, page text included.**
+Measured over the full 13-section scenario (26 browser ops, 52 assertions): **13,360 bytes of
+observation reached the model — about 128 tokens per browser operation, page text included.**
 A screenshot-per-step loop spends 1,000–1,500 tokens per step on the image alone.
 
 The TypeSafe path is still implemented (`browser_goal`) for when you *want* the server to drive:

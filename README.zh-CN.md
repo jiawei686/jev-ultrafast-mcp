@@ -317,7 +317,7 @@ canvas 应用），因为这个服务刻意不看像素。这类场景请换截�
 ## 不接 agent 也能试
 
 ```bash
-.venv/bin/python scripts/smoke.py            # 无头，51 项检查
+.venv/bin/python scripts/smoke.py            # 无头，52 项检查
 .venv/bin/python scripts/smoke.py --headed   # 看着它操作
 ```
 
@@ -334,7 +334,7 @@ canvas 应用），因为这个服务刻意不看像素。这类场景请换截�
   [ok  ] covered control flagged before any click  — e8 occluded=True
   [ok  ] click on a covered control is refused with a reason  — occluded
 ...
-  51/51 checks passed
+  52/52 checks passed
 ```
 
 ## 目录结构
@@ -363,7 +363,7 @@ scripts/
 .venv/bin/pip install -e ".[dev]"
 .venv/bin/ruff check .
 .venv/bin/python -m pytest -q
-.venv/bin/python scripts/smoke.py        # 51 项，真实浏览器
+.venv/bin/python scripts/smoke.py        # 52 项，真实浏览器
 .venv/bin/python scripts/mcp_check.py    # 17 项，真实 stdio MCP
 ```
 

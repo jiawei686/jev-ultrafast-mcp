@@ -395,6 +395,14 @@ def run(base: str, headed: bool) -> int:
               or "popup" in (session._safe_eval("location.href") or ""),
               session._safe_eval("location.href"))
         session.close_tab(target_id=popped["target_id"])
+        # Closing the tab we were driving must leave the session on a live one by
+        # itself. The closed target keeps showing up in the target list for a
+        # moment, so "the list is non-empty" is not "there is somewhere to go" --
+        # picking the dying target and attaching to it is a race, and CI won it.
+        live = session._refresh_tabs()
+        check("closed the driven tab and landed on a survivor on its own",
+              live and all("popup" not in tab["url"] for tab in live),
+              json.dumps([tab["url"] for tab in live]))
         back = wait_until(fixture_tab, timeout=15.0)
         if back is not None:
             session.switch_tab(target_id=back["target_id"])

@@ -18,6 +18,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Closing the tab you were driving could attach to it while it was dying.** `Target.closeTarget`
+  is a request, not a fact: the target keeps appearing in `Target.getTargets` for a moment
+  afterwards, so "the target list is non-empty" is not "there is a tab left to drive". `close_tab`
+  now waits for a survivor instead of taking index 0, which is a race the CI runner won and a warm
+  laptop lost. The smoke suite asserts the new contract directly.
 - **Tab references were positional and short-lived.** `switch_tab` / `close_tab` took a list index,
   and that list is renumbered whenever it changes — activating a tab alone can reorder it. Carrying
   an index across calls could close the wrong tab, and an out-of-range index raised a bare

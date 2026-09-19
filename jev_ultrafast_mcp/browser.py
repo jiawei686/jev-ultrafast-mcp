@@ -251,6 +251,23 @@ class Session:
         self.last = None  # a fresh tab is a fresh observation context
         self._refresh_tabs()
 
+    def _await_tab(self, *, exclude: str = "", timeout: float = 3.0) -> dict | None:
+        """Wait for a tab that is not `exclude` to be attachable.
+
+        `Target.closeTarget` is a request, not a fact: the closed target keeps
+        appearing in `Target.getTargets` for a moment afterwards. So "the list is
+        non-empty" is not the same as "there is a tab left to drive", and
+        attaching to the tab that is on its way out raises. Wait for a survivor.
+        """
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = [tab for tab in self._refresh_tabs() if tab["target_id"] != exclude]
+            if remaining:
+                return remaining[0]
+            if time.monotonic() >= deadline:
+                return None
+            time.sleep(0.05)
+
     def close_tab(self, index: int | None = None, *, target_id: str | None = None) -> None:
         if not self._refresh_tabs():
             return
@@ -260,8 +277,9 @@ class Session:
             target = self.target_id  # no reference: close the tab we are driving
         if target == self.target_id:
             self.close()
-            if self._refresh_tabs():
-                self.switch_tab(0)
+            survivor = self._await_tab(exclude=target)
+            if survivor is not None:
+                self.switch_tab(target_id=survivor["target_id"])
         else:
             self.cdp.call("Target.closeTarget", targetId=target)
         self._refresh_tabs()
