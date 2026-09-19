@@ -270,15 +270,32 @@ def _backup(path: Path) -> Path | None:
 # --------------------------------------------------------------------------- entries
 
 
-def _entry(client: dict[str, Any], interp: str, args: list[str],
-           env: dict[str, str]) -> dict[str, Any]:
-    entry: dict[str, Any] = {}
+# The keys this script writes are command, args, env and (for VS Code) type.
+# Everything else already in an entry -- `cwd`, `disabled`, a variable set by
+# hand -- belongs to the user, and an install is not allowed to be the thing
+# that deletes it.
+def _entry(client: dict[str, Any], interp: str, args: list[str], env: dict[str, str],
+           existing: Any = None) -> dict[str, Any]:
+    """The entry to write, merged over whatever is already there.
+
+    Replacing an entry wholesale dropped every key this script does not write,
+    so a hand-added `cwd` -- and an environment allowlist, which is a safety
+    setting -- disappeared on the first install. That is the opposite of what
+    this module promises: merging into a config, not overwriting it.
+    """
+    entry: dict[str, Any] = dict(existing) if isinstance(existing, dict) else {}
     if client["root"] == "servers":  # VS Code wants the transport spelled out
         entry["type"] = "stdio"
     entry["command"] = interp
     entry["args"] = args
-    if env:
-        entry["env"] = env
+    # Variables are merged, not replaced: `--env` sets what it names and leaves
+    # the rest alone, so an allowlist added by hand survives a plain install.
+    merged = dict(entry.get("env") or {})
+    merged.update(env)
+    if merged:
+        entry["env"] = merged
+    else:
+        entry.pop("env", None)
     return entry
 
 
@@ -286,17 +303,63 @@ def _toml_string(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def _toml_block(name: str, interp: str, args: list[str], env: dict[str, str]) -> str:
+_TOML_KEY = re.compile(r"^([A-Za-z_][A-Za-z0-9_.-]*)\s*=")
+
+
+def _toml_key(line: str) -> str:
+    match = _TOML_KEY.match(line)
+    return match.group(1) if match else ""
+
+
+def _toml_section_lines(text: str, header: str) -> list[str]:
+    """The non-blank body lines of `[header]`, up to the next table header."""
+    wanted = re.compile(rf"^\[{re.escape(header)}\]$")
+    body: list[str] = []
+    inside = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("["):
+            inside = bool(wanted.match(stripped))
+            continue
+        if inside and stripped:
+            body.append(stripped)
+    return body
+
+
+def _toml_carry_over(text: str, name: str,
+                     env: dict[str, str]) -> tuple[list[str], list[str]]:
+    """Lines already in Codex's tables that this script does not write.
+
+    The same contract as the JSON path: a hand-added `cwd`, a timeout someone
+    tuned, a variable set outside this script -- all of it is the user's, and an
+    install must not be the thing that deletes it. Lines are carried across
+    verbatim, so a value the script has no opinion about keeps its own spelling.
+    """
+    main = [line for line in _toml_section_lines(text, f"mcp_servers.{name}")
+            if _toml_key(line) not in ("command", "args")]
+    sub = [line for line in _toml_section_lines(text, f"mcp_servers.{name}.env")
+           if _toml_key(line) not in env]
+    return main, sub
+
+
+def _toml_block(name: str, interp: str, args: list[str], env: dict[str, str],
+                keep: list[str] = (), keep_env: list[str] = ()) -> str:
     lines = [
         f"[mcp_servers.{name}]",
         f"command = {_toml_string(interp)}",
         "args = [" + ", ".join(_toml_string(arg) for arg in args) + "]",
-        "startup_timeout_sec = 20",
     ]
-    if env:
+    # Seeded for a fresh entry only: a timeout already in the file comes back
+    # through `keep`, so re-installing does not quietly reset it to the default.
+    if not any(_toml_key(line) == "startup_timeout_sec" for line in keep):
+        lines.append("startup_timeout_sec = 20")
+    lines.extend(keep)
+    env_lines = [f"{key} = {_toml_string(value)}" for key, value in env.items()]
+    env_lines.extend(keep_env)
+    if env_lines:
         lines.append("")
         lines.append(f"[mcp_servers.{name}.env]")
-        lines.extend(f"{key} = {_toml_string(value)}" for key, value in env.items())
+        lines.extend(env_lines)
     return "\n".join(lines) + "\n"
 
 
@@ -345,19 +408,26 @@ def _plan(client: dict[str, Any], interp: str, args: list[str], env: dict[str, s
             new_text = dropped + "\n" if dropped else ""
             return path, (new_text if new_text != text else None), \
                 "remove [mcp_servers.%s]" % SERVER_NAME
-        new_text = _toml_upsert(text, SERVER_NAME, _toml_block(SERVER_NAME, interp, args, env))
+        keep, keep_env = _toml_carry_over(text, SERVER_NAME, env)
+        block = _toml_block(SERVER_NAME, interp, args, env, keep, keep_env)
+        new_text = _toml_upsert(text, SERVER_NAME, block)
         table = f"[mcp_servers.{SERVER_NAME}]"
         verb = "replace" if table in text else "add"
         return path, new_text, f"{verb} {table}"
 
     data = _read_json(path)
-    present = SERVER_NAME in (data.get(client["root"]) or {})
+    existing = data.get(client["root"])
+    if existing is not None and not isinstance(existing, dict):
+        raise SystemExit(f"  ! {path}: \"{client['root']}\" is not a JSON object\n"
+                         f"    refusing to touch it — fix the file, or run with --print")
+    present = SERVER_NAME in (existing or {})
     if remove:
         if not present:
             return path, None, f"no {SERVER_NAME} entry"
-        del data[client["root"]][SERVER_NAME]
+        del existing[SERVER_NAME]
         return path, json.dumps(data, indent=2, ensure_ascii=False) + "\n", "remove entry"
-    data.setdefault(client["root"], {})[SERVER_NAME] = _entry(client, interp, args, env)
+    data.setdefault(client["root"], {})[SERVER_NAME] = _entry(
+        client, interp, args, env, (existing or {}).get(SERVER_NAME))
     verb = "replace" if present else "add"
     return (path, json.dumps(data, indent=2, ensure_ascii=False) + "\n",
             f"{verb} entry under \"{client['root']}\"")

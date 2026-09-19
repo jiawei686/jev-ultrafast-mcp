@@ -97,6 +97,19 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **`install.py` deleted the settings it does not write.** The script's promise is that it merges
+  into a client's config rather than overwriting it, and that held for the file but not for the
+  entry: `_entry()` rebuilt the server entry from scratch, so every key it does not itself write — a
+  hand-added `cwd`, a `disabled` flag, and all of `env` except `JEVMCP_HEADLESS` — was gone after one
+  run, with the `.bak` as the only place it survived. On the machine this was found on, that meant
+  losing `JEVMCP_ALLOW_DOMAINS`, which is a safety setting rather than a preference. An install now
+  merges one level down as well: the keys the script owns (`command`, `args`, `env`, and `type` for
+  VS Code) are refreshed, `env` is merged key by key, and everything else is left as it was found.
+  Codex's TOML dialect had the same defect in a different shape — the whole `[mcp_servers.*]` table
+  was regenerated, which also reset a `startup_timeout_sec` someone had raised back to the default —
+  and now carries unowned lines across verbatim, in the table and in its `.env` sub-table alike. A
+  root key that exists but is not an object (`"mcpServers": []`) is refused with a sentence instead
+  of a `TypeError`.
 - **Attach mode could not connect to Chrome 144+.** The debugging server started from
   `chrome://inspect/#remote-debugging` is WebSocket-only: it answers 404 to `/json/version` and to
   every other `/json/*` path, by design, so "404" does not mean "nothing is listening" — a client

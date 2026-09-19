@@ -85,6 +85,77 @@ def test_toml_upsert_replaces_a_stale_entry():
     assert tomllib.loads(second)["mcp_servers"]["mine"]["command"] == "/new/python"
 
 
+def _toml_client(path: Path) -> dict:
+    return {"key": "x", "label": "X", "kind": "toml", "root": None,
+            "paths": [path], "probe": [path.parent]}
+
+
+def test_toml_plan_keeps_keys_it_does_not_write(tmp_path: Path):
+    """Codex's dialect gets the same contract as the JSON one, one table down.
+
+    A hand-added `cwd` and a `startup_timeout_sec` someone raised are the user's
+    lines; regenerating the whole table threw both away and reset the timeout to
+    this script's default, which is a silent downgrade rather than a merge.
+    """
+    tomllib = pytest.importorskip("tomllib")
+    path = tmp_path / "config.toml"
+    path.write_text(
+        '[mcp_servers.other]\ncommand = "node"\nargs = ["/opt/repl.js"]\n\n'
+        f'[mcp_servers.{install.SERVER_NAME}]\n'
+        'command = "/old/python"\n'
+        'args = ["-m", "old"]\n'
+        'startup_timeout_sec = 60\n'
+        'cwd = "/home/me/jev-ultrafast-mcp"\n'
+    )
+
+    _p, text, summary = install._plan(
+        _toml_client(path), "/new/python", ["-m", "jev_ultrafast_mcp"], {}, False)
+    assert "replace" in summary
+
+    parsed = tomllib.loads(text)
+    entry = parsed["mcp_servers"][install.SERVER_NAME]
+    assert entry["cwd"] == "/home/me/jev-ultrafast-mcp"
+    assert entry["startup_timeout_sec"] == 60, "a tuned timeout is not reset to the default"
+    assert entry["command"] == "/new/python"
+    assert entry["args"] == ["-m", "jev_ultrafast_mcp"]
+    assert parsed["mcp_servers"]["other"]["command"] == "node"
+
+
+def test_toml_plan_keeps_hand_added_env_vars(tmp_path: Path):
+    tomllib = pytest.importorskip("tomllib")
+    path = tmp_path / "config.toml"
+    path.write_text(
+        f'[mcp_servers.{install.SERVER_NAME}]\ncommand = "/old"\nargs = []\n\n'
+        f'[mcp_servers.{install.SERVER_NAME}.env]\n'
+        'JEVMCP_ALLOW_DOMAINS = "example.com"\n'
+        'JEVMCP_HEADLESS = "0"\n'
+    )
+
+    _p, text, _s = install._plan(_toml_client(path), "/new", [],
+                                 {"JEVMCP_HEADLESS": "1"}, False)
+
+    env = tomllib.loads(text)["mcp_servers"][install.SERVER_NAME]["env"]
+    assert env["JEVMCP_ALLOW_DOMAINS"] == "example.com"
+    assert env["JEVMCP_HEADLESS"] == "1"
+
+
+def test_toml_plan_stays_idempotent_with_keys_it_carries_over(tmp_path: Path):
+    path = tmp_path / "config.toml"
+    path.write_text(
+        f'[mcp_servers.{install.SERVER_NAME}]\n'
+        'command = "/old"\nargs = []\nstartup_timeout_sec = 60\ncwd = "/somewhere"\n'
+    )
+    client = _toml_client(path)
+
+    _p, first, _s = install._plan(client, "/new", ["-m", "m"], {"A": "1"}, False)
+    assert first is not None
+    path.write_text(first)
+    _p, second, _s = install._plan(client, "/new", ["-m", "m"], {"A": "1"}, False)
+
+    assert second == first
+    assert first.count(f"[mcp_servers.{install.SERVER_NAME}]") == 1
+
+
 def test_toml_drop_removes_subtables_and_stops_at_the_next_table():
     tomllib = pytest.importorskip("tomllib")
     block = install._toml_block("mine", "/usr/bin/python3", [], {"A": "1"})
@@ -142,6 +213,78 @@ def test_json_plan_is_idempotent(tmp_path: Path):
     _p, second, summary = install._plan(client, "/usr/bin/python3", ["-m", "m"], {}, False)
     assert second == first
     assert "replace" in summary
+
+
+def test_json_plan_keeps_the_keys_it_does_not_write(tmp_path: Path):
+    """An install must not be the thing that deletes a hand-added `cwd`.
+
+    Replacing an entry wholesale did exactly that, and took `disabled` with it:
+    the config looked freshly installed and the settings the user had put there
+    were simply gone. The module's own promise is that it merges into a config
+    rather than overwriting it, and that has to hold one level below the file.
+    """
+    path = tmp_path / "mcp.json"
+    path.write_text(json.dumps({"mcpServers": {install.SERVER_NAME: {
+        "command": "/old/python", "args": ["-m", "old"],
+        "cwd": "/home/me/jev-ultrafast-mcp", "disabled": False,
+    }}}))
+    client = _json_client()
+    client["paths"] = [path]
+
+    _p, text, _s = install._plan(client, "/new/python", ["-m", "jev_ultrafast_mcp"], {}, False)
+
+    entry = json.loads(text)["mcpServers"][install.SERVER_NAME]
+    assert entry["cwd"] == "/home/me/jev-ultrafast-mcp"
+    assert entry["disabled"] is False
+    # ...while the keys the script does own are refreshed rather than left stale.
+    assert entry["command"] == "/new/python"
+    assert entry["args"] == ["-m", "jev_ultrafast_mcp"]
+
+
+def test_json_plan_merges_env_instead_of_replacing_it(tmp_path: Path):
+    """A domain allowlist is a safety setting, and a plain install used to wipe it."""
+    path = tmp_path / "mcp.json"
+    path.write_text(json.dumps({"mcpServers": {install.SERVER_NAME: {
+        "command": "/old/python", "args": [],
+        "env": {"JEVMCP_ALLOW_DOMAINS": "example.com", "JEVMCP_HEADLESS": "0"},
+    }}}))
+    client = _json_client()
+    client["paths"] = [path]
+
+    _p, text, _s = install._plan(client, "/new/python", ["-m", "m"],
+                                 {"JEVMCP_HEADLESS": "1"}, False)
+
+    env = json.loads(text)["mcpServers"][install.SERVER_NAME]["env"]
+    assert env["JEVMCP_ALLOW_DOMAINS"] == "example.com", "the allowlist survived"
+    assert env["JEVMCP_HEADLESS"] == "1", "but a variable this run sets is refreshed"
+
+
+def test_json_plan_keeps_an_entry_with_unowned_keys_idempotent(tmp_path: Path):
+    path = tmp_path / "mcp.json"
+    path.write_text(json.dumps({"mcpServers": {install.SERVER_NAME: {
+        "command": "/old/python", "args": [], "cwd": "/somewhere"}}}))
+    client = _json_client()
+    client["paths"] = [path]
+
+    _p, first, _s = install._plan(client, "/new/python", ["-m", "m"], {}, False)
+    assert first is not None
+    path.write_text(first)
+    _p, second, summary = install._plan(client, "/new/python", ["-m", "m"], {}, False)
+
+    assert second == first
+    assert "replace" in summary
+
+
+def test_a_root_key_that_is_not_an_object_is_refused(tmp_path: Path):
+    """A clear refusal beats a traceback in the script a new user runs first."""
+    path = tmp_path / "mcp.json"
+    path.write_text(json.dumps({"mcpServers": ["not", "an", "object"]}))
+    client = _json_client()
+    client["paths"] = [path]
+
+    with pytest.raises(SystemExit, match="not a JSON object"):
+        install._plan(client, "/usr/bin/python3", ["-m", "m"], {}, False)
+    assert json.loads(path.read_text()) == {"mcpServers": ["not", "an", "object"]}
 
 
 def test_vscode_entries_declare_their_transport(tmp_path: Path):
