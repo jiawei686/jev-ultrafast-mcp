@@ -110,16 +110,9 @@ and the README says so rather than pointing at a package that does not resolve.
 
 ### The one-time setup, step by step
 
-Two web pages, once, and after that a tag is all a release needs. Do the GitHub side first: PyPI's
-form asks for the environment name, and an environment that does not exist yet is a value you would
-have to guess at.
+One web page, once, and after that a tag is all a release needs.
 
-**1. The GitHub environment.** Settings → Environments → New environment, named `pypi` —
-<https://github.com/jiawei686/jev-ultrafast-mcp/settings/environments>. `publish.yml` names it, and
-PyPI's own docs call this optional but strongly recommended: it is what lets you require a manual
-approval before a release goes out, later, without editing the workflow.
-
-**2. The pending publisher.** <https://pypi.org/manage/account/publishing/> → *Add a new pending
+**1. The pending publisher.** <https://pypi.org/manage/account/publishing/> → *Add a new pending
 publisher* → GitHub. Five fields, and every one of them has to match this repository exactly:
 
 | Field | Value |
@@ -134,7 +127,17 @@ publisher* → GitHub. Five fields, and every one of them has to match this repo
 used, so if someone else registers `jev-ultrafast-mcp` in the meantime the publisher is invalidated
 and this whole step has to be redone. Publish promptly after creating it.
 
-**3. The tag.** With those two in place, publishing is the ordinary thing:
+**The GitHub environment does not have to exist first.** `publish.yml` declares `environment: pypi`,
+and [GitHub creates an environment the first time a workflow references a name that does not exist
+yet](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
+— so the `pypi` in the table above is a name this repository *declares*, not one you have to go and
+reserve beforehand. Create it by hand only when you want protection rules, which is the one thing
+that does need it to exist up front: Settings → Environments → New environment, named `pypi` —
+<https://github.com/jiawei686/jev-ultrafast-mcp/settings/environments>. PyPI's own docs call this
+optional but strongly recommended, because it is what lets you require a manual approval before a
+release goes out, later, without editing the workflow.
+
+**2. The tag.** With the publisher in place, publishing is the ordinary thing:
 
 ```bash
 git tag -a v0.1.0 -m "0.1.0"
