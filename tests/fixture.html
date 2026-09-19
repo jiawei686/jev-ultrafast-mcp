@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ultrafast Fixture</title>
+<style>
+  body { font: 15px/1.5 -apple-system, system-ui, sans-serif; margin: 0; padding: 24px; max-width: 780px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  nav a { margin-right: 14px; }
+  form { display: grid; gap: 10px; margin: 20px 0; padding: 16px; border: 1px solid #ddd; border-radius: 8px; }
+  label { font-weight: 600; font-size: 13px; }
+  input[type=text], input[type=password], select { width: 100%; padding: 6px 8px; box-sizing: border-box; }
+  button { padding: 7px 14px; }
+  #to-list { list-style: none; margin: 0; padding: 0; border: 1px solid #ccc; max-height: 150px; overflow: auto; }
+  #to-list li { padding: 5px 8px; cursor: pointer; }
+  #to-list li:hover { background: #eef; }
+  #results li { border: 1px solid #e3e3e3; border-radius: 6px; padding: 10px; margin-bottom: 8px;
+                display: flex; align-items: center; justify-content: space-between; }
+  #overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1000; display: none; }
+  #modal { position: absolute; top: 90px; left: 50%; transform: translateX(-50%); background: #fff;
+           padding: 18px 22px; border-radius: 10px; width: 320px; box-shadow: 0 12px 40px rgba(0,0,0,.3); }
+  .row { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+  section { margin-top: 22px; }
+  h2 { font-size: 15px; margin: 0 0 6px; color: #555; }
+  footer { margin-top: 26px; font-size: 12px; color: #888; }
+</style>
+</head>
+<body>
+<h1>Ultrafast Fixture</h1>
+<nav>
+  <a href="#/home">Home</a>
+  <a href="#/about">About</a>
+  <a id="popup" href="/popup.html" target="_blank">Open popup</a>
+</nav>
+
+<form id="search">
+  <div>
+    <label for="from">Where from?</label>
+    <input id="from" name="from" type="text" placeholder="City">
+  </div>
+  <div>
+    <label for="to">Where to?</label>
+    <input id="to" name="to" type="text" role="combobox" aria-expanded="false"
+           aria-controls="to-list" aria-autocomplete="list" placeholder="Start typing">
+    <ul id="to-list" role="listbox" hidden></ul>
+  </div>
+  <div>
+    <label for="pax">Passengers</label>
+    <select id="pax" name="pax">
+      <option value="1">1 adult</option>
+      <option value="2">2 adults</option>
+      <option value="3">3 adults</option>
+      <option value="4">4 adults</option>
+    </select>
+  </div>
+  <label class="row"><input id="nonstop" name="nonstop" type="checkbox"> Nonstop only</label>
+  <div class="row">
+    <button id="go" type="submit">Search</button>
+    <button id="open-modal" type="button">Open modal</button>
+  </div>
+</form>
+
+<section id="results-section" hidden>
+  <h2>Results</h2>
+  <ul id="results"></ul>
+</section>
+
+<section>
+  <h2>Shadow DOM</h2>
+  <shadow-widget></shadow-widget>
+</section>
+
+<section>
+  <h2>Same-origin iframe</h2>
+  <iframe id="frame" src="/frame.html" width="420" height="150"></iframe>
+</section>
+
+<section>
+  <h2>Account</h2>
+  <div class="row">
+    <label for="pw" style="font-weight:600">Password</label>
+    <input id="pw" type="password" style="width:200px">
+    <label for="cv" style="font-weight:600">CV</label>
+    <input id="cv" type="file" accept=".pdf,.txt">
+    <button id="danger" type="button">Delete account</button>
+  </div>
+</section>
+
+<div id="overlay" role="dialog" aria-modal="true">
+  <div id="modal">
+    <p>Confirm something before continuing.</p>
+    <button id="modal-close" type="button">Close</button>
+  </div>
+</div>
+
+<footer>fixture for jev-ultrafast-mcp</footer>
+
+<script>
+const CITIES = ['Zurich', 'London', 'Lisbon', 'Lyon', 'Lima', 'Tokyo', 'Toronto'];
+const $ = id => document.getElementById(id);
+
+// autocomplete
+$('to').addEventListener('input', () => {
+  const value = $('to').value.trim().toLowerCase();
+  const list = $('to-list');
+  list.innerHTML = '';
+  if (!value) { list.hidden = true; $('to').setAttribute('aria-expanded', 'false'); return; }
+  CITIES.filter(city => city.toLowerCase().startsWith(value)).forEach(city => {
+    const item = document.createElement('li');
+    item.setAttribute('role', 'option');
+    item.setAttribute('tabindex', '-1');
+    item.textContent = city;
+    item.addEventListener('click', () => {
+      $('to').value = city;
+      list.hidden = true;
+      $('to').setAttribute('aria-expanded', 'false');
+    });
+    list.appendChild(item);
+  });
+  list.hidden = list.children.length === 0;
+  $('to').setAttribute('aria-expanded', String(!list.hidden));
+});
+
+// search
+$('search').addEventListener('submit', event => {
+  event.preventDefault();
+  const from = $('from').value.trim() || 'Anywhere';
+  const to = $('to').value.trim() || 'Anywhere';
+  const pax = $('pax').selectedOptions[0].label;
+  const nonstop = $('nonstop').checked ? 'nonstop' : 'any stops';
+  const results = $('results');
+  results.innerHTML = '';
+  for (let index = 1; index <= 3; index += 1) {
+    const item = document.createElement('li');
+    item.innerHTML = '<span><strong>' + from + ' → ' + to + '</strong><br><small>Option '
+      + index + ' · ' + pax + ' · ' + nonstop + '</small></span>';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Select';
+    button.addEventListener('click', () => {
+      $('results-section').dataset.chosen = 'Option ' + index;
+      button.textContent = 'Selected';
+    });
+    item.appendChild(button);
+    results.appendChild(item);
+  }
+  $('results-section').hidden = false;
+  $('results-section').dataset.from = from;
+  $('results-section').dataset.to = to;
+  $('results-section').dataset.pax = pax;
+  $('results-section').dataset.nonstop = $('nonstop').checked ? 'yes' : 'no';
+});
+
+// modal
+$('open-modal').addEventListener('click', () => { $('overlay').style.display = 'block'; });
+$('modal-close').addEventListener('click', () => { $('overlay').style.display = 'none'; });
+
+// shadow component
+class ShadowWidget extends HTMLElement {
+  connectedCallback() {
+    const root = this.attachShadow({ mode: 'open' });
+    root.innerHTML = '<style>button{padding:6px 12px}</style>'
+      + '<label for="sh-name" style="font-weight:600">Shadow name</label> '
+      + '<input id="sh-name" type="text" style="width:130px"> '
+      + '<button id="sh-go" type="button">Shadow action</button> '
+      + '<span id="sh-out">idle</span>';
+    root.getElementById('sh-go').addEventListener('click', () => {
+      root.getElementById('sh-out').textContent = 'shadow clicked';
+      this.dataset.clicked = 'yes';
+    });
+  }
+}
+customElements.define('shadow-widget', ShadowWidget);
+</script>
+</body>
+</html>

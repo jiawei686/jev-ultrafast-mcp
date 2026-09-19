@@ -1,0 +1,39 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Test / lint caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Local secrets and state
+.env
+.env.local
+*.pem
+
+# Local runtime state (never commit a browser profile or recorded macros)
+chrome-profile/
+screenshots/
+macros/
+*.local.json
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

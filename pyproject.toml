@@ -1,0 +1,38 @@
+[project]
+name = "jev-ultrafast-mcp"
+version = "0.1.0"
+description = "Fast, guarded browser control for agents over MCP. The agent is the policy."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = [
+  "mcp>=1.2",
+  "websockets>=12",
+  "httpx[http2]>=0.27,<1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.scripts]
+jev-ultrafast-mcp = "jev_ultrafast_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["jev_ultrafast_mcp"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"jev_ultrafast_mcp/js/observer.js" = "jev_ultrafast_mcp/js/observer.js"
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

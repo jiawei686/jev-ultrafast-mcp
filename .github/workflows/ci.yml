@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Unit tests
+        run: python -m pytest -q
+
+      - name: Locate Chrome
+        run: |
+          for p in google-chrome google-chrome-stable chromium chromium-browser; do
+            if command -v "$p" >/dev/null 2>&1; then echo "JEVMCP_CHROME=$(command -v $p)" >> "$GITHUB_ENV"; break; fi
+          done
+          echo "using JEVMCP_CHROME=${JEVMCP_CHROME:-<auto>}"
+
+      - name: End-to-end smoke (real browser)
+        run: python scripts/smoke.py
+
+      - name: MCP stdio protocol check
+        run: python scripts/mcp_check.py

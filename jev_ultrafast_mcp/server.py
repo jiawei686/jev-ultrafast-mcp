@@ -1,0 +1,445 @@
+"""MCP surface.
+
+Ten tools. The important design choice is what is *not* here: there is no
+`javascript`, no `click_at(x, y)`, and no `query_selector`. An agent can only
+name a ref that the server observed, and the server only dispatches input after
+re-checking that the ref still means what it meant. That property is what makes
+it safe to hand a browser to an autonomous agent over MCP.
+"""
+
+from __future__ import annotations
+
+import atexit
+import json
+
+from mcp.server import MCPServer
+
+from . import assertions as assertions_mod
+from . import macros as macros_mod
+from . import policy
+from .browser import BrowserManager, PageStale
+from .cdp import CdpError, ChromeLaunchError
+from .config import Config
+from .observe import Observation
+from .safety import SafetyError
+
+INSTRUCTIONS = """\
+Fast browser control for agents.
+
+Loop:  browser_open -> read the element table -> browser_act -> browser_assert.
+
+The element table lists one line per actionable control:
+    e12 btn  "Sign in"
+    e7  inp* "Where from?" ▸ "San Francisco"
+    e8  sel* "Passengers" ▸ "1 adult" opts{1 | 2 | 3}
+    e9  chk· "Nonstop"
+    e30 btn⊘ "Submit"
+Flags: `*` accepts TYPE, `▸` shows the current value, `✓`/`·` is the checked
+state, `▾` is expanded, `⊘` means covered by another element right now.
+
+Rules that keep it fast and correct:
+  1. Refs are stable across observations. e37 keeps meaning the same control
+     until that element is removed, so a plan written three steps ago still holds.
+  2. Pass a list of ops to browser_act and they run in order in one round trip.
+     Reach for several ops per call instead of one.
+  3. Observations after an action are deltas. `= no change` means the last action
+     did nothing — change strategy, do not repeat the ref.
+  4. A step that fails says why (occluded, stale, out_of_viewport). The right
+     response is usually to observe again, not to retry.
+  5. Use browser_assert to prove an outcome. Do not infer success from "no error".
+  6. After discovering a path, record it as a macro: replay costs no tokens.
+"""
+
+SERVER = MCPServer(
+    "jev-ultrafast-mcp",
+    instructions=INSTRUCTIONS,
+    version="0.1.0",
+)
+
+CONFIG = Config.from_env()
+MANAGER = BrowserManager(CONFIG)
+atexit.register(MANAGER.shutdown)
+
+
+# ----------------------------------------------------------------- helpers
+
+
+def _session(name: str):
+    return MANAGER.session(name or "default")
+
+
+def _view(observation: Observation, mode: str = "auto", include_text: bool = True,
+          focus: list[str] | None = None) -> str:
+    return observation.render(observation.previous, mode=mode, include_text=include_text,
+                              focus=focus, max_text=CONFIG.max_text)
+
+
+def _brief(observation: Observation) -> str:
+    return (f"{observation.url} — {len(observation.elements)} elements, "
+            f"{observation.reachable} reachable, obs#{observation.sequence}")
+
+
+def _tabs_list(tab) -> str:
+    tabs = tab._refresh_tabs()
+    if not tabs:
+        return "no tabs"
+    return "\n".join(
+        f"  [{item['index']}] {'*' if item['active'] else ' '} {item['url']}  \"{item['title']}\""
+        for item in tabs
+    )
+
+
+def _error(exc: Exception) -> str:
+    if isinstance(exc, ChromeLaunchError):
+        return f"browser_unavailable: {exc}"
+    if isinstance(exc, SafetyError):
+        return f"blocked_by_policy: {exc}"
+    if isinstance(exc, PageStale):
+        return f"stale: {exc}"
+    if isinstance(exc, CdpError):
+        return f"browser_error: {exc}"
+    return f"error({type(exc).__name__}): {exc}"
+
+
+def _render_act(payload: dict, verbose: bool = False) -> str:
+    lines = []
+    ops = payload.get("ops", [])
+    ok_count = sum(1 for op in ops if op.get("ok"))
+    lines.append(f"{ok_count}/{len(ops)} ops ok" + ("" if payload.get("ok") else "  (stopped early)"))
+    for op in ops:
+        ref = op.get("ref") or ""
+        target = op.get("target") or ""
+        label = f"{op.get('op')} {ref}".strip()
+        if target:
+            label += f" → {target}"
+        if op.get("ok"):
+            detail = f"  [{op['detail']}]" if op.get("detail") else ""
+            lines.append(f"  + {label}  {op.get('ms', 0)}ms{detail}")
+        else:
+            lines.append(f"  x {label}  {op.get('error')}: {op.get('detail', '')}")
+    if payload.get("stuck"):
+        lines.append(f"! {payload['stuck']}")
+    if payload.get("view"):
+        lines.append("")
+        lines.append(payload["view"])
+    if verbose:
+        lines.append("")
+        lines.append(f"(steps this session: {payload.get('steps', 0)})")
+    return "\n".join(lines)
+
+
+# -------------------------------------------------------------------- tools
+
+
+@SERVER.tool()
+def browser_open(url: str, session: str = "default", hint: str = "") -> str:
+    """Open a URL in a new owned tab and return the element table.
+
+    Use `hint` to restate the goal in one line; it is echoed back so the next
+    step has the goal in context without re-reading this call.
+    """
+    try:
+        tab = _session(session)
+        tab.navigate(url)
+        observation = tab.observe()
+        head = f"opened {_brief(observation)}"
+        if hint:
+            head += f"\ngoal: {hint}"
+        return head + "\n\n" + _view(observation, mode="full")
+    except (ChromeLaunchError, SafetyError, CdpError, PageStale) as exc:
+        return _error(exc)
+
+
+@SERVER.tool()
+def browser_observe(session: str = "default", mode: str = "auto",
+                    include_text: bool = True, include_json: bool = False) -> str:
+    """Re-read the page: new element table, or a delta if little changed.
+
+    `mode`: "auto" (delta when possible), "full" (whole table, e.g. after a big
+    change), "delta" (force). `include_json=True` appends a machine-readable
+    copy of the element table when you want to plan over it programmatically.
+    """
+    try:
+        tab = _session(session)
+        observation = tab.observe(include_text=include_text, full=(mode == "full"))
+        text = _view(observation, mode=mode, include_text=include_text)
+        if include_json:
+            text += "\n\njson: " + json.dumps(observation.to_dict()["json"], ensure_ascii=False)
+        return text
+    except (ChromeLaunchError, CdpError, PageStale) as exc:
+        return _error(exc)
+
+
+@SERVER.tool()
+def browser_act(ops: list[dict], session: str = "default", dry_run: bool = False,
+                stop_on_error: bool = True, observe_after: bool = True) -> str:
+    """Execute one or more ops in order, then return a delta observation.
+
+    Batch ops into a single call — each call is a round trip.
+
+    op              fields
+    click           ref                     (ref may be "e12", or "e12" of a combobox to open it)
+    type            ref, text, [clear=true], [submit=false]
+    select          ref, value (option value or label)
+    toggle          ref, [state]            (checkbox/radio/switch; no state = flip)
+    hover           ref
+    upload          ref, path | paths[]
+    keys            key ("Enter", "Meta+A", "ArrowDown") | keys[]
+    scroll          [dir=down|up|left|right], [amount=600], [ref]
+    nav             url
+    back | forward | reload
+    wait            [ms=500]
+    wait_for_ref    ref, [timeout_ms=8000]
+    wait_for_text   text, [timeout_ms=8000]
+    wait_for_load   [timeout_ms=20000]
+    screenshot      [path], [full=false], [format=jpeg]
+    tab             action=list|new|switch|close, [index], [url]
+    eval            js                      (only when JEVMCP_ALLOW_JS=1)
+
+    Actions matching the confirmation rules (pay, delete account, …) return
+    needs_confirmation; re-send that op with "confirm": true to proceed.
+    """
+    try:
+        tab = _session(session)
+        payload = tab.act(ops, dry_run=dry_run, stop_on_error=stop_on_error,
+                          observe_after=observe_after)
+        return _render_act(payload)
+    except (ChromeLaunchError, CdpError, PageStale, SafetyError, ValueError) as exc:
+        return _error(exc)
+
+
+@SERVER.tool()
+def browser_assert(checks: list[dict], session: str = "default") -> str:
+    """Verify the current page against deterministic checks. Returns pass/fail.
+
+    checks
+      {"type": "url_matches",     "pattern": "*/checkout*"}
+      {"type": "url_contains",    "text": "/orders/"}
+      {"type": "title_matches",   "pattern": "*Order*"}
+      {"type": "text_contains",   "text": "Thanks", "regex": false}
+      {"type": "text_absent",     "text": "Error"}
+      {"type": "element_exists",  "role": "button", "name": "Continue"}
+      {"type": "element_gone",    "ref": "e12"}
+      {"type": "value_equals",    "ref": "e7", "value": "Zurich"}
+      {"type": "checked",         "ref": "e9", "state": true}
+      {"type": "count_at_least",  "role": "link", "min": 3}
+      {"type": "js",              "expr": "document.title.length > 3"}
+    """
+    try:
+        tab = _session(session)
+        observation = tab.observe(include_text=True)
+        result = assertions_mod.run(
+            checks, observation, allow_js=CONFIG.allow_js,
+            eval_js=tab.evaluate_js,
+        )
+        lines = [f"{'PASS' if result['pass'] else 'FAIL'}  ({result['url']})"]
+        for check in result["checks"]:
+            lines.append(f"  {'ok' if check['ok'] else 'X '} {check['type']}: {check['detail']}")
+        return "\n".join(lines)
+    except (ChromeLaunchError, CdpError, PageStale) as exc:
+        return _error(exc)
+
+
+@SERVER.tool()
+def browser_macro(action: str, session: str = "default", name: str = "",
+                  params: dict | None = None, goal: str = "",
+                  start_url: str = "", threshold: float = 0.7) -> str:
+    """Record, replay, list, or delete a macro — a discovered path with no model calls.
+
+    action="record_start"  begin capturing ops (needs the session to be driving the task)
+    action="record_stop"   finish and save under `name`
+    action="run"           replay `name`; `params` fills {{placeholders}} in text/url
+    action="list" | "inspect" | "delete"
+
+    Replay re-resolves each step by role + name against a fresh observation and
+    refuses to act when the best match is weak or ambiguous.
+    """
+    try:
+        tab = _session(session)
+        if action == "record_start":
+            tab.start_recording()
+            return "recording started — drive the task, then call action=\"record_stop\" with a name"
+        if action == "record_stop":
+            if not name:
+                return "record_stop needs a name"
+            saved = tab.stop_recording(name, goal=goal)
+            return (f"saved macro {saved['name']!r}: {saved['steps']} steps → {saved['path']}\n"
+                    f"replay with action=\"run\", name={saved['name']!r}")
+        if action == "list":
+            items = macros_mod.listing(CONFIG)
+            if not items:
+                return "no macros saved yet"
+            return "\n".join(
+                f"  {item['name']}  {item['steps']} steps  {item['created']}"
+                + (f"  goal={item['goal']!r}" if item["goal"] else "")
+                for item in items
+            )
+        if action == "inspect":
+            return json.dumps(macros_mod.load(CONFIG, name), indent=2, ensure_ascii=False)
+        if action == "delete":
+            return f"deleted {name!r}" if macros_mod.delete(CONFIG, name) else f"no macro {name!r}"
+        if action == "run":
+            data = macros_mod.load(CONFIG, name)
+            start = start_url or data.get("start_url")
+            if start:
+                tab.navigate(start)
+            observation = tab.observe()
+            ops, report = macros_mod.resolve(data.get("steps", []), observation,
+                                             params or {}, threshold=threshold)
+            payload = tab.act(ops, stop_on_error=True, observe_after=True)
+            header = f"replayed {name!r}: resolved {len(ops)} steps from {len(data.get('steps', []))}\n" + \
+                     "\n".join(
+                         f"  step {item['step']} {item['op']}"
+                         + (f" → {item.get('ref')} {item.get('name')!r} ({item.get('score')})"
+                            if item.get("ref") else "")
+                         for item in report
+                     )
+            return header + "\n\n" + _render_act(payload)
+        return f"unknown macro action {action!r}; use record_start|record_stop|run|list|inspect|delete"
+    except (macros_mod.MacroError, ChromeLaunchError, CdpError, PageStale, SafetyError) as exc:
+        return _error(exc)
+
+
+@SERVER.tool()
+def browser_goal(goal: str, session: str = "default", max_steps: int = 20,
+                 verify: list[dict] | None = None, verbose: bool = False) -> str:
+    """Run a whole goal inside the server (turbo mode). Needs TYPESAFE_API_KEY.
+
+    Each step costs one TypeSafe request (operation + every target head in a
+    single speculative fan-out). Use this when you want the browser driven end
+    to end without spending a host turn per click. Without a key, use
+    browser_observe + browser_act instead.
+
+    `verify` runs browser_assert-style checks on the final page, so the result
+    is a fact rather than a model's claim of success.
+    """
+    if not policy.available(CONFIG):
+        return ("turbo_unavailable: TYPESAFE_API_KEY is not set.\n"
+                "Drive the same loop yourself: browser_observe → pick a ref → browser_act.")
+    try:
+        tab = _session(session)
+        observation = tab.observe()
+        trace: list[str] = []
+        status = "running"
+        steps = 0
+        while steps < max_steps:
+            history = [{"op": step.op, "ref": step.ref, "target": step.target, "ok": step.ok}
+                       for step in tab.history[-10:]]
+            decision = policy.choose(CONFIG, observation, goal, history)
+            operation = decision["operation"]
+            if operation in {"DONE", "BLOCKED"}:
+                status = operation.lower()
+                trace.append(f"  {steps + 1}. {operation} (conf {decision.get('confidence', 0):.2f})")
+                break
+            op: dict = {"op": {"TYPE_TEXT": "type", "SELECT": "select", "TOGGLE": "toggle",
+                               "SCROLL": "scroll", "WAIT": "wait", "CLICK": "click"}[operation]}
+            if decision.get("ref"):
+                op["ref"] = decision["ref"]
+            if operation == "TYPE_TEXT":
+                element = observation.by_ref.get(decision["ref"])
+                op["text"] = policy.text_for(CONFIG, goal, element, observation, history)
+            if operation == "SELECT" and decision.get("value") is not None:
+                op["value"] = decision["value"]
+            if operation == "SCROLL":
+                op["dir"] = "down"
+            steps += 1
+            payload = tab.act([op], stop_on_error=False, observe_after=True)
+            step_result = payload["ops"][0]
+            trace.append(
+                f"  {steps}. {operation} {decision.get('ref') or ''} "
+                f"{decision.get('target') or ''} → {'ok' if step_result['ok'] else step_result.get('error')} "
+                f"({decision.get('latency_ms', 0)}ms model / {step_result.get('ms', 0)}ms browser)"
+            )
+            if not step_result["ok"]:
+                status = f"failed:{step_result.get('error')}"
+                break
+            observation = tab.last or tab.observe()
+        else:
+            status = f"stopped: hit max_steps={max_steps}"
+
+        lines = [f"goal: {goal}", f"status: {status}", f"steps: {steps}"]
+        if verbose:
+            lines.append("trace:")
+            lines.extend(trace)
+        if verify:
+            result = assertions_mod.run(verify, observation, allow_js=CONFIG.allow_js,
+                                        eval_js=tab.evaluate_js)
+            lines.append(f"verified: {'PASS' if result['pass'] else 'FAIL'}")
+            for check in result["checks"]:
+                lines.append(f"  {'ok' if check['ok'] else 'X '} {check['type']}: {check['detail']}")
+        lines.append("")
+        lines.append(_view(observation))
+        return "\n".join(lines)
+    except (policy.TurboUnavailable, ChromeLaunchError, CdpError, PageStale) as exc:
+        return _error(exc)
+
+
+@SERVER.tool()
+def browser_tabs(session: str = "default", action: str = "list", index: int = 0,
+                 url: str = "about:blank") -> str:
+    """List, open, switch to, or close tabs. New tabs opened by the page appear
+    in observations automatically and can be switched to by index."""
+    try:
+        tab = _session(session)
+        if action == "list":
+            return _tabs_list(tab)
+        if action == "new":
+            tab.cdp.call("Target.createTarget", url=url, background=not CONFIG.foreground)
+            tab._refresh_tabs()
+            return "opened new tab\n" + _tabs_list(tab)
+        if action == "switch":
+            tab.switch_tab(index)
+            observation = tab.observe()
+            return f"switched to tab {index}\n\n" + _view(observation, mode="full")
+        if action == "close":
+            tab.close_tab(index)
+            return f"closed tab {index}"
+        return f"unknown tab action {action!r}"
+    except (ChromeLaunchError, CdpError, PageStale) as exc:
+        return _error(exc)
+
+
+@SERVER.tool()
+def browser_sessions() -> str:
+    """List open sessions (independent owned tabs)."""
+    return "\n".join(f"  {name}" for name in sorted(MANAGER._sessions)) or "no sessions"
+
+
+@SERVER.tool()
+def browser_close(session: str = "default", shutdown_browser: bool = False) -> str:
+    """Close a session's tab. Set shutdown_browser=True to stop the browser too."""
+    closed = MANAGER.close(session)
+    if shutdown_browser:
+        MANAGER.shutdown()
+        return f"closed {closed or 'nothing'}; browser stopped"
+    return f"closed {closed or 'nothing'}"
+
+
+@SERVER.tool()
+def browser_doctor() -> str:
+    """Report environment: browser binary, connection, keys, and policy envelope.
+
+    Call this when anything behaves unexpectedly — it separates "no browser"
+    from "blocked by policy" from "no key".
+    """
+    report = MANAGER.doctor()
+    report["config"] = {
+        "max_actions": CONFIG.max_actions,
+        "window": list(CONFIG.window),
+        "profile": str(CONFIG.resolved_profile()),
+        "macros_dir": str(CONFIG.macros_dir()),
+    }
+    report["hints"] = []
+    if not report.get("connected"):
+        report["hints"].append("Browser is not started yet; it launches on the first browser_open.")
+    if report.get("chrome_error"):
+        report["hints"].append("Set JEVMCP_CHROME to your Chrome/Chromium executable.")
+    return json.dumps(report, indent=2, ensure_ascii=False)
+
+
+def main() -> None:
+    SERVER.run("stdio")
+
+
+if __name__ == "__main__":
+    main()

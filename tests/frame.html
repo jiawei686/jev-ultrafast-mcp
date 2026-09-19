@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Frame</title></head>
+<body style="font:14px system-ui;padding:8px">
+  <label for="if-city">City</label>
+  <input id="if-city" type="text">
+  <button id="if-go" type="button">Iframe action</button>
+  <p id="if-out">idle</p>
+  <script>
+    document.getElementById('if-go').addEventListener('click', function () {
+      var city = document.getElementById('if-city').value.trim();
+      document.getElementById('if-out').textContent = 'iframe clicked:' + city;
+    });
+  </script>
+</body>
+</html>
