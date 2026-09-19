@@ -1,0 +1,41 @@
+name: Publish
+
+# Tags only, never a branch push: this is the job that puts a release on PyPI.
+#
+# It uses trusted publishing (OIDC), so no API token is stored in this repository. That needs a
+# one-time setup on the PyPI side first: a pending publisher for `jev-ultrafast-mcp` naming this
+# repository and this workflow file, on the `pypi` environment. Until that exists the job fails
+# loudly, which is the right outcome -- a release that silently did not publish is worse.
+#
+# Publishing is also what unblocks the MCP registry: `server.json` points at the `pypi` package, so
+# the registry entry can only be submitted once the package resolves.
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write        # the OIDC token PyPI's trusted publishing exchanges
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Build
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+
+      # Reads the package on PyPI, so a forgotten version bump fails here rather than in a
+      # consumer's resolver.
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1

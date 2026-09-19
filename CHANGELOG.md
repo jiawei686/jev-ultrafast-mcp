@@ -41,6 +41,43 @@ All notable changes to this project are documented here. The format follows
   concerned: empty `localStorage`, no memory of the previous run, so "already checked in today" could
   not be demonstrated at all on a loopback address.
 
+### Changed
+
+- **The READMEs no longer claim the project needs no key at all.** They opened with "No API keys" and
+  "No second model", which was true of the browser tools and false of the project: turbo mode sends
+  your goal and the current element table to a decision model. Both READMEs now separate the two
+  paths — the browser tools never call out, `browser_goal` is the opt-in exception and says so where
+  it is described — and the FAQ answers "does anything leave my machine?" with the actual answer
+  instead of a comfortable one. The comparison table, the `README.zh-CN.md` mirror, the package
+  docstring and the heading in `docs/DESIGN.md` were corrected the same way.
+- **The configuration table listed two of the seven variables that exist.** It gained
+  `TYPESAFE_BASE_URL`, `OPENROUTER_API_KEY`, `TYPESAFE_MODEL`, `TEXT_MODEL_API_KEY`,
+  `TEXT_MODEL_BASE_URL`, `TEXT_MODEL` and `JEVMCP_WINDOW`, and now says plainly that only the
+  decision-model group reaches the network, and only while `browser_goal` runs.
+
+### Added
+
+- **Discoverability, in the places a reader actually arrives from.** `pyproject.toml` carries a
+  keyword-bearing `description`, `keywords`, classifiers and project URLs, so the PyPI page and the
+  packaging indexes describe the project in the words people search for. [`server.json`](server.json)
+  is the [MCP registry](https://github.com/modelcontextprotocol/registry) entry — reverse-DNS name,
+  repository, and the `pypi` package with a `stdio` transport — and
+  [`.github/workflows/publish.yml`](.github/workflows/publish.yml) publishes a `v*.*.*` tag through
+  PyPI trusted publishing, which is the step that unblocks the registry. Both READMEs gained a
+  contents index, links to the projects this one is measured against, and a hero card
+  (`assets/social-preview.png`, rendered by `assets/make_social_preview.py` rather than drawn by a
+  model, so its text is the right text).
+- **`llms.txt`** — a machine-readable index of what this server is, what its ten tools do, and what
+  it does and does not send over the network, for agents that read a repository before recommending
+  it.
+- **An install path that needs no checkout**, and it is verified rather than assumed:
+  `pip install "git+https://github.com/jiawei686/jev-ultrafast-mcp"` into a fresh venv produces the
+  console script and a working MCP handshake — ten tools listed, on Python 3.13 against the current
+  `mcp` SDK. Both READMEs say where the package is not on PyPI yet, instead of pointing at a name
+  that does not resolve.
+- A **Publishing** section in `CONTRIBUTING.md`: the two one-time steps, and the three files that
+  name a version and therefore have to move together.
+
 ### Fixed
 
 - **`browser_goal` reported `status: blocked` for goals that had visibly succeeded.** `status` is the

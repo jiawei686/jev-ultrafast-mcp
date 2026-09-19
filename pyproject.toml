@@ -1,10 +1,43 @@
 [project]
 name = "jev-ultrafast-mcp"
 version = "0.1.0"
-description = "Fast, guarded browser control for agents over MCP. The agent is the policy."
+description = "MCP server that gives an AI agent a browser it can drive: ref-based element tables, batched actions, deterministic assertions, and macro replay at zero model cost."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
+keywords = [
+  "mcp",
+  "model-context-protocol",
+  "mcp-server",
+  "browser-automation",
+  "ai-agents",
+  "agent-tools",
+  "chrome-devtools-protocol",
+  "headless-chrome",
+  "llm",
+  "claude",
+  "cursor",
+  "web-automation",
+  "browser-use",
+  "no-playwright",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Internet :: WWW/HTTP :: Browsers",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development :: Testing",
+]
 dependencies = [
   "mcp>=1.2",
   "websockets>=12",
@@ -13,6 +46,13 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.urls]
+Homepage = "https://github.com/jiawei686/jev-ultrafast-mcp"
+Repository = "https://github.com/jiawei686/jev-ultrafast-mcp"
+Issues = "https://github.com/jiawei686/jev-ultrafast-mcp/issues"
+Changelog = "https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/docs/DESIGN.md"
 
 [project.scripts]
 jev-ultrafast-mcp = "jev_ultrafast_mcp.server:main"

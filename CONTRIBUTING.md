@@ -91,6 +91,33 @@ The most valuable bug report is "it acted on the wrong element". Please include 
 (element table) the agent saw, the `ref` it used, and what actually happened. That is the failure mode
 this project exists to prevent, so it gets priority.
 
+## Publishing
+
+Nothing is on PyPI yet, and the repository is the source. The moment that changes, two things happen
+at once, because the MCP registry publishes a *package*:
+
+1. **PyPI.** A `v*.*.*` tag is meant to publish `dist/` through PyPI trusted publishing (an OIDC
+   workflow, so no API token is stored in this repository). That needs a one-time setup on the PyPI
+   side: add a pending publisher for `jev-ultrafast-mcp` pointing at this repository and the workflow
+   file.
+2. **The MCP registry.** [`server.json`](server.json) carries the registry entry — reverse-DNS name
+   `io.github.jiawei686/jev-ultrafast-mcp`, the repository, and the `pypi` package with a `stdio`
+   transport. Once the package exists, `mcp-publisher publish` takes it from there, and clients that
+   read the registry can find the server without being told about it.
+
+Until then, `pip install "git+https://github.com/jiawei686/jev-ultrafast-mcp"` installs the same code,
+and the README says so rather than pointing at a package that does not resolve.
+
+### What to keep in sync when releasing
+
+Three places name the project or its version, and stale copies are the ones that mislead a search
+engine or a client:
+
+- `pyproject.toml` — `version`, and the `description` / `keywords` / `classifiers` that are also what
+  a search result shows.
+- `server.json` — `version`, and the package version it references.
+- `CHANGELOG.md` — the release section, which is the page people land on from the releases tab.
+
 ## Security
 
 Do not open a public issue for a sandbox escape, a policy bypass (`JEVMCP_ALLOW_DOMAINS` /

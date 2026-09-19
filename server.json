@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.jiawei686/jev-ultrafast-mcp",
+  "title": "jev-ultrafast-mcp",
+  "description": "Give an AI agent a browser it can actually drive: the page is read as an indexed table of controls, actions address those refs in batches, and assertions rather than the model's opinion decide whether it worked. No Playwright, no Selenium, no screenshots in the loop.",
+  "version": "0.1.0",
+  "websiteUrl": "https://github.com/jiawei686/jev-ultrafast-mcp",
+  "repository": {
+    "url": "https://github.com/jiawei686/jev-ultrafast-mcp",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "jev-ultrafast-mcp",
+      "version": "0.1.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
