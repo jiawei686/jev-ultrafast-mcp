@@ -35,11 +35,17 @@ You need a Chromium-family browser on `PATH`, or point `JEVMCP_CHROME` at one.
 ```bash
 .venv/bin/ruff check .
 .venv/bin/python -m pytest -q
-.venv/bin/python scripts/smoke.py        # 52 checks against a real browser
+.venv/bin/python scripts/smoke.py        # 58 checks against a real browser
 .venv/bin/python scripts/mcp_check.py    # 17 checks over real stdio MCP
 ```
 
 All four must pass. `smoke.py --headed` lets you watch the browser drive.
+
+`scripts/live_check.py` is the fifth, and it is the only one that is optional: it drives real
+websites (Bing, DuckDuckGo) over real stdio MCP and therefore needs the network. Run it when you
+change anything about how targets are resolved, how pages are read, or how macros replay — the
+fixture is well-behaved, the open web is not, and every one of the bugs it has caught so far was
+invisible locally.
 
 ## What good changes look like
 

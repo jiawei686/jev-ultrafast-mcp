@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Client-Rendered Fixture</title></head>
+<!--
+  The body is deliberately near-empty on arrival: the controls only appear once
+  JavaScript has run. That is what a client-rendered app (React, Vue, an admin
+  dashboard, Bing's home page) looks like to a reader that arrives while
+  `document.readyState` already says "complete" but nothing has been painted.
+
+  A reader that trusts readyState reports "no actionable elements visible"
+  about this page. The smoke suite uses it to prove we wait for evidence
+  instead.
+-->
+<body style="font:15px system-ui;padding:24px">
+  <div id="app"></div>
+  <noscript>This fixture needs JavaScript.</noscript>
+  <script>
+    setTimeout(function render() {
+      document.getElementById('app').innerHTML = [
+        '<h1>Rendered late</h1>',
+        '<label for="q">Query</label>',
+        '<input id="q" type="search" name="q" placeholder="type here">',
+        '<button id="go" type="button">Go</button>',
+        '<a href="/fixture.html">Back to the fixture</a>',
+        '<p id="out">idle</p>',
+      ].join('');
+      document.getElementById('go').addEventListener('click', function () {
+        document.getElementById('out').textContent = 'done';
+      });
+    }, 1200);
+  </script>
+</body>
+</html>

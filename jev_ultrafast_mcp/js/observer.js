@@ -19,7 +19,7 @@
 (() => {
   const W = window;
   try { if (W !== W.top) return; } catch (_) { return; }
-  if (W.__jevMcp && W.__jevMcp.version === 5) return;
+  if (W.__jevMcp && W.__jevMcp.version === 6) return;
 
   // Refs survive a helper re-injection, so an agent can keep referring to e37
   // across observes. `next` is monotonic: a pruned ref is never recycled.
@@ -523,7 +523,7 @@
   const stats = () => ({ refs: S.nodes.size, next: S.next, hasSnap: !!S.snap });
 
   W.__jevMcp = {
-    version: 5, readState, verify, reinspect, resolve, scrollTo, selectOption,
+    version: 6, readState, verify, reinspect, resolve, scrollTo, selectOption,
     settle, label, stats, keyOf, guardOf,
   };
 })();

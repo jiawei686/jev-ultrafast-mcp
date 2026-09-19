@@ -12,17 +12,60 @@ All notable changes to this project are documented here. The format follows
   (WorkBuddy, Claude Code, Claude Desktop, Codex CLI, Cursor, VS Code, Cline, Windsurf, Gemini CLI)
   and writes the dialect each one expects. Merges rather than overwrites, backs up to `*.bak`, and
   supports `--list`, `--print`, `--uninstall`. Stdlib only, so it runs before the dependencies exist.
+- **`scripts/live_check.py`** — the same end-to-end drive, but against real websites (Bing,
+  DuckDuckGo) over real stdio MCP: it types into a real search box, submits, reads 40-odd result
+  links, asserts on the live URL, records a macro and replays it with a different `{{query}}`.
+  Needs the network, so it is deliberately not in CI; unreachable sites report as *skipped* and the
+  summary says so, so a fully-skipped run cannot be mistaken for a passing one.
 - **Chinese README** — [`README.zh-CN.md`](README.zh-CN.md), switchable from the English one.
-- The README now shows real observation output: the element table, a delta, a `= no change` line,
-  duplicate controls carrying `@context`, and a detached-ref refusal.
+- Both READMEs now open with what a session actually looks like (a real element table, a real delta,
+  a real `= no change` line, and a verbatim search run), then a plain-language "what you can ask it
+  to do" / "what it cannot do" / FAQ, before the technical reference.
+- `JEVMCP_SETTLE_TIMEOUT` and `JEVMCP_SETTLE_POLL_MS` — how long to wait for a late-rendering page,
+  and how often to re-read while waiting.
 
 ### Fixed
 
+- **Client-rendered pages reported themselves as empty.** `readyState === 'complete'` says the HTML
+  parser finished, not that the page is drawn: Bing's home page is 89 nodes at that moment and 620
+  three seconds later. The first read after navigation therefore saw nothing and reported
+  *"no actionable elements visible"* about a page full of controls — the agent changes strategy for
+  no reason and spends a round trip learning it was wrong. `browser_observe` now waits for evidence
+  (an element appearing, bounded by `JEVMCP_SETTLE_TIMEOUT`) instead of trusting `readyState`. Pages
+  that are simply empty are not waited on at all. Covered by a new smoke section against
+  `tests/csr.html`, which draws its controls 1.2s late on purpose.
+- **PNG screenshots failed.** `Page.captureScreenshot` takes `quality` only for JPEG and rejects an
+  explicit `null` for it, so `{"op": "screenshot", "format": "png"}` errored while the default JPEG
+  path worked. The parameter is now omitted rather than set to `None`.
+- **A macro recorded where the task ended as its `start_url`.** A search flow finishes on the results
+  page, so replay began there and could not find the first step's target. `start_url` is now captured
+  when recording starts. Found by running the macro against a real site, not by the fixture.
 - **Closing the tab you were driving could attach to it while it was dying.** `Target.closeTarget`
   is a request, not a fact: the target keeps appearing in `Target.getTargets` for a moment
   afterwards, so "the target list is non-empty" is not "there is a tab left to drive". `close_tab`
   now waits for a survivor instead of taking index 0, which is a race the CI runner won and a warm
   laptop lost. The smoke suite asserts the new contract directly.
+- **Tab references were positional and short-lived.** `switch_tab` / `close_tab` took a list index,
+  and that list is renumbered whenever it changes — activating a tab alone can reorder it. Carrying
+  an index across calls could close the wrong tab, and an out-of-range index raised a bare
+  `IndexError`. Tab ops and the `browser_tabs` tool now accept a stable `target_id`, `list` prints a
+  `#handle` for each tab, and the new-tab warning suggests the stable reference. `index` still works
+  when it is read in the same breath as the action.
+- The smoke suite clicked a `target=_blank` link and then slept a fixed 0.5s before looking for the
+  new tab — tuned for a warm laptop, and a race on a loaded CI runner. It polls now.
+- `scripts/mcp_check.py` hard-coded the child environment, so any machine whose Chrome is not in a
+  default location (or any CI runner) failed. It inherits `os.environ` and overrides only the keys it
+  controls.
+- CI captures smoke / MCP / pytest output and republishes failures as annotations and a step summary,
+  because downloading job logs requires repo admin rights and a red X on a public repo was otherwise
+  undiagnosable. Also bumped to `actions/checkout@v7` / `actions/setup-python@v7`.
+
+### Changed
+
+- The in-page helper version is now stated once and matched on both sides (`HELPER_VERSION` in
+  `browser.py` had drifted from the `version` the injected script declares, so a page carrying an
+  older observer was not always replaced).
+- Smoke is 58 checks; the README, DESIGN and CONTRIBUTING figures are refreshed from an actual run.
 - **Tab references were positional and short-lived.** `switch_tab` / `close_tab` took a list index,
   and that list is renumbered whenever it changes — activating a tab alone can reorder it. Carrying
   an index across calls could close the wrong tab, and an out-of-range index raised a bare

@@ -24,7 +24,7 @@ from .observe import Observation
 from .safety import SafetyError, check_url, confirm_reason, is_secret
 
 HELPER_SRC = (Path(__file__).with_name("js") / "observer.js").read_text(encoding="utf-8")
-HELPER_VERSION = 4
+HELPER_VERSION = 6
 
 MODIFIERS = {
     "alt": 1, "option": 1,
@@ -92,6 +92,7 @@ class Session:
     _known_targets: set[str] = field(default_factory=set)
     _recorder: list[dict] = field(default_factory=list)
     _recording: bool = False
+    _recording_start_url: str = ""
     _no_change_streak: int = 0
     # True while the agent's last observation still matches the live page. The
     # first op of a batch gets a strict freshness check; later ops get an
@@ -286,9 +287,7 @@ class Session:
 
     # -------------------------------------------------------------- observe
 
-    def observe(self, *, include_text: bool = True, full: bool = False,
-                focus: list[str] | None = None) -> Observation:
-        self._ensure_helper()
+    def _read_state(self, *, include_text: bool) -> dict:
         options = {
             "maxActions": self.cfg.max_actions,
             "maxText": self.cfg.max_text if include_text else 0,
@@ -300,7 +299,34 @@ class Session:
         )
         if raw is None:
             raise PageStale("Page produced no snapshot (still navigating?)")
-        data = json.loads(raw)
+        return json.loads(raw)
+
+    def _page_has_nodes(self) -> bool:
+        """True when the document has elements, actionable or not."""
+        count = self._safe_eval("document.body ? document.body.childElementCount : 0")
+        return isinstance(count, int) and count > 0
+
+    def observe(self, *, include_text: bool = True, full: bool = False,
+                focus: list[str] | None = None) -> Observation:
+        self._ensure_helper()
+        data = self._read_state(include_text=include_text)
+        if not data.get("actions") and self._page_has_nodes():
+            # Content but nothing actionable. On a client-rendered page this is
+            # what the very first read looks like -- the HTML arrived, the
+            # JavaScript that fills it in has not run yet. Reporting "nothing
+            # to act on" makes the agent change strategy for no reason and
+            # spend a round trip discovering it was wrong, so wait for evidence
+            # (an element appearing) rather than for a quiet period: Bing's
+            # home page is completely still for about three seconds before it
+            # paints, so "the DOM stopped moving" would give up exactly when
+            # patience was needed. Bounded, so a genuinely inert page costs one
+            # timeout and nothing more.
+            deadline = time.monotonic() + self.cfg.settle_timeout
+            while time.monotonic() < deadline:
+                time.sleep(self.cfg.settle_poll_ms / 1000.0)
+                data = self._read_state(include_text=include_text)
+                if data.get("actions"):
+                    break
         observation = Observation.from_raw(
             data, mask_secrets=lambda name, role: is_secret(self.cfg, name, role)
         )
@@ -717,10 +743,15 @@ class Session:
         directory = self.cfg.state_dir / "shots"
         directory.mkdir(parents=True, exist_ok=True)
         fmt = str(raw_op.get("format") or "jpeg").lower()
-        result = self._call("Page.captureScreenshot",
-                            format="png" if fmt == "png" else "jpeg",
-                            quality=80 if fmt != "png" else None,
-                            captureBeyondViewport=bool(raw_op.get("full")))
+        # `quality` is a JPEG-only parameter and CDP rejects an explicit null
+        # for it, so it has to be absent rather than None.
+        params: dict = {
+            "format": "png" if fmt == "png" else "jpeg",
+            "captureBeyondViewport": bool(raw_op.get("full")),
+        }
+        if fmt != "png":
+            params["quality"] = 80
+        result = self._call("Page.captureScreenshot", **params)
         import base64
         name = raw_op.get("path") or f"shot-{int(time.time() * 1000)}.{'png' if fmt == 'png' else 'jpg'}"
         path = Path(name)
@@ -784,13 +815,19 @@ class Session:
     def start_recording(self) -> None:
         self._recorder = []
         self._recording = True
+        # The macro's start_url is where the task *began*, not where it ended.
+        # A search flow ends on the results page; recording that as the start
+        # makes replay begin somewhere the first step cannot be found -- which
+        # is exactly what it did before this line existed.
+        self._recording_start_url = self.current_url()
 
     def stop_recording(self, name: str, *, goal: str = "") -> dict:
         self._recording = False
         steps = list(self._recorder)
-        return macros_mod.save(self.cfg, name, steps, goal=goal, start_url=self._start_url())
+        start = self._recording_start_url or self.current_url()
+        return macros_mod.save(self.cfg, name, steps, goal=goal, start_url=start)
 
-    def _start_url(self) -> str:
+    def current_url(self) -> str:
         return (self.last.url if self.last else self._safe_eval("location.href") or "")
 
     def _record(self, raw_op: dict, op: str, ref: str | None, label: str | None) -> None:

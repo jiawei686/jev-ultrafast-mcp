@@ -104,6 +104,8 @@ class Config:
     text_model: str = "deepseek-chat"
     nav_timeout: float = 20.0
     call_timeout: float = 30.0
+    settle_timeout: float = 4.0            # max wait for a client-rendered page to show elements
+    settle_poll_ms: int = 120              # re-read cadence while waiting
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -137,6 +139,8 @@ class Config:
             text_model_key=os.environ.get("TEXT_MODEL_API_KEY"),
             text_model_base=os.environ.get("TEXT_MODEL_BASE_URL", "https://api.deepseek.com/v1"),
             text_model=os.environ.get("TEXT_MODEL", "deepseek-chat"),
+            settle_timeout=float(os.environ.get("JEVMCP_SETTLE_TIMEOUT", "4.0")),
+            settle_poll_ms=int(os.environ.get("JEVMCP_SETTLE_POLL_MS", "120")),
         )
 
     def resolved_profile(self) -> Path:

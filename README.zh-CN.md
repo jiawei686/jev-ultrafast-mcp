@@ -6,20 +6,72 @@
 
 [English](README.md) · **简体中文**
 
-给 agent 用的、快速且带守卫的浏览器控制服务，走 MCP。
+**给你的 AI agent 一双能真正操作浏览器的手。**
 
-**调用方 agent 就是决策者（policy）**。服务端的职责是把页面读便宜、把「瞄错元素」变不可能：
-**不调第二个模型、不需要任何 API key、循环里没有截图。**
+打开网页、点按钮、填表单、读结果 —— 通过 WorkBuddy、Claude Code、Codex、Cursor、VS Code 这类
+MCP 客户端调用。**该做什么由你的 agent 决定**，这个服务负责把页面读得便宜、把点错元素变成不可能。
+
+- **不需要任何 API key**，没什么要注册的。
+- **不需要第二个模型**。你的 agent 本身就是大脑，这里只是手和眼睛。
+- **不用截图**。页面被读成一张带编号的控件表，而不是一堆像素。
 
 ```
 browser_open  →  元素表  →  browser_act [refs]  →  browser_assert
 ```
 
-思路受 [`browser-use/jev-ultrafast`](https://github.com/browser-use/jev-ultrafast) 与 TypeSafe 的
-typed-question API 启发。本项目是独立实现，与 browser-use 和 TypeSafe 无隶属关系。
-差异化的取舍见 [`docs/DESIGN.md`](docs/DESIGN.md)。
+思路受 [`browser-use/jev-ultrafast`](https://github.com/browser-use/jev-ultrafast) 和 TypeSafe 的
+typed-question API 启发。本项目是独立实现，与两者均无隶属关系；差异化的取舍见
+[`docs/DESIGN.md`](docs/DESIGN.md)。
+
+---
+
+## 一次会话实际长什么样
+
+你对 agent 说：
+
+> 打开 example.com，告诉我页面上写了什么。
+
+agent 做了这些，而它看到的全部内容就是下面这些：
+
+```
+browser_open("https://example.com")
+  [obs#1] https://example.com/  "Example Domain"  scroll=0/216  reachable=1/1
+  e1   lnk    More information...
+
+browser_observe()
+  [delta#2] … 1 element
+    = no change (1 element)
+```
+
+然后它回答你。全程没有截图、没有 dump HTML、没有第二个模型参与。
+
+再看一个更真实的 —— 在真实站点上搜索：
+
+```
+browser_open("https://duckduckgo.com")
+  e4   cmb*   Search with DuckDuckGo ▸ ""
+
+browser_act([{type, ref: "e4", text: "python asyncio tutorial"}, {keys, key: "Enter"}])
+      → 2/2 ops ok，一次往返，页面已跳转
+
+browser_observe()
+  [delta#3] https://duckduckgo.com/?…&q=python+asyncio+tutorial  reachable=9/59
+  + e5   lnk    Python Asyncio Tutorial
+  + e6   lnk    Async IO in Python: A Complete Walkthrough
+  …
+    43 new, 0 changed, 0 gone
+
+browser_assert([{url_contains, text: "q="}, {count_at_least, role: "link", min: 5}])
+  PASS
+```
+
+这段是**真实联网跑出来的原样输出**，`scripts/live_check.py` 可以完整复现。
+
+---
 
 ## 快速开始
+
+两条命令，没有别的要配。
 
 ```bash
 git clone https://github.com/jiawei686/jev-ultrafast-mcp.git
@@ -30,13 +82,9 @@ python3 -m venv .venv
 python scripts/install.py           # 自动识别你装了的 MCP 客户端并写入配置
 ```
 
-重启客户端，然后对它说：
-
-> 打开 example.com，告诉我头条是什么。
-
-装完就这一步。`install.py` 会探测 WorkBuddy、Claude Code、Claude Desktop、Codex CLI、Cursor、
-VS Code、Cline、Windsurf、Gemini CLI，并按各自要求的格式写配置文件。它是**合并**而不是覆盖，
-写之前会把原文件备份成 `*.bak`，也不会自己编造路径。
+`install.py` 会去找 WorkBuddy、Claude Code、Claude Desktop、Codex CLI、Cursor、VS Code、Cline、
+Windsurf、Gemini CLI，并按各自要求的格式写配置。它是**合并**而不是覆盖，动手前先存一份 `.bak`
+备份，也不会自己编造路径。重启客户端，然后让它打开一个网页就行。
 
 ```bash
 python scripts/install.py --list              # 看装了哪些、各自读哪个文件
@@ -48,7 +96,9 @@ python scripts/install.py --uninstall         # 把条目删回去
 ```
 
 依赖：Python ≥ 3.10，以及一个 Chromium 系浏览器（Chrome / Chromium / Edge / Brave）。
-运行时只依赖 `mcp`、`websockets`、`httpx`——不用 Playwright、不用 Selenium、不用 browser-harness。
+运行时只依赖 `mcp`、`websockets`、`httpx` —— 不用 Playwright、不用 Selenium、不用 browser-harness。
+
+---
 
 ## 接入各类 agent
 
@@ -56,7 +106,7 @@ python scripts/install.py --uninstall         # 把条目删回去
 |---|---|---|
 | **WorkBuddy** | `~/.workbuddy/mcp.json` | 连接器 → 自定义连接器 → 点**信任** |
 | **Claude Code** | `~/.claude.json`（user 作用域） | 或直接 `claude mcp add --scope user …` |
-| **Claude Desktop** | `~/Library/Application Support/Claude/claude_desktop_config.json` | 完全退出应用再打开 |
+| **Claude Desktop** | `~/Library/Application Support/Claude/claude_desktop_config.json` | 从托盘完全退出再打开 |
 | **Codex CLI** | `~/.codex/config.toml` | `codex mcp list` 确认 |
 | **Cursor** | `~/.cursor/mcp.json` | 重载窗口 |
 | **VS Code (Copilot)** | `…/Code/User/mcp.json` | 只在 Agent 模式可用，Ask/Edit 不行 |
@@ -134,13 +184,38 @@ JEVMCP_HEADLESS = "1"
 
 </details>
 
-浏览器在第一次 `browser_open` 之前不会启动；它驱动的标签页是**自己拥有的后台标签页**——
+浏览器在第一次 `browser_open` 之前不会启动；它驱动的标签页是**自己拥有的后台标签页** ——
 焦点模拟让动画和菜单照常运行，但不会抢你的窗口。
+
+---
+
+## 可以拿它做什么
+
+| 你可以这样说 | 实际发生的事 |
+|---|---|
+| "打开这个页面，告诉我上面写了什么" | 读可见文本 + 可操作控件 |
+| "把这个表单填了并提交" | 一次 `browser_act` 批量填多个字段，只花一次往返 |
+| "登录进去，把上个月的发票下下来" | 你手动登录一次，profile 会一直留着 |
+| "把这个列表里每个商品页都检查一遍" | 在你的 agent 里循环，ref 在步骤之间保持有效 |
+| "这件事明天再做一遍" | 录成**宏**，回放**零模型调用** |
+| "这次部署到底上了没有？" | `browser_assert` 给 PASS/FAIL，不是「感觉」 |
+| "在测试环境把下单流程点一遍" | 类似支付的按钮会返回 `needs_confirmation`，不直接执行 |
+
+## 它**做不到**什么
+
+把边界说清楚，对谁都省时间：
+
+- **它不看像素。** 验证码、图表、纯 canvas 应用 —— 任何需要真正视觉判断的东西都不在范围内。
+  这类场景请换"截图 + 视觉"的 agent，或者在这里用 `screenshot` 操作留下证据给**人**看。
+- **它不是爬虫框架。** 一个浏览器、一次一个会话。没有代理轮换、没有并发、不面向大规模抓取。
+- **它不是给人用的录制器。** 没有"点一下录一步"的界面；宏是 agent 正常干活时录下来的。
+
+---
 
 ## agent 实际读到的东西
 
-`browser_open` / `browser_observe` 返回的是一张**元素表**，不是 DOM dump，也不是截图。每行是
-`ref` + 角色简码 + 标记 + 可访问名称；可编辑的带上当前值，可选择的带上选项：
+不是 DOM dump，也不是截图 —— 是一张它能操作的控件表。每行是 `ref`（元素编号）+ 角色简码 +
+标记 + 可访问名称；可编辑的带上当前值，可选择的带上选项：
 
 ```
 [obs#1] http://127.0.0.1:54409/fixture.html  "Ultrafast Fixture"  scroll=0/860  reachable=16/16
@@ -160,7 +235,7 @@ e12  btn    Delete account
 标记含义：`*` 可编辑 · `»` 在视口外（服务端会先滚到它） · `⊘` 被别的东西盖住 · `▾` 已展开 ·
 `✓`/`·` 勾选状态。`reachable=16/19` 表示页面上有 3 个控件此刻被遮挡或不在视口内。
 
-`browser_act` 收一批针对这些 ref 的操作，然后**只回报变化的部分**：
+操作之后只回报**变化的部分** —— 这是长流程里最大的一笔开销节省：
 
 ```
 [delta#2] http://127.0.0.1:54409/fixture.html  "Ultrafast Fixture"  reachable=16/16
@@ -189,13 +264,16 @@ e12  btn    Delete account
 [{"op": "click", "ok": false, "ref": "e999", "error": "detached"}]
 ```
 
+---
+
 ## 为什么还要再造一个浏览器 MCP？
 
-多数浏览器 MCP 暴露的是 CDP 原语——`click_at_xy`、CSS 选择器、`evaluate`。灵活性拉满，安全性见底：
-每一步都依赖模型自己编一个选择器或坐标，编错了要么静默失败，要么更糟——成功点在了错的元素上。
+多数浏览器 MCP 暴露的是 CDP 原语 —— `click_at_xy`、CSS 选择器、`evaluate`。灵活性拉满，安全性
+见底：每一步都依赖模型自己编一个选择器或坐标，编错了要么静默失败，要么更糟 —— 成功点在了错的
+元素上。
 
-`jev-ultrafast-mcp` 走反向取舍。模型只负责说**哪个**元素（`ref`）和**做什么**；把这个 ref 变成
-一次真实点击是服务端的事，而服务端**宁可拒绝，也不猜**。
+这个项目走反向取舍。模型只负责说**哪个**元素（`ref`）和**做什么**；把这个 ref 变成一次真实点击
+是服务端的事，而服务端**宁可拒绝，也不猜**。
 
 | | 原语型浏览器 MCP | **jev-ultrafast-mcp** |
 |---|---|---|
@@ -207,27 +285,26 @@ e12  btn    Delete account
 | 往返次数 | 每个动作一次 | **批量**：多个 op 一次往返 |
 | 目标有歧义 | 模型猜 | **服务端拒绝并说明原因** |
 | Shadow DOM / iframe | 通常不支持 | **可穿透，滚动会带上 frame 偏移** |
+| 渲染慢的页面 | 靠 agent 自己 sleep | **等到控件出现为止，且有上限** |
 | 重复流程 | 重跑模型 | **宏回放，零模型成本** |
 | 怎么知道做成了 | 模型自己看页面 | **确定性 `browser_assert`** |
 | 危险点击 | 模型自己判断 | **`needs_confirmation`、域名白名单、敏感字段脱敏** |
 
-批量和增量不是锦上添花。在仓库自带的端到端测试里，整轮会话交给模型 **13.4 KB**，其中
-**12.6 KB 是增量、0.8 KB 是全量表**——模型只重读页面上动过的那部分。
+批量和增量不是锦上添花。在仓库自带的端到端测试里，27 个操作及其后续观察一共交给模型
+**15.4 KB**，其中 **13.6 KB 是增量、1.8 KB 是全量表** —— 模型只重读页面上动过的那部分。
 
-### 诚实的代价
-
-agent 仍然要花 token 读元素表；而且**需要真正视觉判断的页面不在范围内**（验证码、图表、
-canvas 应用），因为这个服务刻意不看像素。这类场景请换截图 + 视觉的 agent，或者在这里用
-`screenshot` 操作——那是给人留证据，不是给模型看的。
+---
 
 ## 工具
 
+一共十个，多数会话只会用到其中四个。
+
 ### `browser_open(url, session="default", hint="")`
-在新建的自有标签页里打开 URL，返回完整元素表。
+在自有标签页里打开 URL，返回完整元素表。`hint` 用一句话重述目标，会被原样回显。
 
 ### `browser_observe(session="default", mode="auto", include_text=True, include_json=False)`
-重读页面。`auto` 出增量，`full` 强制全量。`= no change` 意味着上一个动作什么都没做——
-该换策略，不要重试。
+重读页面。`auto` 出增量，`full` 强制全量，`delta` 强制差分。出现 `= no change` 意味着上一个动作
+什么都没做 —— **该换策略，不要重试**。
 
 ### `browser_act(ops, session="default", dry_run=False, stop_on_error=True, observe_after=True)`
 按顺序在**一次往返**里执行 ops，然后返回增量。
@@ -243,7 +320,7 @@ canvas 应用），因为这个服务刻意不看像素。这类场景请换截�
 | `scroll` | `dir`、`amount`、`ref` |
 | `nav` / `back` / `forward` / `reload` | `url`（`nav` 用） |
 | `wait` / `wait_for_ref` / `wait_for_text` / `wait_for_load` | `ms` / `ref`,`timeout_ms` / `text` / `timeout_ms` |
-| `screenshot` | `path`、`full`、`format` |
+| `screenshot` | `path`、`full`、`format`（`jpeg` 或 `png`） |
 | `tab` | `action`=`list\|new\|switch\|close`、`target_id`、`index`、`url` |
 | `eval` | `js` —— 仅在 `JEVMCP_ALLOW_JS=1` 时可用 |
 
@@ -263,7 +340,7 @@ canvas 应用），因为这个服务刻意不看像素。这类场景请换截�
 上一次调用读到的 index 可能已经指向另一个标签了。
 
 ### `browser_assert(checks, session="default")`
-确定性断言——不靠模型「感觉」判断是否完成。
+确定性断言 —— 不靠模型「感觉」判断是否完成。
 
 ```json
 {"checks": [
@@ -276,16 +353,19 @@ canvas 应用），因为这个服务刻意不看像素。这类场景请换截�
 ```
 
 ### `browser_macro(action, session="default", name="", params={}, ...)`
-`record_start` → 手动走一遍 → `record_stop` → `run`。回放**不花模型调用**；步骤按 role +
-可访问名称重新解析，匹配偏弱或有歧义时直接报错，而不是点错东西。
+`record_start` → 手动走一遍 → `record_stop` → `run`。回放**不花模型调用**：它会自己回到任务开始的
+那个页面，把每一步按 role + 可访问名称重新解析，匹配偏弱或有歧义时直接报错，而不是点错东西。
+`params` 会替换输入文本和 URL 里的 `{{占位符}}`。
 
 ### `browser_goal(goal, session="default", max_steps=20, verify=[...])`
 在服务端跑完整个循环，用 TypeSafe 的投机扇出（每步一次请求）。需要 `TYPESAFE_API_KEY`；
 给了 `verify` 检查时返回 `verified: PASS/FAIL`。
 
 ### `browser_tabs` · `browser_sessions` · `browser_close` · `browser_doctor`
-标签页管理（列 / 新建 / 切换 / 关闭）、会话列举、收尾、以及自检——报告找到的是哪个浏览器、
+标签页管理（列 / 新建 / 切换 / 关闭）、会话列举、收尾，以及自检 —— 报告找到的是哪个浏览器、
 能不能连上。
+
+---
 
 ## 配置
 
@@ -299,7 +379,7 @@ canvas 应用），因为这个服务刻意不看像素。这类场景请换截�
 | `JEVMCP_HEADLESS` | `1` | `0` 显示窗口 |
 | `JEVMCP_FOREGROUND` | `0` | `1` 激活自有标签页 |
 | `JEVMCP_SANDBOX` | `auto` | 浏览器启动即崩时，`auto` 会用 `--no-sandbox` 重试 |
-| `JEVMCP_PROFILE_DIR` | `~/.jev-ultrafast-mcp/chrome-profile` | 持久化 profile——手动登录一次，之后一直保持 |
+| `JEVMCP_PROFILE_DIR` | `~/.jev-ultrafast-mcp/chrome-profile` | 持久化 profile —— 手动登录一次，之后一直保持 |
 | `JEVMCP_ALLOW_DOMAINS` | *（不限）* | 逗号分隔；导航到其他域名会被拒绝 |
 | `JEVMCP_DENY_DOMAINS` | *（无）* | 逗号分隔黑名单 |
 | `JEVMCP_CONFIRM_PATTERNS` | pay / delete / unsubscribe … | 命中这些词的操作需要 `"confirm": true` |
@@ -307,6 +387,8 @@ canvas 应用），因为这个服务刻意不看像素。这类场景请换截�
 | `JEVMCP_ALLOW_UPLOADS` | `1` | 控制 `upload` op |
 | `JEVMCP_MAX_ACTIONS` | `250` | 元素表条数上限，按有用程度裁剪 |
 | `JEVMCP_MAX_TEXT` | `6000` | 单次观测的可见文本上限 |
+| `JEVMCP_SETTLE_TIMEOUT` | `4.0` | 页面渲染慢时，最多等多久让控件出现 |
+| `JEVMCP_SETTLE_POLL_MS` | `120` | 等待期间多久重读一次 |
 | `JEVMCP_STATE_DIR` | `~/.jev-ultrafast-mcp` | profile、宏、截图的存放位置 |
 | `TYPESAFE_API_KEY` | — | 可选；开启 `browser_goal` |
 | `TEXT_MODEL_API_KEY` | — | 可选；只用于 `browser_goal` 模式下的输入 |
@@ -314,16 +396,52 @@ canvas 应用），因为这个服务刻意不看像素。这类场景请换截�
 如果你要拿它操作自己的账号，有两个值得先设上：`JEVMCP_ALLOW_DOMAINS` 把浏览器钉死在一组域名内，
 之外一律拒绝；配一个持久的 `JEVMCP_PROFILE_DIR`，让你手动登录一次，而不是把密码教给模型。
 
+---
+
+## 常见问题
+
+**需要 API key 或账号吗？**
+不需要。所有东西都在你自己机器上跑，没有遥测、没有回传。可选的 `browser_goal` 工具在你提供 key
+时可以用 TypeSafe，但默认路径完全不用。
+
+**会不会弹出一个浏览器窗口抢我的屏幕？**
+不会。默认无头运行，驱动的是**自己拥有的后台标签页** —— 动画和菜单照常工作，但不抢焦点。
+想看它操作就加 `--headed`（或 `JEVMCP_HEADLESS=0`）。
+
+**已经登录的网站怎么用？**
+把 `JEVMCP_PROFILE_DIR` 指到一个持久目录，手动开一次浏览器登录，会话就记住了。这比教 agent 你的
+密码好得多 —— 而且真要输入时，密码字段在观测里是脱敏的。
+
+**什么动静都没有，页面看着是空的？**
+用 JavaScript 渲染的页面会短暂「看起来是空的」。服务端会等控件出现（上限 `JEVMCP_SETTLE_TIMEOUT`），
+但如果站点卡在 cookie 墙或同意弹窗后面，元素表里会体现出来 —— 注意观测头里的遮挡警告。
+
+**有验证码，它能过吗？**
+不能，而且这是刻意的 —— 它不看像素。这种场景请换"截图 + 视觉"的 agent。
+
+**和 Playwright MCP 有什么区别？**
+Playwright 的服务端暴露的是页面原语，选择器和坐标由 agent 自己写。这个暴露的是一张带编号的控件表，
+遇到歧义会拒绝。需要像素级控制或成熟的录制测试生态 → 用 Playwright；想要一个不会悄悄点错按钮的
+agent → 用这个。
+
+**让它操作我的账号安全吗？**
+它的设计前提就是「不应该被完全信任」。听起来危险的点击会以 `needs_confirmation` 返回而不是直接执行，
+`JEVMCP_ALLOW_DOMAINS` 会拒绝走到你列出的域名之外，敏感字段会脱敏，`eval` 默认关闭。建议先配一个
+域名白名单，再拿一个搞坏了也不心疼的账号试。
+
+---
+
 ## 不接 agent 也能试
 
 ```bash
-.venv/bin/python scripts/smoke.py            # 无头，52 项检查
-.venv/bin/python scripts/smoke.py --headed   # 看着它操作
+.venv/bin/python scripts/smoke.py             # 无头，58 项检查
+.venv/bin/python scripts/smoke.py --headed    # 看着它操作
 ```
 
 它会启动 Chrome、用 HTTP 伺服 `tests/fixture.html`，然后把真实代码路径全跑一遍：批量执行、
 自动补全、遮挡弹层、Shadow DOM、同源 iframe、文件上传、密码字段、危险点击守卫、过期 ref、
-宏录制回放、标签页交接、截图。
+宏录制回放、标签页交接、截图，以及一个在 `readyState` 已经变成 `complete` **之后**才渲染出内容的
+页面。
 
 ```
 1. Observation — one atomic read, indexed refs
@@ -334,8 +452,20 @@ canvas 应用），因为这个服务刻意不看像素。这类场景请换截�
   [ok  ] covered control flagged before any click  — e8 occluded=True
   [ok  ] click on a covered control is refused with a reason  — occluded
 ...
-  52/52 checks passed
+  58/58 checks passed
 ```
+
+想拿真实网站而不是夹具试：
+
+```bash
+.venv/bin/python scripts/live_check.py            # Bing + DuckDuckGo + 标签页 + 截图
+.venv/bin/python scripts/live_check.py --headed   # 看着它发生
+```
+
+这个需要联网、会访问第三方站点，所以刻意没放进 CI。连不上的站点会记为 *skipped*，摘要里也会
+明说，这样"全部跳过"的一次运行不会被误当成"全部通过"。
+
+---
 
 ## 目录结构
 
@@ -355,6 +485,7 @@ scripts/
   install.py       为本机的各个 MCP 客户端写入正确格式的配置
   smoke.py         对真实浏览器的端到端验证
   mcp_check.py     走真实 stdio MCP 协议驱动服务端
+  live_check.py    同上，但打真实网站（需要联网）
 ```
 
 ## 开发
@@ -363,12 +494,12 @@ scripts/
 .venv/bin/pip install -e ".[dev]"
 .venv/bin/ruff check .
 .venv/bin/python -m pytest -q
-.venv/bin/python scripts/smoke.py        # 52 项，真实浏览器
+.venv/bin/python scripts/smoke.py        # 58 项，真实浏览器
 .venv/bin/python scripts/mcp_check.py    # 17 项，真实 stdio MCP
 ```
 
 CI 会在 Python 3.10 / 3.12 / 3.13 上、对着无头 Chrome 全跑一遍。改「目标解析」那部分逻辑之前
-请先读 [`CONTRIBUTING.md`](CONTRIBUTING.md)——那是这个项目的全部意义所在。
+请先读 [`CONTRIBUTING.md`](CONTRIBUTING.md) —— 那是这个项目的全部意义所在。
 
 ## 许可证
 

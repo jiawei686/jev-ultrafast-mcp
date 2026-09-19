@@ -358,6 +358,23 @@ def run(base: str, headed: bool) -> int:
     check("replayed macro produced the real outcome", verdict["pass"],
           "; ".join(c["detail"] for c in verdict["checks"]))
 
+    # A macro's start_url has to be where the task *began*. It used to be read
+    # at stop time, so any flow that finished on a different page recorded the
+    # destination -- and replay then began somewhere the first step could not
+    # be found. Recording a navigation makes the two positions different.
+    session.navigate(f"{base}/fixture.html")
+    observe(session, mode="full")
+    session.start_recording()
+    act(session, [{"op": "nav", "url": f"{base}/frame.html"}])
+    wandered = session.stop_recording("smoke-wander")
+    check("a macro remembers where the task started, not where it ended",
+          "fixture" in wandered["start_url"] and "frame" not in wandered["start_url"],
+          wandered["start_url"] or "(empty)")
+    macros_mod.delete(cfg, "smoke-wander")
+    # Put the session back where the next section expects to find it.
+    session.navigate(f"{base}/fixture.html")
+    observe(session, mode="full")
+
     # ------------------------------------------------------------- 11. delta
     section("11. Delta economy")
     observe(session)
@@ -416,6 +433,40 @@ def run(base: str, headed: bool) -> int:
     shot = Path((payload["ops"][0].get("target") or ""))
     check("screenshot written to a file", shot.exists() and shot.stat().st_size > 1000,
           f"{shot.name} {shot.stat().st_size if shot.exists() else 0}B")
+    # `quality` is JPEG-only and CDP rejects an explicit null, so asking for
+    # PNG used to fail while the default JPEG path worked.
+    png_payload = act(session, [{"op": "screenshot", "format": "png"}])
+    png = Path((png_payload["ops"][0].get("target") or ""))
+    check("png screenshots work as well as jpeg",
+          png.suffix == ".png" and png.exists() and png.stat().st_size > 1000,
+          f"{png.name} {png.stat().st_size if png.exists() else 0}B")
+
+    # ------------------------------------------- 14. client-rendered pages
+    section("14. Client-rendered pages — waits for evidence, not for a timer")
+    # csr.html ships an empty body and draws its controls 1.2s later. This is
+    # not a synthetic edge case: it is what React, Vue, an admin dashboard and
+    # Bing's home page all look like after `readyState` says "complete".
+    session.navigate(f"{base}/csr.html")
+    started_csr = time.monotonic()
+    observation = observe(session, mode="full")
+    waited = time.monotonic() - started_csr
+    go = ref_of(observation, "Go", "button")
+    check("a page that renders late is still readable", go is not None,
+          f"{len(observation.elements)} elements, first read took {waited:.2f}s")
+    check("it waited for the render instead of trusting readyState", waited >= 1.0,
+          f"{waited:.2f}s")
+    payload = act(session, [{"op": "click", "ref": go}])
+    check("the late-rendered control is actually clickable", op_ok(payload),
+          payload["ops"][0].get("error") or "clicked")
+
+    # The wait is bounded and it must not tax pages that are simply empty: an
+    # entirely blank document has nothing to render, so it is reported at once.
+    session.navigate("about:blank")
+    blank_started = time.monotonic()
+    blank = observe(session, mode="full")
+    blank_ms = time.monotonic() - blank_started
+    check("an empty document is not waited on", blank_ms < 1.5 and not blank.elements,
+          f"{blank_ms:.2f}s, {len(blank.elements)} elements")
 
     elapsed = int((time.monotonic() - started) * 1000)
     METRICS["wall_ms"] = elapsed
