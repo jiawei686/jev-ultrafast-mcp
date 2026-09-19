@@ -59,6 +59,20 @@ OPERATION_LABELS = {
     "WAIT": "Wait for the page to update.",
 }
 
+# The one place the offered vocabulary and the executed vocabulary meet. A name
+# that is offered to the decision model but missing here would be answered back
+# and then have no operation to run -- so `_operation_heads` offers exactly the
+# operations in this map, and callers dispatch through it rather than keeping a
+# second copy that can drift.
+OPERATION_TO_ACT = {
+    "CLICK": "click",
+    "TYPE_TEXT": "type",
+    "SELECT": "select",
+    "TOGGLE": "toggle",
+    "SCROLL": "scroll",
+    "WAIT": "wait",
+}
+
 
 class TurboUnavailable(RuntimeError):
     pass
@@ -119,13 +133,21 @@ def _validate(answer: dict, ids: set[str]) -> dict:
 
 
 def _operation_heads(observation: Observation) -> tuple[set[str], dict[str, list]]:
-    """Group observed elements by the operations they can actually perform."""
+    """Group observed elements by the operations they can actually perform.
+
+    Only operations present in `OPERATION_TO_ACT` are offered. An element may
+    support more than that -- an `<input type=file>` reports UPLOAD -- but a
+    decision model has no way to name a file, so offering it would produce a
+    step nobody can execute. Uploading stays reachable through `browser_act`,
+    where the caller supplies the path.
+    """
     heads: dict[str, list] = {}
     for element in observation.elements:
         if element.occluded:
             continue
         for kind in element.target_kinds():
-            heads.setdefault(kind, []).append(element)
+            if kind in OPERATION_TO_ACT:
+                heads.setdefault(kind, []).append(element)
     if heads:
         heads.setdefault("SCROLL", [])
         heads.setdefault("WAIT", [])
@@ -271,10 +293,21 @@ def text_for(cfg: Config, goal: str, element, observation: Observation,
         ],
     })
     try:
-        output = json.loads(result["choices"][0]["message"]["content"])
+        raw = result["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError):
+        raw = None
+    try:
+        output = json.loads(raw or "")
         value = output["text"]
         if set(output) != {"text"} or not isinstance(value, str) or not value.strip() or len(value) > 2000:
             raise ValueError
     except (ValueError, KeyError, TypeError):
-        raise TurboUnavailable("Text helper returned no usable value; nothing typed.") from None
+        # Carry the answer in the error. "No usable value" on its own leaves the
+        # caller unable to tell a helper that answered in the wrong shape from
+        # one that answered nothing at all, and those need different fixes.
+        shown = repr(raw)[:200]
+        raise TurboUnavailable(
+            f"Text helper returned no usable value; nothing typed. "
+            f'Expected exactly {{"text": "..."}}, got {shown}'
+        ) from None
     return value

@@ -304,6 +304,19 @@ def browser_macro(action: str, session: str = "default", name: str = "",
         return _error(exc)
 
 
+# Reasons that mean "the refs you were given no longer describe the page" --
+# as opposed to "this element cannot be acted on right now". The first kind is
+# one observation away from working, because the element is usually still there
+# under a new ref, so a goal recovers from it instead of ending. Live pages do
+# this constantly: typing into a JS-rendered search box replaces the whole
+# search area, taking the submit button's node with it.
+STALE_REF_REASONS = {"detached", "page_changed", "target_changed", "unknown_ref", "stale"}
+
+# How many times one goal step may re-observe after its refs went stale.
+# Bounded, so a page that never settles still ends the goal rather than looping.
+STALE_REF_RETRIES = 3
+
+
 @SERVER.tool()
 def browser_goal(goal: str, session: str = "default", max_steps: int = 20,
                  verify: list[dict] | None = None, verbose: bool = False) -> str:
@@ -332,6 +345,7 @@ def browser_goal(goal: str, session: str = "default", max_steps: int = 20,
         trace: list[str] = []
         status = "running"
         steps = 0
+        stale = 0
         while steps < max_steps:
             history = [{"op": step.op, "ref": step.ref, "target": step.target, "ok": step.ok}
                        for step in tab.history[-10:]]
@@ -341,8 +355,7 @@ def browser_goal(goal: str, session: str = "default", max_steps: int = 20,
                 status = operation.lower()
                 trace.append(f"  {steps + 1}. {operation} (conf {decision.get('confidence', 0):.2f})")
                 break
-            op: dict = {"op": {"TYPE_TEXT": "type", "SELECT": "select", "TOGGLE": "toggle",
-                               "SCROLL": "scroll", "WAIT": "wait", "CLICK": "click"}[operation]}
+            op: dict = {"op": policy.OPERATION_TO_ACT[operation]}
             if decision.get("ref"):
                 op["ref"] = decision["ref"]
             if operation == "TYPE_TEXT":
@@ -355,13 +368,24 @@ def browser_goal(goal: str, session: str = "default", max_steps: int = 20,
             steps += 1
             payload = tab.act([op], stop_on_error=False, observe_after=True)
             step_result = payload["ops"][0]
+            error = step_result.get("error") or ""
+            # The guard refusing a stale ref is right; believing it was fatal is
+            # what stopped the goal. Without this the same goal succeeds or fails
+            # depending on whether the page happened to be still while it was read.
+            if error in STALE_REF_REASONS and stale < STALE_REF_RETRIES:
+                stale += 1
+                steps -= 1
+                trace.append(f"  -   re-observing ({error}: refs went stale, "
+                             f"{stale}/{STALE_REF_RETRIES})")
+                observation = tab.observe()
+                continue
             trace.append(
                 f"  {steps}. {operation} {decision.get('ref') or ''} "
-                f"{decision.get('target') or ''} → {'ok' if step_result['ok'] else step_result.get('error')} "
+                f"{decision.get('target') or ''} → {'ok' if step_result['ok'] else error} "
                 f"({decision.get('latency_ms', 0)}ms model / {step_result.get('ms', 0)}ms browser)"
             )
             if not step_result["ok"]:
-                status = f"failed:{step_result.get('error')}"
+                status = f"failed:{error}"
                 break
             observation = tab.last or tab.observe()
         else:

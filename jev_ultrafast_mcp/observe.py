@@ -86,9 +86,15 @@ class Element:
         )
 
     def target_kinds(self) -> list[str]:
+        """Operations this element can perform, in the canonical operation names.
+
+        These strings travel to the decision model as its `criteria` keys and
+        come back as the chosen operation, so they must match the vocabulary
+        the caller dispatches on -- see `policy.OPERATION_TO_ACT`.
+        """
         kinds = []
         if self.editable:
-            kinds.append("TYPE")
+            kinds.append("TYPE_TEXT")
         if self.role in {"checkbox", "radio", "switch"}:
             kinds.append("TOGGLE")
         elif self.role == "file":

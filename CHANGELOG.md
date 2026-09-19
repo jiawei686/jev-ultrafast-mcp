@@ -26,6 +26,28 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **`browser_goal` crashed on the model's own answer.** The operation offered to the decision model
+  and the operation the server dispatched on were different strings: `Element.target_kinds()` reported
+  `TYPE` while the dispatch table was keyed on `TYPE_TEXT` — the name upstream uses and this project's
+  own label table already used. Nothing was mis-configured and no request failed; the model answered
+  correctly and the server raised `KeyError`. The vocabulary now lives in one place
+  (`policy.OPERATION_TO_ACT`), the server dispatches through it, and anything not in it is never
+  offered. Turbo mode had never been run, which is why this survived:
+  `tests/test_turbo_vocabulary.py` compares the two ends without a browser or a network.
+- **`browser_goal` treated a stale ref as a dead end.** Between observing and acting, a page that
+  rewrites itself invalidates the refs; the guard is right to refuse, but the loop ended the goal
+  instead of re-observing. The same goal therefore succeeded or failed depending on whether the page
+  happened to be still while it was read — and pages with live regions are never still: typing into
+  Wikipedia's search box replaces the whole search area, taking the submit button's node with it.
+  A step now re-observes (bounded) on `detached` / `page_changed` / `target_changed` / `unknown_ref`,
+  while reasons that mean "this element cannot be acted on" still end the goal. A test forces every
+  reason the observer can return to be classified into one of those two buckets, so a new one added
+  in JavaScript cannot land in the fatal bucket by default.
+- **The text helper's failure did not say what the helper answered.** A chat model fills field values
+  (Jev only chooses), and must answer exactly `{"text": "..."}`. When it does not, the run stops with
+  nothing typed — correct, since typing a guess is worse — but *"returned no usable value"* cannot be
+  acted on: a wrong shape and an empty answer read identically and need different fixes. The answer is
+  now carried in the error. `tests/test_text_helper.py` covers both without a network.
 - **Client-rendered pages reported themselves as empty.** `readyState === 'complete'` says the HTML
   parser finished, not that the page is drawn: Bing's home page is 89 nodes at that moment and 620
   three seconds later. The first read after navigation therefore saw nothing and reported
