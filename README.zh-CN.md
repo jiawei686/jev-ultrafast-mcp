@@ -366,6 +366,11 @@ e12  btn    Delete account
 统一以 `turbo_unavailable:` 返回，且**不会执行任何动作**。已经走过的步骤仍保留在 trace 里，所以
 一个在第 5 步挂掉的 goal 依然会告诉你第 1–4 步做了什么。
 
+`status` 是模型自己的总结，`verify` 由代码核对；两者冲突时**以断言为准**：只要你给的检查通过，
+这次运行就报 `status: done`，不管模型说了什么，并且 trace 里会记下这次「断言推翻了模型」。
+这是「最后一个动作把被操作对象本身消灭掉」这类目标的常态 —— 点完签到按钮，按钮就没了，模型
+找不到还能操作的东西，于是一个其实已经成功的目标被它报成 `BLOCKED`。
+
 ### `browser_tabs` · `browser_sessions` · `browser_close` · `browser_doctor`
 标签页管理（列 / 新建 / 切换 / 关闭）、会话列举、收尾，以及自检 —— 报告找到的是哪个浏览器、
 能不能连上。
@@ -480,6 +485,41 @@ agent → 用这个。
 它用同一个夹具页面，让真实 Chrome 加载，然后由 Jev 自己驱动完成目标；最后用代码去核对模型留下的
 页面，而不是听信它自称成功。没有 key 时会打印 `skipped` 并以 0 退出，退出码和文字说的是同一件事。
 
+### 一个「不再花自己钱」的自动签到
+
+`examples/checkin.html` 模拟了大家真正想自动化的东西：一个每天点一次的按钮。
+`scripts/checkin.py` 分三个阶段驱动它，从最便宜的开始 —— 关键在于**只有第一次会花钱**。
+
+```bash
+.venv/bin/python scripts/checkin.py --port 8901           # 学一次，之后不再花钱
+.venv/bin/python scripts/checkin.py --port 8901 --record  # 忽略已存的宏，重新学
+```
+
+**1. 今天是否已签。** 读页面。如果今天已签的痕迹已经在上面，立刻停下 —— 不点击、不调模型、
+没有任何需要撤销的动作。
+
+**2. 回放。** 跑第一次录下来的宏：零模型调用，几百毫秒，而且页面变了它会**拒绝乱点**而不是猜。
+这是每个平常日子实际跑的那一步，而且**完全不需要 key**。
+
+**3. 探索。** 只有在没有宏、或者存下的宏已经对不上页面时才走。由决策模型自己把页面琢磨明白，
+并把过程录成宏，交给明天的第 2 步。而且**只有在页面证明它确实成功了**，这条路径才会被保存。
+
+演示时给 `--port` 固定端口是有意义的：一个页面的 origin **包含端口**，换个端口在浏览器眼里就是
+另一个站点，`localStorage` 是空的，也就不记得今天已经签过。
+
+换成真实站点：
+
+```bash
+.venv/bin/python scripts/checkin.py --url https://example.com/rewards \
+    --goal "点击每日签到按钮" --expect "已签到"
+.venv/bin/python scripts/checkin.py --url https://example.com/rewards --replay-only
+```
+
+目标和证据刻意分成两个参数：`--goal` 是交给模型去做的事，`--expect` 是事后页面上必须出现的文字、
+由代码核对 —— 所以一次运行由**页面**来判定，而不是由模型对自己工作的总结来判定。需要登录的站点，
+先用 `--headed --wait 120` 手动登录一次，浏览器 profile 是持久的，之后的运行（包括无人值守的）都会
+复用这个会话。`--replay-only` 保证绝不调用模型 —— 定时任务里要的就是这个开关。
+
 ---
 
 ## 目录结构
@@ -502,6 +542,9 @@ scripts/
   mcp_check.py     走真实 stdio MCP 协议驱动服务端
   live_check.py    同上，但打真实网站（需要联网）
   turbo_check.py   让决策模型真的驱动一个浏览器（需要 key）
+  checkin.py       真实签到：用模型学一次，之后零成本回放
+examples/
+  checkin.html     checkin.py 驱动的那个「每日按钮」页面
 ```
 
 ## 开发

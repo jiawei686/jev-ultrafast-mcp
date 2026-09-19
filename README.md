@@ -380,6 +380,12 @@ Every way the decision model can fail — no key, no credits, unreachable, a mal
 that is not JSON — comes back as `turbo_unavailable:` with nothing executed. The trace of the steps
 already taken is kept, so a run that dies on step five still reports what steps one to four did.
 
+`status` is the model's own summary, and `verify` is checked by code, so when the two disagree the
+assertion decides: if the pages passes your checks the run reports `status: done` whatever the model
+said, and the trace records that it overruled. This is the ordinary shape of a goal whose last
+action removes what it acted on — click a check-in button and the button is gone, so the model,
+finding nothing left to do, reports `BLOCKED` on a goal that in fact succeeded.
+
 ### `browser_tabs` · `browser_sessions` · `browser_close` · `browser_doctor`
 Tab management (list / new / switch / close), session listing, teardown, and a self-check that
 reports which browser was found and whether it is reachable.
@@ -504,6 +510,46 @@ It serves the same fixture, points a real Chrome at it, and lets Jev drive the g
 the page the model left behind with code rather than trusting its claim of success. Without a key it
 prints `skipped` and exits 0, so the exit code and the word agree.
 
+### A check-in that stops paying for itself
+
+`examples/checkin.html` is a stand-in for the thing people actually automate: a daily button.
+`scripts/checkin.py` drives it in three stages, cheapest first — and the point is that only the
+first run ever costs anything.
+
+```bash
+.venv/bin/python scripts/checkin.py --port 8901           # learn once, then never again
+.venv/bin/python scripts/checkin.py --port 8901 --record  # re-learn, ignoring the saved macro
+```
+
+**1. Already done.** Read the page. If today's check-in is already on it, stop — no click, no model
+call, nothing to undo.
+
+**2. Replay.** Run the macro the first run recorded: zero model calls, a few hundred milliseconds,
+and it refuses rather than guessing when the page has moved on. This is the stage that runs on every
+ordinary day, and it needs no key at all.
+
+**3. Explore.** Only when there is no macro, or the saved one no longer matches. The decision model
+works the page out, and what it did is recorded as a macro so stage 2 takes over tomorrow. Its path
+is only saved when the page proves it worked.
+
+Pinning `--port` matters for the demo: a page's origin includes its port, so a second run on a
+different port is a different site to the browser, with an empty `localStorage` and no memory of
+having checked in.
+
+For a real site:
+
+```bash
+.venv/bin/python scripts/checkin.py --url https://example.com/rewards \
+    --goal "Click the daily check-in button" --expect "已签到"
+.venv/bin/python scripts/checkin.py --url https://example.com/rewards --replay-only
+```
+
+The goal and the proof are separate arguments on purpose. `--goal` is what the model is asked to do;
+`--expect` is the text the page must show afterwards, checked by code — so a run is judged by the
+page, never by the model's summary of its own work. Sign in once with `--headed --wait 120`; the
+browser profile persists, so later runs reuse the session. `--replay-only` never calls the model,
+which is the flag you want in a cron job.
+
 ---
 
 ## Layout
@@ -526,6 +572,9 @@ scripts/
   mcp_check.py     drives the server over real stdio MCP
   live_check.py    the same, against real websites (needs the network)
   turbo_check.py   lets the decision model drive a real browser (needs a key)
+  checkin.py       a real check-in: learn once with the model, then replay for free
+examples/
+  checkin.html     the daily-button page checkin.py drives
 ```
 
 ## Development

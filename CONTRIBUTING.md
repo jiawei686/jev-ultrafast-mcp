@@ -53,6 +53,17 @@ touch `policy.py` or the loop in `browser_goal`. Turbo mode is where a bug costs
 time, and it is the one path no other check enters — a `KeyError` on the model's own correct answer
 lived through a fully green suite because of exactly that gap.
 
+`scripts/checkin.py` is not a check but the shortest honest exercise of the whole system, and it runs
+without a key:
+
+```bash
+.venv/bin/python scripts/checkin.py --port 8901   # learn, then replay, then notice it already ran
+```
+
+Its three stages are the three things this project claims: the model can work a page out, a macro
+replays the result with no model at all, and an assertion — not the model's summary — decides whether
+it worked. Run it after touching `macros.py` or the recording path in `browser.py`.
+
 ## What good changes look like
 
 - **A new op** → add it to the dispatch table in `browser.py`, give it a failure reason from the

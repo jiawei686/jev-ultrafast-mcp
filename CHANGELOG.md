@@ -30,9 +30,27 @@ All notable changes to this project are documented here. The format follows
   enters the loop, and the unit tests fake the provider — which left the one path that spends money as
   the one path nothing ran. Deliberately not in CI: without a key it prints `skipped` and exits 0, so
   the exit code and the word agree.
+- **`scripts/checkin.py` and `examples/checkin.html`** — a daily check-in, which is what a macro is
+  actually for: the same two or three clicks every day, on a page whose shape barely moves. It runs
+  three stages, cheapest first — read the page and stop if today is already done; replay the saved
+  macro (zero model calls, and no key at all); and only then hand the goal to the decision model,
+  which records what it did so the replay stage takes over tomorrow. Only the first run ever costs
+  anything. The demo page is honest about the thing being automated: the button is gone once clicked.
+- `scripts/smoke.py`'s fixture server takes a `port`, because a page's origin includes its port. A
+  demo that came up on a different port every run was a different site as far as the browser was
+  concerned: empty `localStorage`, no memory of the previous run, so "already checked in today" could
+  not be demonstrated at all on a loopback address.
 
 ### Fixed
 
+- **`browser_goal` reported `status: blocked` for goals that had visibly succeeded.** `status` is the
+  model's own summary and `verify` is checked by code, but the two were reported side by side with no
+  rule for which wins when they disagree — and they disagree in the ordinary case where a goal's last
+  action removes the thing it acted on. Click a check-in button and the button is gone; the model,
+  finding nothing left to act on, reports `BLOCKED` on a goal that in fact succeeded, leaving the host
+  to read `status: blocked` next to `verified: PASS` and work out which one to believe. The assertion
+  decides now: a passing `verify` reports `status: done`, and the trace records the disagreement.
+  Both directions are pinned by tests, so the rule cannot be satisfied by optimism alone.
 - **Turbo mode raised `KeyError` / `JSONDecodeError` instead of reporting a failure.** The decision
   model is reachable through more than one route, and none of them is guaranteed to honour the
   contract: a gateway can answer 200 with an error envelope, a route can rename a field, a proxy can
