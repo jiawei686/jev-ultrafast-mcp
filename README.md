@@ -173,6 +173,12 @@ context. It spent **one** turn and never saw an element table. That is a verbati
 `scripts/turbo_check.py` reproduces it against a real Chrome and the real model, and the page is
 checked by code afterwards rather than trusted.
 
+![A billing dashboard showing $0.01 spent on the decision model for the day](assets/openrouter-spend.png)
+
+That is the decision model's bill for the day, and a cent is the whole of it — both rows in the
+panel included. That is what the run above costs. Doing it a second time does not: the second time
+is a recorded macro, and a macro makes no model calls at all.
+
 The division of labour is the whole design decision, so it is yours to make per task:
 
 | | agent drives | `browser_goal` drives |

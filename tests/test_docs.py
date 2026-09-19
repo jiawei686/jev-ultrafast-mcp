@@ -180,6 +180,29 @@ def test_local_links_in_the_readmes_resolve():
             assert (ROOT / file_part).exists(), f"{path.name} links to a missing {target}"
 
 
+def test_the_readmes_ship_the_receipt_next_to_the_run():
+    """A cost claim is the least verifiable thing in here, so it travels with its evidence.
+
+    "14,626 tokens" and "one cent" ask to be believed. The billing panel they come from does not,
+    so both READMEs embed it -- and embed it *where the run is described*, since a receipt filed at
+    the bottom of the page is a receipt nobody connects to the number. The file also has to exist:
+    a broken image is worse than no image, because it reads as a claim someone walked back.
+    """
+    assert (ROOT / "assets" / "openrouter-spend.png").is_file()
+
+    for path in (README, README_ZH):
+        lines = path.read_text(encoding="utf-8").splitlines()
+        receipt = next(i for i, line in enumerate(lines)
+                       if "assets/openrouter-spend.png" in line)
+        # The number appears more than once (the summary up top, the run below); the receipt
+        # belongs to whichever is nearest above it.
+        run = max(i for i, line in enumerate(lines)
+                  if "14,626 tokens" in line and i < receipt)
+        assert 0 < receipt - run < 20, (
+            f"{path.name} files the receipt {receipt - run} lines from the run it belongs to"
+        )
+
+
 # --- what the project says it is for ---------------------------------------------------------
 
 # Ways of saying "the browser work can be handed off" that an honest rewrite would reach for.

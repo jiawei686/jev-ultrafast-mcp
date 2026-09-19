@@ -18,6 +18,10 @@ All notable changes to this project are documented here. The format follows
   Needs the network, so it is deliberately not in CI; unreachable sites report as *skipped* and the
   summary says so, so a fully-skipped run cannot be mistaken for a passing one.
 - **Chinese README** — [`README.zh-CN.md`](README.zh-CN.md), switchable from the English one.
+- **The bill, beside the run it belongs to** — `assets/openrouter-spend.png`, embedded in both
+  READMEs directly under the verbatim `browser_goal` trace. "4 decisions, 14,626 tokens" is the one
+  claim in the project a reader cannot check by reading the code, so it now travels with the panel
+  it came from: a cent for the whole exploration, nothing at all for the replay after it.
 - Both READMEs now open with what a session actually looks like (a real element table, a real delta,
   a real `= no change` line, and a verbatim search run), then a plain-language "what you can ask it
   to do" / "what it cannot do" / FAQ, before the technical reference.
