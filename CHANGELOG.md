@@ -18,10 +18,9 @@ All notable changes to this project are documented here. The format follows
   Needs the network, so it is deliberately not in CI; unreachable sites report as *skipped* and the
   summary says so, so a fully-skipped run cannot be mistaken for a passing one.
 - **Chinese README** — [`README.zh-CN.md`](README.zh-CN.md), switchable from the English one.
-- **The bill, beside the run it belongs to** — `assets/openrouter-spend.png`, embedded in both
-  READMEs directly under the verbatim `browser_goal` trace. "4 decisions, 14,626 tokens" is the one
-  claim in the project a reader cannot check by reading the code, so it now travels with the panel
-  it came from: a cent for the whole exploration, nothing at all for the replay after it.
+- **The bill, in both READMEs** — `assets/openrouter-spend.png`. "4 decisions, 14,626 tokens" is the
+  one claim in the project a reader cannot check by reading the code, so the panel it came from
+  travels with it: a cent for the whole exploration, nothing at all for the replay after it.
 - Both READMEs now open with what a session actually looks like (a real element table, a real delta,
   a real `= no change` line, and a verbatim search run), then a plain-language "what you can ask it
   to do" / "what it cannot do" / FAQ, before the technical reference.
@@ -260,6 +259,15 @@ All notable changes to this project are documented here. The format follows
   because downloading job logs requires repo admin rights and a red X on a public repo was otherwise
   undiagnosable. Also bumped to `actions/checkout@v7` / `actions/setup-python@v7`.
 
+## [0.1.1] — 2026-09-20
+
+### Changed
+
+- **The bill now comes before the install steps** — `assets/openrouter-spend.png` moved from below the
+  verbatim `browser_goal` trace up to directly under the opening hook, in both READMEs. "A cent for the
+  whole day" is the one claim a reader cannot check by reading the code, and on the PyPI page it sat
+  past the setup block; it now lands where the claim is made.
+
 ## [0.1.0] — 2026-09-19
 
 First public release.
@@ -292,5 +300,6 @@ First public release.
 - **Verification** — 51-check end-to-end smoke suite against a real browser, 17-check real-stdio MCP
   suite, and 5 pytest unit tests.
 
-[Unreleased]: https://github.com/jiawei686/jev-ultrafast-mcp/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/jiawei686/jev-ultrafast-mcp/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/jiawei686/jev-ultrafast-mcp/releases/tag/v0.1.1
 [0.1.0]: https://github.com/jiawei686/jev-ultrafast-mcp/releases/tag/v0.1.0

@@ -14,6 +14,10 @@ One tool call instead of twenty. Three seconds instead of a minute. A cent inste
 model's context. And it never invents a target: it picks from what the page actually has, and the
 server refuses rather than guesses.
 
+**What it cost.** A cent for the whole day, and a cent is all of it:
+
+![A billing dashboard showing $0.01 spent on the decision model for the day](assets/openrouter-spend.png)
+
 ## Quick start
 
 Three commands, then restart your client.
@@ -71,10 +75,6 @@ trace:
 verified: PASS
   ok text_contains: '3 adults · nonstop' found in page text
 ```
-
-**What it cost.** A cent for the whole day, and a cent is all of it:
-
-![A billing dashboard showing $0.01 spent on the decision model for the day](assets/openrouter-spend.png)
 
 **What the second time costs.** Nothing. The second time is a recorded macro, and a macro makes no
 model calls at all — it does not even need a key.

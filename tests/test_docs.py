@@ -182,26 +182,26 @@ def test_local_links_in_the_readmes_resolve():
             assert (ROOT / file_part).exists(), f"{path.name} links to a missing {target}"
 
 
-def test_the_readmes_ship_the_receipt_next_to_the_run():
+def test_the_readmes_ship_the_receipt_where_the_claim_is_made():
     """A cost claim is the least verifiable thing in here, so it travels with its evidence.
 
     "14,626 tokens" and "one cent" ask to be believed. The billing panel they come from does not,
-    so both READMEs embed it -- and embed it *where the run is described*, since a receipt filed at
-    the bottom of the page is a receipt nobody connects to the number. The file also has to exist:
-    a broken image is worse than no image, because it reads as a claim someone walked back.
+    so both READMEs embed it -- and embed it *in the hook that makes the claim*, above the install
+    steps. On the PyPI page the README is the page, so a receipt filed below the setup block is a
+    receipt most readers never connect to the number. The file also has to exist: a broken image is
+    worse than no image, because it reads as a claim someone walked back.
     """
     assert (ROOT / "assets" / "openrouter-spend.png").is_file()
 
-    for path in (README, README_ZH):
-        lines = path.read_text(encoding="utf-8").splitlines()
-        receipt = next(i for i, line in enumerate(lines)
-                       if "assets/openrouter-spend.png" in line)
-        # The number appears more than once (the summary up top, the run below); the receipt
-        # belongs to whichever is nearest above it.
-        run = max(i for i, line in enumerate(lines)
-                  if "14,626 tokens" in line and i < receipt)
-        assert 0 < receipt - run < 20, (
-            f"{path.name} files the receipt {receipt - run} lines from the run it belongs to"
+    for path, claim, quick in (
+        (README, "A cent instead of", "## Quick start"),
+        (README_ZH, "一分钱顶", "## 快速开始"),
+    ):
+        text = path.read_text(encoding="utf-8")
+        hook = text.index(claim)
+        receipt = text.index("assets/openrouter-spend.png")
+        assert hook < receipt < text.index(quick), (
+            f"{path.name} files the receipt outside the hook-to-install window"
         )
 
 
@@ -209,6 +209,10 @@ def test_the_readmes_ship_the_receipt_next_to_the_run():
 
 # Ways of saying "the browser work can be handed off" that an honest rewrite would reach for.
 HANDOFF = ("hand ", "hands off", "server-side", "delegate", "交出去", "服务端")
+
+# How far down a reader is assumed to have got before deciding. The receipt block sits under the
+# hook and costs four of these lines, so the window is wider than the pitch alone would need.
+FOLD = 45
 
 
 def test_the_handoff_is_the_pitch_and_not_a_buried_option():
@@ -226,7 +230,7 @@ def test_the_handoff_is_the_pitch_and_not_a_buried_option():
         assert "没有第二个模型" not in text, path.name
 
     for path in (README, README_ZH):
-        head = "\n".join(path.read_text(encoding="utf-8").splitlines()[:40])
+        head = "\n".join(path.read_text(encoding="utf-8").splitlines()[:FOLD])
         assert "browser_goal" in head, f"{path.name} buries the handoff below the fold"
 
 
@@ -242,7 +246,7 @@ def test_the_on_ramp_comes_before_the_argument_for_it():
         (README_ZH, "## 快速开始", "## 为什么还要再造一个浏览器 MCP"),
     ):
         text = path.read_text(encoding="utf-8")
-        head = "\n".join(text.splitlines()[:40])
+        head = "\n".join(text.splitlines()[:FOLD])
 
         assert "git clone" in head, f"{path.name} hides the install below the fold"
         assert "install.py" in head, f"{path.name} never says how to write a client config"
