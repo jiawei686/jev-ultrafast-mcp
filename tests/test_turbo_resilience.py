@@ -134,6 +134,11 @@ class _FakeSession:
         self.last = _observation()
         return self.last
 
+    def evaluate_js(self, _expression: str):
+        # A real session evaluates JS against the page. Refusing loudly here
+        # keeps a `js` check from passing against a fixture that never ran it.
+        raise AssertionError("the scripted session does not evaluate JS")
+
     def act(self, ops, **_kwargs) -> dict:
         self.acts.append(ops)
         scripted = self._act.pop(0) if self._act else {"ok": True}
@@ -154,7 +159,14 @@ def _ok() -> dict:
     return {"ok": True}
 
 
-def _drive(monkeypatch, session: _FakeSession, decisions: list[dict], max_steps: int = 20):
+def _checked_in() -> Observation:
+    """The page after a check-in: the button is gone, the proof is in the text."""
+    return dataclasses.replace(_observation(),
+                               text="Daily Rewards  Streak 5  Points 130  Checked in today")
+
+
+def _drive(monkeypatch, session: _FakeSession, decisions: list[dict], max_steps: int = 20,
+           verify: list[dict] | None = None):
     """Run `browser_goal` against a scripted session and decision sequence."""
     seen: list[dict] = []
 
@@ -170,7 +182,8 @@ def _drive(monkeypatch, session: _FakeSession, decisions: list[dict], max_steps:
     monkeypatch.setattr(server.policy, "available", lambda _cfg: True)
     monkeypatch.setattr(server.policy, "choose", fake_choose)
     monkeypatch.setattr(server, "_session", lambda _name: session)
-    return server.browser_goal("do the thing", max_steps=max_steps, verbose=True), seen
+    return server.browser_goal("do the thing", max_steps=max_steps, verify=verify,
+                               verbose=True), seen
 
 
 def _click() -> dict:
@@ -222,6 +235,41 @@ def test_recovery_cannot_multiply_the_request_count(monkeypatch):
 
     assert len(seen) <= 2 * 3, f"{len(seen)} requests for max_steps=3"
     assert "failed:" in out, out
+
+
+PROOF = [{"type": "text_contains", "text": "Checked in today"}]
+
+
+def test_the_page_beats_a_blocked_model_when_it_proves_the_goal(monkeypatch):
+    """An assertion is a fact; `BLOCKED` is an opinion. The fact wins.
+
+    This is not a rare disagreement, it is the ordinary shape of a goal whose
+    last action removes what it acted on. Clicking a check-in button makes the
+    button disappear, so the model -- correctly, given what it can see --
+    reports that it has nothing to act on, on a goal that in fact succeeded.
+    """
+    session = _FakeSession([_ok()])
+    monkeypatch.setattr(session, "observe", lambda **_kwargs: _checked_in())
+
+    out, _seen = _drive(monkeypatch, session,
+                        [_click(), {"operation": "BLOCKED", "ref": None, "confidence": 1.0}],
+                        verify=PROOF)
+
+    assert "status: done" in out, out
+    assert "verified: PASS" in out, out
+    assert "the assertion wins" in out, out
+
+
+def test_a_blocked_model_stays_blocked_when_the_page_does_not_prove_it(monkeypatch):
+    """The converse, so the rule above cannot be satisfied by optimism alone."""
+    session = _FakeSession([_ok()])
+
+    out, _seen = _drive(monkeypatch, session,
+                        [{"operation": "BLOCKED", "ref": None, "confidence": 1.0}],
+                        verify=PROOF)
+
+    assert "status: blocked" in out, out
+    assert "verified: FAIL" in out, out
 
 
 def test_a_provider_failure_mid_goal_keeps_what_the_goal_already_did(monkeypatch):

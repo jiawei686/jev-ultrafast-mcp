@@ -412,15 +412,30 @@ def browser_goal(goal: str, session: str = "default", max_steps: int = 20,
         else:
             status = f"stopped: hit max_steps={max_steps}"
 
+        verified = None
+        if verify:
+            verified = assertions_mod.run(verify, observation, allow_js=CONFIG.allow_js,
+                                          eval_js=tab.evaluate_js)
+            # `DONE` is an opinion; an assertion is a fact. When the model's
+            # summary disagrees with the page, the page wins. This is not a
+            # rare disagreement -- it is the normal shape of a goal whose last
+            # action removes the thing it acted on. A check-in button is gone
+            # the moment it is clicked, so the model, finding nothing left to
+            # do, reports BLOCKED on a goal that in fact succeeded. Passing
+            # that straight through would tell the host a finished task failed
+            # and invite it to redo work that is already done.
+            if verified["pass"] and status != "done":
+                trace.append(f"  =   the model reported {status!r}, but the page proves the "
+                             f"goal was met; the assertion wins")
+                status = "done"
+
         lines = [f"goal: {goal}", f"status: {status}", f"steps: {steps}"]
         if verbose:
             lines.append("trace:")
             lines.extend(trace)
-        if verify:
-            result = assertions_mod.run(verify, observation, allow_js=CONFIG.allow_js,
-                                        eval_js=tab.evaluate_js)
-            lines.append(f"verified: {'PASS' if result['pass'] else 'FAIL'}")
-            for check in result["checks"]:
+        if verified is not None:
+            lines.append(f"verified: {'PASS' if verified['pass'] else 'FAIL'}")
+            for check in verified["checks"]:
                 lines.append(f"  {'ok' if check['ok'] else 'X '} {check['type']}: {check['detail']}")
         lines.append("")
         lines.append(_view(observation))
