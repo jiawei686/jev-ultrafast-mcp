@@ -8,6 +8,10 @@ between them, the key is wrong, the client loads nothing, and nothing is
 logged. So this script detects what is installed and writes the right dialect
 for each, merging into existing config instead of overwriting it.
 
+Before writing, it checks that the interpreter it is about to name can actually
+import the package from outside this checkout: a config that looks right but
+that the client silently fails to start is the same problem one level down.
+
     python scripts/install.py               # detect and install everywhere
     python scripts/install.py --list        # show what was detected, write nothing
     python scripts/install.py --print       # show the exact bytes, write nothing
@@ -24,7 +28,9 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -62,6 +68,43 @@ def _interpreter() -> str:
         if candidate.exists():
             return str(candidate)
     return sys.executable
+
+
+def _interpreter_ok(interp: str) -> bool:
+    """Can that interpreter import this package from somewhere other than the repo?
+
+    The client spawns it with a working directory of its own choosing, so the
+    repo root will not be on `sys.path` unless the package is really installed.
+    An entry that only works from one directory is the same class of failure
+    this script exists to remove -- the client loads nothing and logs nothing --
+    except harder to see, because the config looks correct.
+    """
+    try:
+        probe = subprocess.run(
+            [interp, "-I", "-c", "import jev_ultrafast_mcp"],
+            cwd=tempfile.gettempdir(), capture_output=True, text=True, timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return probe.returncode == 0
+
+
+def _check_interpreter(interp: str, *, writing: bool) -> None:
+    """Refuse to write a config the client cannot start. Warn when only printing."""
+    if _interpreter_ok(interp):
+        return
+    message = "\n".join([
+        f"  ! {interp} cannot import jev_ultrafast_mcp.",
+        "    A client runs it from its own directory, so the package has to be",
+        "    installed, not merely present in this checkout. Run:",
+        "",
+        f"      {interp} -m pip install -e {REPO_ROOT}",
+        "",
+        "    or pass --python with an interpreter that already has it.",
+    ])
+    if writing:
+        raise SystemExit(message + "\n    (nothing written)")
+    print(message)
 
 
 def _clients() -> list[dict[str, Any]]:
@@ -403,6 +446,7 @@ def main() -> int:
         print("Registering is still just one JSON object. Put this in the client's")
         print("config file by hand, or force a client with --client:\n")
         interp = args.interp or _interpreter()
+        _check_interpreter(interp, writing=False)
         args_list = ["-m", "jev_ultrafast_mcp"]
         print(json.dumps({"mcpServers": {SERVER_NAME: _entry(
             {"root": "mcpServers"}, interp, args_list, _env_for(args))}},
@@ -411,6 +455,11 @@ def main() -> int:
         return 0
 
     interp = args.interp or _interpreter()
+    # Uninstalling must always be possible, including after the venv it names has
+    # been deleted -- which is a reason to remove the entry, not a reason to be
+    # stuck with it.
+    if not args.uninstall:
+        _check_interpreter(interp, writing=not args.dry_run)
     module_args = ["-m", "jev_ultrafast_mcp"]
     env = _env_for(args)
     verb = "Uninstalling from" if args.uninstall else "Installing into"

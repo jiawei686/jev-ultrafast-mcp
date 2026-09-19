@@ -10,6 +10,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -215,3 +218,85 @@ def test_clients_have_unique_keys_and_all_documented_fields():
         assert client["paths"] and client["probe"] and client["note"]
         assert client["root"] in ("mcpServers", "servers", None)
         assert (client["root"] is None) == (client["kind"] == "toml")
+
+
+# ------------------------------------------------------------------ interpreter
+
+
+def test_an_interpreter_that_cannot_import_the_package_is_refused():
+    """Writing a config the client cannot start is the failure this script exists to prevent.
+
+    The client spawns the interpreter from its own directory, so an interpreter
+    that only finds the package because the repo happens to be the working
+    directory is not good enough — and a machine without the package installed
+    at all is the ordinary way to get there.
+    """
+    assert install._interpreter_ok(sys.executable), "this test suite runs with the package installed"
+    assert not install._interpreter_ok(str(Path(sys.executable).parent / "definitely-not-python"))
+    assert not install._interpreter_ok("/bin/sh")
+
+
+def test_the_refusal_names_the_command_that_fixes_it(monkeypatch):
+    monkeypatch.setattr(install, "_interpreter_ok", lambda _interp: False)
+
+    with pytest.raises(SystemExit) as caught:
+        install._check_interpreter("/usr/bin/python3", writing=True)
+
+    message = str(caught.value)
+    assert "pip install -e" in message
+    assert str(install.REPO_ROOT) in message
+    assert "nothing written" in message
+
+
+def test_printing_is_allowed_but_warned(monkeypatch, capsys):
+    """`--print` writes nothing, so it may still show the bytes — with the warning."""
+    monkeypatch.setattr(install, "_interpreter_ok", lambda _interp: False)
+
+    install._check_interpreter("/usr/bin/python3", writing=False)
+
+    assert "cannot import" in capsys.readouterr().out
+
+
+def test_uninstall_does_not_require_a_working_interpreter(monkeypatch, tmp_path):
+    """Removing an entry must work even when the interpreter it named is gone.
+
+    That is the ordinary reason to remove it: delete the venv, and now the
+    config points at nothing. Refusing to uninstall until the package is
+    importable would trap the user in exactly the state they are escaping.
+    """
+    path = tmp_path / "mcp.json"
+    path.write_text(json.dumps({"mcpServers": {install.SERVER_NAME: {"command": "gone"}}}))
+    client = _json_client()
+    client["paths"] = [path]
+    client["probe"] = [tmp_path]
+
+    monkeypatch.setattr(install, "_clients", lambda: [client])
+    monkeypatch.setattr(install, "_interpreter_ok", lambda _interp: False)
+    monkeypatch.setattr(sys, "argv", ["install.py", "--uninstall", "-c", "x", "-y"])
+
+    assert install.main() == 0
+    assert install.SERVER_NAME not in json.loads(path.read_text())["mcpServers"]
+
+
+def test_the_package_check_does_not_inherit_our_working_directory(monkeypatch):
+    """`python -c` puts the cwd on sys.path, so a probe run from the repo proves nothing.
+
+    It has to run from somewhere neutral and in isolated mode, or the check
+    passes in every checkout — including ones where nothing was installed — and
+    catches exactly the case it was written for.
+    """
+    seen: dict = {}
+
+    class Probe:
+        returncode = 0
+
+    def fake_run(argv, **kwargs):
+        seen["argv"] = argv
+        seen["cwd"] = kwargs.get("cwd")
+        return Probe()
+
+    monkeypatch.setattr(install.subprocess, "run", fake_run)
+
+    assert install._interpreter_ok("/usr/bin/python3")
+    assert seen["cwd"] == tempfile.gettempdir() != os.getcwd()
+    assert "-I" in seen["argv"], "isolated mode, or PYTHONPATH can fake the answer"
