@@ -10,9 +10,13 @@
 
 **Hand the browser work off — an MCP server that drives the page for your agent.**
 
+One tool call instead of twenty. Three seconds instead of a minute. A cent instead of a frontier
+model's context. And it never invents a target: it picks from what the page actually has, and the
+server refuses rather than guesses.
+
 ## Quick start
 
-One clone, one install line for your client, one restart.
+Three commands, then restart your client.
 
 ```bash
 git clone https://github.com/jiawei686/jev-ultrafast-mcp.git
@@ -25,19 +29,75 @@ python scripts/install.py           # finds your MCP clients and writes their co
 
 `install.py` looks for WorkBuddy, Claude Code, Claude Desktop, Codex CLI, Cursor, VS Code, Cline,
 Windsurf and Gemini CLI, and writes the format each one expects — **merging** into your existing
-config rather than overwriting it, and saving a `.bak` before it touches anything. Restart the
-client and the ten tools are in its list. Requires Python ≥ 3.10 and a Chromium-family browser
-(Chrome, Chromium, Edge or Brave).
+config and saving a `.bak` first. Needs Python ≥ 3.10 and any Chromium-family browser.
 
-Then ask it something — drive it yourself, or hand the whole goal to `browser_goal`:
+Restart the client, and then just say what you want:
+
+> **You:** Set this form to 3 adults, tick *Nonstop only*, then submit it.
+> **Your agent:** `browser_goal(goal=…, verify=[…])` — **one** call; the loop runs server-side, and
+> the page is checked by code afterwards. ([what that costs](#cheap-and-fast-and-here-is-the-bill))
 
 > **You:** Open example.com and tell me what the page says.
 > **Your agent:** `browser_open` → reads the element table → answers.
 > ([verbatim run](#what-a-session-actually-looks-like))
 
-> **You:** Set this form to 3 adults, tick *Nonstop only*, then submit it.
-> **Your agent:** `browser_goal(goal=…, verify=[…])` — **one** call; the loop runs server-side and
-> the page is checked by code afterwards. ([what that costs](#or-hand-the-whole-thing-off))
+**Restarted and the tools are not there?** Some clients make you approve the server once. In
+WorkBuddy that is *Connectors → Custom connectors → **Trust***. The approval is remembered against
+the config itself, so if you later edit the config it asks once more.
+
+---
+
+## Cheap and fast, and here is the bill
+
+A three-step goal on a real page, driven by `browser_goal`. This is everything your agent sent and
+everything it got back — **one** turn, and the page never entered its context:
+
+```
+browser_goal(
+  goal="On this flight search form: set Passengers to 3 adults, tick the 'Nonstop only' "
+       "checkbox, then submit the search. Do not type into any city field.",
+  verify=[{"type": "text_contains", "text": "3 adults · nonstop"}],
+)
+
+goal: On this flight search form: set Passengers to 3 adults, …
+status: done
+steps: 3
+turbo: 4 decisions · 14,626 tokens · 1.8s model + 1.1s page · 3.3s wall
+trace:
+  1. SELECT e6 Passengers → ok (759ms model / 30ms browser)
+  2. TOGGLE e7 Nonstop only → ok (336ms model / 692ms browser)
+  3. CLICK e8 Search → ok (370ms model / 410ms browser)
+  4. DONE (conf 0.93)
+verified: PASS
+  ok text_contains: '3 adults · nonstop' found in page text
+```
+
+**What it cost.** A cent for the whole day, and a cent is all of it:
+
+![A billing dashboard showing $0.01 spent on the decision model for the day](assets/openrouter-spend.png)
+
+**What the second time costs.** Nothing. The second time is a recorded macro, and a macro makes no
+model calls at all — it does not even need a key.
+
+**How long it took.** 3.3 s wall for the whole goal: 1.8 s of model, 1.1 s of page. Every run prints
+that line itself, so the numbers are checkable rather than persuasive.
+
+That run is not a mock-up. `scripts/turbo_check.py` reproduces it against a real Chrome and the real
+model, and then **checks the page with code** rather than trusting the model's account of its own
+work. The three actions — plus the reading and re-reading between them — all happened on the server.
+Your agent spent one turn and never saw an element table.
+
+The division of labour is the whole design decision, so it is yours to make per task:
+
+| | agent drives | `browser_goal` drives |
+|---|---|---|
+| Tool calls for a 3-step flow | 6+ (observe, act, observe, act…) | **1** |
+| Who holds the page in context | your agent | **the decision model, server-side** |
+| Per-step cost | one agent turn | one typed request, no screenshot |
+| Who names the target | the model writes a selector | **the model picks a `ref` from the page's own table** |
+| If it goes wrong | a wrong click, usually silent | **the server refuses, with the reason** |
+| Knowing it worked | the model's summary | **code-checked assertion, which wins the disagreement** |
+| Second time around | run the model again | **macro replay, zero model calls** |
 
 <details>
 <summary><b>Installing it as a package, and the installer's flags</b></summary>
@@ -82,10 +142,11 @@ writes a selector: it picks among the elements the page actually has, and the se
 anything that is not on the page rather than guessing. When it stops, `browser_assert` checks the
 page it left behind in code, and a passing assertion outranks the model's own account of what it did.
 
-- **One call, not one per click.** The bundled end-to-end run took a 3-step goal on a real page
-  through **4 decisions, 14,626 tokens, 1.8 s model + 1.1 s page, 3.3 s wall** — for one turn of
-  your agent's context. Every run prints those numbers, so the claim is checkable rather than
-  persuasive.
+Four things follow from that:
+
+- **One call, not one per click.** The run above took a 3-step goal on a real page through
+  **4 decisions, 14,626 tokens, 1.8 s model + 1.1 s page, 3.3 s wall** — for one turn of your
+  agent's context.
 - **Accurate by construction.** A target is a `ref` from a numbered table of what is on the page,
   not a selector or a coordinate the model invented, and the action is re-checked against the page
   before it runs.
@@ -109,6 +170,8 @@ TypeSafe's typed-question API. Independent project, not affiliated with either �
 
 **Contents** ·
 [Quick start](#quick-start) ·
+[Cheap and fast](#cheap-and-fast-and-here-is-the-bill) ·
+[What it is](#what-it-is) ·
 [What a session looks like](#what-a-session-actually-looks-like) ·
 [Connecting an agent](#connecting-an-agent) ·
 [What you can ask it to do](#what-you-can-ask-it-to-do) ·
@@ -142,54 +205,6 @@ browser_observe()
 
 Then it answers. No screenshot was taken, no HTML was dumped, and the page never entered a model's
 context: your agent read the table and answered.
-
-### Or hand the whole thing off
-
-Same server, opposite division of labour. Your agent sends the goal — not the page — and gets back
-six lines:
-
-```
-browser_goal(
-  goal="On this flight search form: set Passengers to 3 adults, tick the 'Nonstop only' "
-       "checkbox, then submit the search. Do not type into any city field.",
-  verify=[{"type": "text_contains", "text": "3 adults · nonstop"}],
-)
-
-goal: On this flight search form: set Passengers to 3 adults, …
-status: done
-steps: 3
-turbo: 4 decisions · 14,626 tokens · 1.8s model + 1.1s page · 3.3s wall
-trace:
-  1. SELECT e6 Passengers → ok (759ms model / 30ms browser)
-  2. TOGGLE e7 Nonstop only → ok (336ms model / 692ms browser)
-  3. CLICK e8 Search → ok (370ms model / 410ms browser)
-  4. DONE (conf 0.93)
-verified: PASS
-  ok text_contains: '3 adults · nonstop' found in page text
-```
-
-Three actions — plus the reading and re-reading between them — happened here, not in your agent's
-context. It spent **one** turn and never saw an element table. That is a verbatim run;
-`scripts/turbo_check.py` reproduces it against a real Chrome and the real model, and the page is
-checked by code afterwards rather than trusted.
-
-![A billing dashboard showing $0.01 spent on the decision model for the day](assets/openrouter-spend.png)
-
-That is the decision model's bill for the day, and a cent is the whole of it — both rows in the
-panel included. That is what the run above costs. Doing it a second time does not: the second time
-is a recorded macro, and a macro makes no model calls at all.
-
-The division of labour is the whole design decision, so it is yours to make per task:
-
-| | agent drives | `browser_goal` drives |
-|---|---|---|
-| Tool calls for a 3-step flow | 6+ (observe, act, observe, act…) | **1** |
-| Who holds the page in context | your agent | **the decision model, server-side** |
-| Per-step cost | one agent turn | one typed request, no screenshot |
-| Who names the target | the model writes a selector | **the model picks a `ref` from the page's own table** |
-| If it goes wrong | a wrong click, usually silent | **the server refuses, with the reason** |
-| Knowing it worked | the model's summary | **code-checked assertion, which wins the disagreement** |
-| Second time around | run the model again | **macro replay, zero model calls** |
 
 A more realistic one — searching a real site, with your agent doing the driving:
 
@@ -506,7 +521,7 @@ that is not JSON — comes back as `turbo_unavailable:` with nothing executed. T
 already taken is kept, so a run that dies on step five still reports what steps one to four did.
 
 `status` is the model's own summary, and `verify` is checked by code, so when the two disagree the
-assertion decides: if the pages passes your checks the run reports `status: done` whatever the model
+assertion decides: if the page passes your checks the run reports `status: done` whatever the model
 said, and the trace records that it overruled. This is the ordinary shape of a goal whose last
 action removes what it acted on — click a check-in button and the button is gone, so the model,
 finding nothing left to do, reports `BLOCKED` on a goal that in fact succeeded.

@@ -10,9 +10,12 @@
 
 **把浏览器里的活交出去 —— 一个能替你的 agent 开页面、点按钮的 MCP server。**
 
+一次调用顶二十次点击，三秒顶一分钟，一分钱顶一大段昂贵的上下文。而且它从不自己编目标：只在页面
+真实存在的元素里挑，挑不中服务端就拒绝，绝不猜。
+
 ## 快速开始
 
-克隆一次、给客户端写一行配置、重启一次。
+三条命令，然后重启你的客户端。
 
 ```bash
 git clone https://github.com/jiawei686/jev-ultrafast-mcp.git
@@ -24,18 +27,72 @@ python scripts/install.py           # 自动识别你装了的 MCP 客户端并�
 ```
 
 `install.py` 会去找 WorkBuddy、Claude Code、Claude Desktop、Codex CLI、Cursor、VS Code、Cline、
-Windsurf、Gemini CLI，并按各自要求的格式写配置 —— 它是**合并**而不是覆盖，动手前先存一份 `.bak`。
-重启客户端，十个工具就在它的工具列表里了。依赖：Python ≥ 3.10，以及一个 Chromium 系浏览器
-（Chrome / Chromium / Edge / Brave）。
+Windsurf、Gemini CLI，并按各家要求的格式写配置 —— 它是**合并**而不是覆盖，动手前先存一份 `.bak`。
+依赖：Python ≥ 3.10，以及一个 Chromium 系浏览器（Chrome / Chromium / Edge / Brave）。
 
-然后对它说句话试试 —— 自己握着方向盘，或者把整个目标交给 `browser_goal`：
-
-> **你**：打开 example.com，告诉我页面上写了什么。
-> **它**：`browser_open` 读出元素表然后回答 —— [逐字实录](#一次会话实际长什么样)。
+重启客户端，然后直接说你要什么：
 
 > **你**：把这个表单设成 3 个成人、勾上 *Nonstop only*、然后提交。
 > **它**：`browser_goal(goal=…, verify=[…])` —— **只调一次**；循环在服务端跑完，跑完由代码核对
-> 页面 —— [交出去要花多少](#或者把整件事交出去)。
+> 页面。（[这要花多少](#便宜又快)）
+
+> **你**：打开 example.com，告诉我页面上写了什么。
+> **它**：`browser_open` 读出元素表然后回答。（[逐字实录](#一次会话实际长什么样)）
+
+**重启后没看到工具？** 有的客户端要你手动批准一次。WorkBuddy 是在 *连接器 → 自定义连接器 →
+**信任***。这个批准是记在配置本身上的，所以你之后改了配置，它会再问一次。
+
+---
+
+## 便宜又快
+
+**账单在这儿。** 真实页面上一个 3 步的目标，交给 `browser_goal` 跑。下面是你的 agent 发出去和收回来的
+**全部**内容 —— **一个**回合，而且页面从未进过它的上下文：
+
+```
+browser_goal(
+  goal="On this flight search form: set Passengers to 3 adults, tick the 'Nonstop only' "
+       "checkbox, then submit the search. Do not type into any city field.",
+  verify=[{"type": "text_contains", "text": "3 adults · nonstop"}],
+)
+
+goal: On this flight search form: set Passengers to 3 adults, …
+status: done
+steps: 3
+turbo: 4 decisions · 14,626 tokens · 1.8s model + 1.1s page · 3.3s wall
+trace:
+  1. SELECT e6 Passengers → ok (759ms model / 30ms browser)
+  2. TOGGLE e7 Nonstop only → ok (336ms model / 692ms browser)
+  3. CLICK e8 Search → ok (370ms model / 410ms browser)
+  4. DONE (conf 0.93)
+verified: PASS
+  ok text_contains: '3 adults · nonstop' found in page text
+```
+
+**花了多少钱。** 当天总共一分钱，面板里两行都算进去，也就这一分钱：
+
+![一张账单面板，当天决策模型花了 $0.01](assets/openrouter-spend.png)
+
+**第二次要多少钱。** 零。第二次走的是录好的宏，宏完全不产生模型调用 —— 连 key 都不需要。
+
+**花了多长时间。** 整个目标 3.3 秒：模型占 1.8 秒，页面占 1.1 秒。每次运行都会自己把这行打出来，
+所以这些数字是**能自己复核的**，不用听我讲。
+
+这段不是摆拍。`scripts/turbo_check.py` 用真实 Chrome 和真实模型复现它，跑完**用代码核对页面**，
+而不是听信模型自称成功。那三次动作、以及动作之间一次次的「再读一遍页面」，全都发生在服务端 ——
+你的 agent 只花了一个回合，自始至终没见过元素表。
+
+「谁来干活」是这个项目唯一重要的设计取舍，所以它由你按任务决定：
+
+| | agent 自己开 | **`browser_goal` 开** |
+|---|---|---|
+| 3 步流程的工具调用次数 | 6 次以上（observe、act、observe、act…） | **1 次** |
+| 页面在谁的上下文里 | 你的 agent | **决策模型，在服务端** |
+| 每一步的成本 | 一个 agent 回合 | 一次类型化请求，无截图 |
+| 谁指定目标元素 | 模型写选择器 | **模型从页面自己的元素表里挑 `ref`** |
+| 出错时 | 点错元素，通常无声无息 | **服务端拒绝执行，并给出原因** |
+| 怎么知道做成了 | 模型自己说 | **代码核对的断言，且冲突时断言说了算** |
+| 第二次做同一件事 | 再跑一遍模型 | **回放宏，零模型调用** |
 
 <details>
 <summary><b>当包装装、以及安装脚本的各个开关</b></summary>
@@ -68,13 +125,18 @@ browser-harness。
 
 ## 这是什么
 
-大多数浏览器自动化是让 **agent 自己开**：读页面、挑一个元素、动手、再读一遍确认成不成功。点十次就是十个回合，页面每次都要过一遍 agent 的上下文，而点错元素通常不会有任何提示。
+大多数浏览器自动化是让 **agent 自己开**：读页面、挑一个元素、动手、再读一遍确认成不成功。点十次就是
+十个回合，页面每次都要过一遍 agent 的上下文，而点错元素通常不会有任何提示。
 
-这个服务可以把这活接过来。`browser_goal` 对你的 agent 来说只是**一次**工具调用；循环在这里、在服务端跑，由 Jev（TypeSafe 的决策模型）决定每一步。它**从不写选择器**：它只在页面真实存在的元素里挑，挑不中服务端就拒绝执行而不是猜。结束时 `browser_assert` 用代码核对它留下的页面，而**断言通过就压过模型自己的说辞**。
+这个服务可以把这活接过来。`browser_goal` 对你的 agent 来说只是**一次**工具调用；循环在这里、在服务端
+跑，由 Jev（TypeSafe 的决策模型）决定每一步。它**从不写选择器**：它只在页面真实存在的元素里挑，挑不中
+服务端就拒绝执行而不是猜。结束时 `browser_assert` 用代码核对它留下的页面，而**断言通过就压过模型
+自己的说辞**。
 
-- **一次调用顶一长串点击**。仓库里那个端到端实例：3 步的目标，真实页面上跑了 **4 次决策、14,626 tokens、
-  模型 1.8 s + 页面 1.1 s、总计 3.3 s** —— 而你的 agent 只花了一个回合。每次运行都会打印这些数字，
-  所以这是**能自己复核的**，不用听我讲。
+由此带来四件事：
+
+- **一次调用顶一长串点击**。上面那次运行：3 步的目标，真实页面上跑了 **4 次决策、14,626 tokens、
+  模型 1.8 s + 页面 1.1 s、总计 3.3 s** —— 而你的 agent 只花了一个回合。
 - **准确率来自结构，不来自叮嘱**。目标是元素表里的 `ref`，不是模型自己编出来的选择器或坐标；动作执行前
   还会拿页面再核对一次。
 - **第一次之后免费**。把路径录下来，之后回放**零模型调用**、连 key 都不需要，页面变了它会拒绝乱点。
@@ -95,6 +157,8 @@ typed-question API 启发。本项目是独立实现，与两者均无隶属关�
 
 **目录** ·
 [快速开始](#快速开始) ·
+[便宜又快](#便宜又快) ·
+[这是什么](#这是什么) ·
 [一次会话长什么样](#一次会话实际长什么样) ·
 [接入各类 agent](#接入各类-agent) ·
 [可以拿它做什么](#可以拿它做什么) ·
@@ -126,52 +190,8 @@ browser_observe()
     = no change (1 element)
 ```
 
-然后它回答你。全程没有截图、没有 dump HTML，页面也从未进过任何模型的上下文 —— 是你的 agent 自己读的表、自己答的。
-
-### 或者，把整件事交出去
-
-同一个服务，换一种分工。你的 agent 只发目标（不发页面），拿回来六行：
-
-```
-browser_goal(
-  goal="On this flight search form: set Passengers to 3 adults, tick the 'Nonstop only' "
-       "checkbox, then submit the search. Do not type into any city field.",
-  verify=[{"type": "text_contains", "text": "3 adults · nonstop"}],
-)
-
-goal: On this flight search form: set Passengers to 3 adults, …
-status: done
-steps: 3
-turbo: 4 decisions · 14,626 tokens · 1.8s model + 1.1s page · 3.3s wall
-trace:
-  1. SELECT e6 Passengers → ok (759ms model / 30ms browser)
-  2. TOGGLE e7 Nonstop only → ok (336ms model / 692ms browser)
-  3. CLICK e8 Search → ok (370ms model / 410ms browser)
-  4. DONE (conf 0.93)
-verified: PASS
-  ok text_contains: '3 adults · nonstop' found in page text
-```
-
-那三次动作、以及动作之间一次次的「再读一遍页面」，都发生在这里，**不在你 agent 的上下文里**。
-它花了一个回合，而且自始至终没见过元素表。这是**逐字实录**：`scripts/turbo_check.py` 用真实 Chrome
-和真实模型复现这段，跑完再**用代码核对页面**，而不是听模型自称成功。
-
-![一张账单面板，当天决策模型花了 $0.01](assets/openrouter-spend.png)
-
-这是决策模型**当天的账单**，总共就是一分钱 —— 面板里两行都算进去了。上面那次运行的代价就在这里。
-而第二次做同一件事不花钱：第二次走的是录好的宏，宏完全不产生模型调用。
-
-「谁来干活」是这个项目唯一重要的设计取舍，所以它由你按任务决定：
-
-| | agent 自己开 | **`browser_goal` 开** |
-|---|---|---|
-| 3 步流程的工具调用次数 | 6 次以上（observe、act、observe、act…） | **1 次** |
-| 页面在谁的上下文里 | 你的 agent | **决策模型，在服务端** |
-| 每一步的成本 | 一个 agent 回合 | 一次类型化请求，无截图 |
-| 谁指定目标元素 | 模型写选择器 | **模型从页面自己的元素表里挑 `ref`** |
-| 出错时 | 点错元素，通常无声无息 | **服务端拒绝执行，并给出原因** |
-| 怎么知道做成了 | 模型自己说 | **代码核对的断言，且冲突时断言说了算** |
-| 第二次做同一件事 | 再跑一遍模型 | **回放宏，零模型调用** |
+然后它回答你。全程没有截图、没有 dump HTML，页面也从未进过任何模型的上下文 —— 是你的 agent 自己读的
+表、自己答的。
 
 再看一个更真实的 —— 在真实站点上搜索，这次由你的 agent 自己开：
 
