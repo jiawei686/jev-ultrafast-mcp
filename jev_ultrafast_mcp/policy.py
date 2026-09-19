@@ -99,7 +99,7 @@ def _http_reason(status: int) -> str:
     return f"Decision model returned HTTP {status}; no action executed."
 
 
-def _post(url: str, key: str, body: dict) -> dict:
+def _post(url: str, key: str, body: dict) -> object:
     for attempt in range(3):
         try:
             response = CLIENT.post(url, json=body, headers={"Authorization": f"Bearer {key}"})
@@ -110,8 +110,50 @@ def _post(url: str, key: str, body: dict) -> dict:
             continue
         if response.is_error:
             raise TurboUnavailable(_http_reason(response.status_code))
-        return response.json()
+        try:
+            return response.json()
+        except ValueError:
+            # A 200 whose body is not JSON is what a gateway or proxy error page
+            # looks like from here. It is a failed decision like any other, and
+            # saying so is what keeps the caller from reading it as a bug in us.
+            raise TurboUnavailable(
+                "Decision model returned a body that is not JSON "
+                f"(HTTP {response.status_code}); no action executed."
+            ) from None
     raise TurboUnavailable("Decision model unavailable")
+
+
+def _shape(value: object) -> str:
+    """A short description of what a response contained, for an error message."""
+    if isinstance(value, dict):
+        keys = sorted(str(key) for key in value)
+        return "{" + ", ".join(keys[:8]) + (", ..." if len(keys) > 8 else "") + "}"
+    return type(value).__name__
+
+
+def _answers(result: object, question_id: str) -> dict:
+    """One question's answer out of a provider response.
+
+    Several routes can serve the same model, and nothing guarantees that each
+    honours the contract: a gateway can answer 200 with an error envelope, a
+    route can rename a field, a proxy can answer with HTML. All of those mean
+    the same thing to the caller -- the decision was not made, so nothing was
+    executed -- and every one of them must arrive as that, not as a `KeyError`
+    from inside the loop that the host reads as a server bug.
+    """
+    answers = result.get("answers") if isinstance(result, dict) else None
+    if not isinstance(answers, dict):
+        raise TurboUnavailable(
+            "Decision model answered without an 'answers' object; no action executed. "
+            f"Response keys: {_shape(result)}"
+        )
+    answer = answers.get(question_id)
+    if not isinstance(answer, dict):
+        raise TurboUnavailable(
+            f"Decision model answered no {question_id!r} question; no action executed. "
+            f"Questions answered: {_shape(answers)}"
+        )
+    return answer
 
 
 def _validate(answer: dict, ids: set[str]) -> dict:
@@ -209,7 +251,9 @@ def choose(cfg: Config, observation: Observation, goal: str, history: list[dict]
 
     started = time.perf_counter()
     result = _post(cfg.typesafe_endpoint, cfg.typesafe_key, body)
-    operation_answer = _validate(result["answers"]["operation"], operations | {"DONE", "BLOCKED"})
+    operation_answer = _validate(
+        _answers(result, "operation"), operations | {"DONE", "BLOCKED"}
+    )
     operation = operation_answer["choice"]
     decision = {
         "operation": operation,
@@ -217,8 +261,8 @@ def choose(cfg: Config, observation: Observation, goal: str, history: list[dict]
         "value": None,
         "confidence": operation_answer["confidence"],
         "probabilities": operation_answer["probabilities"],
-        "model": result.get("model"),
-        "usage": result.get("usage", {}),
+        "model": result.get("model") if isinstance(result, dict) else None,
+        "usage": (result.get("usage") or {}) if isinstance(result, dict) else {},
         "latency_ms": round((time.perf_counter() - started) * 1000),
     }
     if operation in {"DONE", "BLOCKED", "SCROLL", "WAIT"}:
@@ -227,8 +271,18 @@ def choose(cfg: Config, observation: Observation, goal: str, history: list[dict]
     if not head:
         decision["operation"] = "BLOCKED"
         return decision
-    target_answer = _validate(result["answers"][f"{operation.lower()}_target"], set(head["criteria"]))
-    element = next(e for e in heads[operation] if e.ref == target_answer["choice"])
+    target_answer = _validate(
+        _answers(result, f"{operation.lower()}_target"), set(head["criteria"])
+    )
+    element = next((item for item in heads[operation] if item.ref == target_answer["choice"]), None)
+    if element is None:
+        # Only reachable if the offered criteria and the dispatched heads disagree,
+        # which is the class of bug the vocabulary tests exist to prevent. Say it
+        # plainly rather than raising StopIteration from a generator expression.
+        raise TurboUnavailable(
+            f"Decision model chose {target_answer['choice']!r}, which is not an offered "
+            "target; no action executed."
+        )
     decision["ref"] = element.ref
     decision["target"] = element.name
     decision["target_confidence"] = target_answer["confidence"]
@@ -257,9 +311,11 @@ def _pick_option(cfg: Config, element, goal: str, observation: Observation) -> s
         },
     }
     try:
-        answer = _post(cfg.typesafe_endpoint, cfg.typesafe_key, body)["answers"]["option"]
+        answer = _answers(_post(cfg.typesafe_endpoint, cfg.typesafe_key, body), "option")
         return answer.get("choice")
-    except (TurboUnavailable, KeyError):
+    except TurboUnavailable:
+        # An unanswerable option question is not a failure: the caller falls back
+        # to the first offered option, exactly as it does when this returns None.
         return None
 
 

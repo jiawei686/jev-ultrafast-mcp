@@ -102,6 +102,11 @@ def _error(exc: Exception) -> str:
         return f"stale: {exc}"
     if isinstance(exc, CdpError):
         return f"browser_error: {exc}"
+    if isinstance(exc, policy.TurboUnavailable):
+        # One prefix for every way the decision model can fail, so a caller can
+        # branch on it. `browser_goal` already answers `turbo_unavailable` when
+        # there is no key; a key that stopped working is the same instruction.
+        return f"turbo_unavailable: {exc}"
     return f"error({type(exc).__name__}): {exc}"
 
 
@@ -312,8 +317,11 @@ def browser_macro(action: str, session: str = "default", name: str = "",
 # search area, taking the submit button's node with it.
 STALE_REF_REASONS = {"detached", "page_changed", "target_changed", "unknown_ref", "stale"}
 
-# How many times one goal step may re-observe after its refs went stale.
-# Bounded, so a page that never settles still ends the goal rather than looping.
+# How many times one goal step may re-observe after its refs went stale. It is
+# per step, so a page that invalidates a ref once per step does not spend the
+# recovery budget of the steps after it. The goal as a whole gets the same
+# allowance again -- see `recovered` in the loop -- which keeps per-step
+# recovery from multiplying the request count by STALE_REF_RETRIES.
 STALE_REF_RETRIES = 3
 
 
@@ -345,11 +353,21 @@ def browser_goal(goal: str, session: str = "default", max_steps: int = 20,
         trace: list[str] = []
         status = "running"
         steps = 0
-        stale = 0
+        stale = 0        # re-observations spent on the step currently in flight
+        recovered = 0    # re-observations spent by the goal as a whole
         while steps < max_steps:
             history = [{"op": step.op, "ref": step.ref, "target": step.target, "ok": step.ok}
                        for step in tab.history[-10:]]
-            decision = policy.choose(CONFIG, observation, goal, history)
+            try:
+                decision = policy.choose(CONFIG, observation, goal, history)
+            except policy.TurboUnavailable as exc:
+                # A provider that fails mid-run must not erase the steps already
+                # taken: those are the whole record of how far the goal got, and
+                # without them the host cannot tell a goal that was one click
+                # from done from one that never started.
+                status = f"turbo_unavailable: {exc}"
+                trace.append(f"  !   step {steps + 1}: {exc}")
+                break
             operation = decision["operation"]
             if operation in {"DONE", "BLOCKED"}:
                 status = operation.lower()
@@ -372,13 +390,16 @@ def browser_goal(goal: str, session: str = "default", max_steps: int = 20,
             # The guard refusing a stale ref is right; believing it was fatal is
             # what stopped the goal. Without this the same goal succeeds or fails
             # depending on whether the page happened to be still while it was read.
-            if error in STALE_REF_REASONS and stale < STALE_REF_RETRIES:
+            if (error in STALE_REF_REASONS and stale < STALE_REF_RETRIES
+                    and recovered < max_steps):
                 stale += 1
+                recovered += 1
                 steps -= 1
                 trace.append(f"  -   re-observing ({error}: refs went stale, "
                              f"{stale}/{STALE_REF_RETRIES})")
                 observation = tab.observe()
                 continue
+            stale = 0
             trace.append(
                 f"  {steps}. {operation} {decision.get('ref') or ''} "
                 f"{decision.get('target') or ''} → {'ok' if step_result['ok'] else error} "

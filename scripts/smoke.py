@@ -72,9 +72,21 @@ def free_port() -> int:
         return sock.getsockname()[1]
 
 
+class _QuietHandler(http.server.SimpleHTTPRequestHandler):
+    """The fixture server, minus the per-request log.
+
+    The log has to be suppressed on the class: assigning `log_message` to the
+    `partial` handed to the server sets an attribute on the partial object and
+    never reaches the handler, so the noise this was meant to hide came through
+    anyway -- interleaved with the check results it was meant to keep readable.
+    """
+
+    def log_message(self, *args, **kwargs):  # noqa: ARG002
+        return
+
+
 def serve(directory: Path) -> tuple[http.server.ThreadingHTTPServer, str]:
-    handler = partial(http.server.SimpleHTTPRequestHandler, directory=str(directory))
-    handler.log_message = lambda *args, **kwargs: None  # noqa: ARG005
+    handler = partial(_QuietHandler, directory=str(directory))
     port = free_port()
     httpd = http.server.ThreadingHTTPServer(("127.0.0.1", port), handler)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
