@@ -226,6 +226,18 @@ All notable changes to this project are documented here. The format follows
 - CI captures smoke / MCP / pytest output and republishes failures as annotations and a step summary,
   because downloading job logs requires repo admin rights and a red X on a public repo was otherwise
   undiagnosable. Also bumped to `actions/checkout@v7` / `actions/setup-python@v7`.
+- **`install.py` wrote WorkBuddy's config into the wrong directory.** The client entry hardcoded
+  `~/.workbuddy/mcp.json`, but WorkBuddy resolves its config directory from `WORKBUDDY_CONFIG_DIR`
+  and one machine can carry two installs: an older app keeps `~/.workbuddy` while the current one is
+  pointed at `~/.workbuddy-ai`. Writing the directory the running app does not read registers nothing
+  and logs nothing — the server is simply absent, and since nothing is pending there is no approval
+  prompt either, so the one piece of UI that would have explained it never appears. The entry now
+  resolves the directory the way the app does: an explicit `WORKBUDDY_CONFIG_DIR` is authoritative
+  rather than merely a candidate, and the remaining candidates are ordered by how recently the app
+  wrote to them (`workbuddy.db-wal` is held open by a running app, so its mtime is the tell). The
+  file is chosen by *directory*, not by "the first path that exists" — the directory in use is
+  precisely the one that has no `mcp.json` yet, so the old rule skipped straight past it. When two
+  directories are present the installer says which one it chose instead of choosing silently.
 
 ### Changed
 

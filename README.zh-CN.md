@@ -221,7 +221,7 @@ browser_assert([{url_contains, text: "q="}, {count_at_least, role: "link", min: 
 
 | 客户端 | `install.py` 写入的配置文件 | 装完还要做什么 |
 |---|---|---|
-| **WorkBuddy** | `~/.workbuddy/mcp.json` | 连接器 → 自定义连接器 → 点**信任** |
+| **WorkBuddy** | `~/.workbuddy-ai/mcp.json`（旧版是 `~/.workbuddy/mcp.json`） | 重启，然后连接器 → 自定义连接器 → 点**信任** |
 | **Claude Code** | `~/.claude.json`（user 作用域） | 或直接 `claude mcp add --scope user …` |
 | **Claude Desktop** | `~/Library/Application Support/Claude/claude_desktop_config.json` | 从托盘完全退出再打开 |
 | **Codex CLI** | `~/.codex/config.toml` | `codex mcp list` 确认 |
@@ -237,7 +237,14 @@ browser_assert([{url_contains, text: "q="}, {count_at_least, role: "link", min: 
 下面每个客户端要的都是同一件事：解释器的绝对路径、模块名、一个环境变量。把 `/ABS/PATH`
 换成你自己的路径。
 
-**WorkBuddy** —— `~/.workbuddy/mcp.json`
+**WorkBuddy** —— `~/.workbuddy-ai/mcp.json`
+
+WorkBuddy 从环境变量 `WORKBUDDY_CONFIG_DIR` 读配置目录，没有就退回 `~/.workbuddy`。一台机器上
+可能两个都在（旧版 App 和新版并存）——写进 App 没在读的那个，什么都不会注册，也不会报错。
+`install.py` 按和 App 相同的方式解析，需要二选一时会明确告诉你选了哪个。
+
+然后**先重启 App，再去找工具**。配置文件只有在 App 启动时就已经存在，才会被监听；所以刚创建的
+那个在下次启动前是看不见的。重启后它会作为「首次连接」出现，点一次信任即可。
 
 ```json
 {

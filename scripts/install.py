@@ -55,6 +55,49 @@ def _config_home() -> Path:
     return Path(xdg) if xdg else _home() / ".config"
 
 
+_WORKBUDDY_DIR_NAMES = (".workbuddy", ".workbuddy-ai")
+# Files the app rewrites while it runs. `workbuddy.db-wal` is the decisive one:
+# a live app holds that write-ahead log open, so it is touched every few seconds.
+_WORKBUDDY_SENTINELS = ("workbuddy.db-wal", "workbuddy.db", "mcp.json", "logs", "app")
+
+
+def _touched_at(directory: Path) -> float:
+    """When the app last wrote here, judged by the newest thing it leaves behind."""
+    newest = 0.0
+    for name in _WORKBUDDY_SENTINELS:
+        try:
+            newest = max(newest, (directory / name).stat().st_mtime)
+        except OSError:
+            continue
+    return newest
+
+
+def _workbuddy_config_dirs() -> list[Path]:
+    """WorkBuddy config dirs on this machine, the one in use first.
+
+    WorkBuddy resolves its config dir from WORKBUDDY_CONFIG_DIR and otherwise
+    falls back to `~/.workbuddy`, but a machine can carry more than one install:
+    an older app keeps `~/.workbuddy` while the current one is pointed at
+    `~/.workbuddy-ai`. Only one of them belongs to the app the user is actually
+    looking at, and writing the other registers nothing and logs nothing -- the
+    same silent failure this script exists to remove, one directory over.
+
+    An explicit env var is authoritative rather than merely a candidate: it is
+    the same thing the app itself obeys, so it must not lose a freshness vote to
+    a directory that happens to have been touched more recently.
+    """
+    explicit = (os.environ.get("WORKBUDDY_CONFIG_DIR")
+                or os.environ.get("CODEBUDDY_CONFIG_DIR") or "").strip()
+    pinned = [Path(explicit).expanduser()] if explicit else []
+    fallbacks: list[Path] = []
+    for name in _WORKBUDDY_DIR_NAMES:
+        candidate = _home() / name
+        if candidate not in pinned and candidate not in fallbacks:
+            fallbacks.append(candidate)
+    # `sorted` is stable, so dirs that were never touched keep the declared order.
+    return pinned + sorted(fallbacks, key=_touched_at, reverse=True)
+
+
 def _interpreter() -> str:
     """The interpreter the client should spawn.
 
@@ -126,15 +169,26 @@ def _clients() -> list[dict[str, Any]]:
     else:
         vscode_user = cfg / "Code" / "User"
 
+    workbuddy_dirs = _workbuddy_config_dirs()
+    workbuddy_note = "restart the app, then Connectors → Custom connectors → Trust"
+    if sum(1 for directory in workbuddy_dirs if directory.exists()) > 1:
+        workbuddy_note += ("  (more than one WorkBuddy config dir on this machine"
+                           " — the one in use was chosen; --list shows which)")
+
     return [
         {
             "key": "workbuddy",
             "label": "WorkBuddy",
             "kind": "json",
             "root": "mcpServers",
-            "paths": [home / ".workbuddy" / "mcp.json"],
-            "probe": [home / ".workbuddy"],
-            "note": "then open Connectors → Custom connectors and click Trust",
+            "paths": [directory / "mcp.json" for directory in workbuddy_dirs],
+            # Chosen by directory, not by file. The config dir in use usually has
+            # no mcp.json yet, so "the first file that exists" would skip past it
+            # and land in a stale install -- which is exactly how a server gets
+            # registered somewhere nobody is looking.
+            "target": lambda: workbuddy_dirs[0] / "mcp.json",
+            "probe": workbuddy_dirs,
+            "note": workbuddy_note,
         },
         {
             "key": "claude",
@@ -223,7 +277,14 @@ def _detected(client: dict[str, Any]) -> bool:
 
 
 def _target(client: dict[str, Any]) -> Path:
-    """The file to write: the first that exists, else the first candidate."""
+    """The file to write: the first that exists, else the first candidate.
+
+    A client may override this with `target`, for the cases where "which file
+    exists" is the wrong question -- see the WorkBuddy entry.
+    """
+    chooser = client.get("target")
+    if chooser is not None:
+        return chooser()
     for path in client["paths"]:
         if path.exists():
             return path

@@ -234,7 +234,7 @@ That is a verbatim run against the live web — `scripts/live_check.py` reproduc
 
 | Client | Config file `install.py` writes | After installing |
 |---|---|---|
-| **WorkBuddy** | `~/.workbuddy/mcp.json` | Connectors → Custom connectors → **Trust** |
+| **WorkBuddy** | `~/.workbuddy-ai/mcp.json` (older installs: `~/.workbuddy/mcp.json`) | restart, then Connectors → Custom connectors → **Trust** |
 | **Claude Code** | `~/.claude.json` (user scope) | or `claude mcp add --scope user …` |
 | **Claude Desktop** | `~/Library/Application Support/Claude/claude_desktop_config.json` | quit the app fully and reopen |
 | **Codex CLI** | `~/.codex/config.toml` | `codex mcp list` to confirm |
@@ -250,7 +250,16 @@ That is a verbatim run against the live web — `scripts/live_check.py` reproduc
 Every client below needs the same three facts: an absolute interpreter path, the module, and one
 environment variable. Substitute your own path for `/ABS/PATH`.
 
-**WorkBuddy** — `~/.workbuddy/mcp.json`
+**WorkBuddy** — `~/.workbuddy-ai/mcp.json`
+
+WorkBuddy reads its config directory from `WORKBUDDY_CONFIG_DIR` and otherwise falls back to
+`~/.workbuddy`. A machine can carry both — an older app alongside the current one — and writing
+the one the app is not reading registers nothing and logs nothing. `install.py` resolves this
+the same way the app does and tells you when it had to choose.
+
+Then **restart the app before looking for the tools.** The config file is only watched if it
+already existed when the app launched, so a freshly created one is invisible until the next
+start. After the restart the server appears as a first connection, and you approve it once.
 
 ```json
 {

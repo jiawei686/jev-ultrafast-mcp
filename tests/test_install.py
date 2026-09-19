@@ -363,6 +363,99 @@ def test_clients_have_unique_keys_and_all_documented_fields():
         assert (client["root"] is None) == (client["kind"] == "toml")
 
 
+# ------------------------------------------------------------------ workbuddy
+
+
+def _fake_home(monkeypatch, tmp_path: Path) -> Path:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(install, "_home", lambda: home)
+    monkeypatch.delenv("WORKBUDDY_CONFIG_DIR", raising=False)
+    monkeypatch.delenv("CODEBUDDY_CONFIG_DIR", raising=False)
+    return home
+
+
+def _age(path: Path, stamp: float) -> None:
+    os.utime(path, (stamp, stamp))
+
+
+def _workbuddy_client() -> dict:
+    return next(client for client in install._clients() if client["key"] == "workbuddy")
+
+
+def test_workbuddy_prefers_the_config_dir_the_app_is_writing(monkeypatch, tmp_path):
+    """Two installs on one machine -- write into the one the app is using.
+
+    An older WorkBuddy keeps `~/.workbuddy` while the current app is pointed at
+    `~/.workbuddy-ai`. Writing the one nobody is looking at registers nothing and
+    logs nothing, so the choice has to come from evidence rather than from a
+    hardcoded path: the app holds `workbuddy.db-wal` open, so that file's mtime
+    is what tells the two apart.
+    """
+    home = _fake_home(monkeypatch, tmp_path)
+    stale, live = home / ".workbuddy", home / ".workbuddy-ai"
+    for directory in (stale, live):
+        directory.mkdir()
+        (directory / "workbuddy.db").write_text("")
+    (live / "workbuddy.db-wal").write_text("")
+    _age(live / "workbuddy.db-wal", 9_000_000_000)
+    _age(stale / "workbuddy.db", 1_000_000_000)
+
+    assert install._workbuddy_config_dirs() == [live, stale]
+
+
+def test_workbuddy_honours_an_explicit_config_dir(monkeypatch, tmp_path):
+    """WORKBUDDY_CONFIG_DIR is how the app resolves the dir, so believe it."""
+    home = _fake_home(monkeypatch, tmp_path)
+    (home / ".workbuddy").mkdir()
+    (home / ".workbuddy" / "workbuddy.db").write_text("")
+    explicit = tmp_path / "elsewhere"
+    monkeypatch.setenv("WORKBUDDY_CONFIG_DIR", str(explicit))
+
+    assert install._workbuddy_config_dirs()[0] == explicit
+
+
+def test_workbuddy_falls_back_to_the_documented_dir(monkeypatch, tmp_path):
+    """Nothing on disk yet: offer the dir the app itself falls back to."""
+    home = _fake_home(monkeypatch, tmp_path)
+    assert install._workbuddy_config_dirs() == [home / ".workbuddy",
+                                                home / ".workbuddy-ai"]
+
+
+def test_workbuddy_writes_the_live_dir_even_before_its_mcp_json_exists(
+    monkeypatch, tmp_path
+):
+    """The live dir normally has no mcp.json yet -- that is the whole point.
+
+    "The first path that exists" would skip it and write into a stale install
+    that merely happens to have the file, which is how a server ends up
+    registered somewhere nobody is looking.
+    """
+    home = _fake_home(monkeypatch, tmp_path)
+    stale, live = home / ".workbuddy", home / ".workbuddy-ai"
+    stale.mkdir()
+    live.mkdir()
+    (stale / "mcp.json").write_text('{"mcpServers": {}}')
+    (stale / "workbuddy.db").write_text("")
+    (live / "workbuddy.db-wal").write_text("")
+    _age(live / "workbuddy.db-wal", 9_000_000_000)
+    _age(stale / "mcp.json", 1_000_000_000)
+    _age(stale / "workbuddy.db", 1_000_000_000)
+
+    assert install._target(_workbuddy_client()) == live / "mcp.json"
+
+
+def test_workbuddy_says_so_when_it_had_to_choose(monkeypatch, tmp_path):
+    """A silent choice between two dirs is the failure mode being fixed here."""
+    home = _fake_home(monkeypatch, tmp_path)
+    (home / ".workbuddy").mkdir()
+    (home / ".workbuddy-ai").mkdir()
+    assert "more than one WorkBuddy config dir" in _workbuddy_client()["note"]
+
+    (home / ".workbuddy-ai").rmdir()
+    assert "more than one" not in _workbuddy_client()["note"]
+
+
 # ------------------------------------------------------------------ interpreter
 
 
