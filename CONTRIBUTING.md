@@ -108,6 +108,63 @@ at once, because the MCP registry publishes a *package*:
 Until then, `pip install "git+https://github.com/jiawei686/jev-ultrafast-mcp"` installs the same code,
 and the README says so rather than pointing at a package that does not resolve.
 
+### The one-time setup, step by step
+
+Two web pages, once, and after that a tag is all a release needs. Do the GitHub side first: PyPI's
+form asks for the environment name, and an environment that does not exist yet is a value you would
+have to guess at.
+
+**1. The GitHub environment.** Settings → Environments → New environment, named `pypi` —
+<https://github.com/jiawei686/jev-ultrafast-mcp/settings/environments>. `publish.yml` names it, and
+PyPI's own docs call this optional but strongly recommended: it is what lets you require a manual
+approval before a release goes out, later, without editing the workflow.
+
+**2. The pending publisher.** <https://pypi.org/manage/account/publishing/> → *Add a new pending
+publisher* → GitHub. Five fields, and every one of them has to match this repository exactly:
+
+| Field | Value |
+|---|---|
+| PyPI Project Name | `jev-ultrafast-mcp` |
+| Owner | `jiawei686` |
+| Repository name | `jev-ultrafast-mcp` |
+| Workflow name | `publish.yml` |
+| Environment name | `pypi` |
+
+**A pending publisher does not reserve the name.** It creates the project only when it is first
+used, so if someone else registers `jev-ultrafast-mcp` in the meantime the publisher is invalidated
+and this whole step has to be redone. Publish promptly after creating it.
+
+**3. The tag.** With those two in place, publishing is the ordinary thing:
+
+```bash
+git tag -a v0.1.0 -m "0.1.0"
+git push origin v0.1.0
+```
+
+The workflow builds `dist/` and uploads it over OIDC. Watch it under
+<https://github.com/jiawei686/jev-ultrafast-mcp/actions>, and if it fails read the job rather than
+guessing: trusted publishing fails loudly on purpose, because a release that silently did not
+publish is worse than one that did not start.
+
+**4. The registry.** Once the package resolves on PyPI, `server.json` is submittable as it stands:
+
+```bash
+mcp-publisher publish
+```
+
+None of this needs to be done blind. The build can be checked without publishing anything:
+
+```bash
+python -m build                          # writes dist/
+python -m pip install dist/*.whl         # into a throwaway venv
+python scripts/mcp_check.py              # 17 checks, over real stdio
+```
+
+That last command is the one that matters for a *package*: run with the throwaway interpreter it
+exercises the installed wheel over the real protocol, so a wheel that dropped `js/observer.js` — the
+package-data mistake that leaves a working checkout and a broken install — fails there rather than
+in a user's client.
+
 ### What to keep in sync when releasing
 
 Three places name the project or its version, and stale copies are the ones that mislead a search
