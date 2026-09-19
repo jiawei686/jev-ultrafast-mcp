@@ -47,6 +47,12 @@ change anything about how targets are resolved, how pages are read, or how macro
 fixture is well-behaved, the open web is not, and every one of the bugs it has caught so far was
 invisible locally.
 
+`scripts/turbo_check.py` is the sixth, and it needs a decision-model key rather than the network: it
+lets Jev drive the fixture through a goal and then verifies the page with code. Run it whenever you
+touch `policy.py` or the loop in `browser_goal`. Turbo mode is where a bug costs money instead of
+time, and it is the one path no other check enters — a `KeyError` on the model's own correct answer
+lived through a fully green suite because of exactly that gap.
+
 ## What good changes look like
 
 - **A new op** → add it to the dispatch table in `browser.py`, give it a failure reason from the

@@ -373,7 +373,12 @@ refusing weak or ambiguous matches rather than clicking the wrong thing. `params
 
 ### `browser_goal(goal, session="default", max_steps=20, verify=[...])`
 Runs the whole loop server-side using TypeSafe speculative fan-out (one request per step). Needs
-`TYPESAFE_API_KEY`; returns `verified: PASS/FAIL` when `verify` checks are supplied.
+`TYPESAFE_API_KEY`, or `OPENROUTER_API_KEY` with `TYPESAFE_BASE_URL` pointed at OpenRouter's
+decisions route. Returns `verified: PASS/FAIL` when `verify` checks are supplied.
+
+Every way the decision model can fail — no key, no credits, unreachable, a malformed answer, a body
+that is not JSON — comes back as `turbo_unavailable:` with nothing executed. The trace of the steps
+already taken is kept, so a run that dies on step five still reports what steps one to four did.
 
 ### `browser_tabs` · `browser_sessions` · `browser_close` · `browser_doctor`
 Tab management (list / new / switch / close), session listing, teardown, and a self-check that
@@ -487,6 +492,18 @@ That one needs the network and third-party sites, so it is deliberately not part
 sites are reported as *skipped*, and the summary says so plainly, so a fully-skipped run cannot be
 mistaken for a passing one.
 
+And to prove turbo mode itself — the one path that spends money, and therefore the one nothing else
+exercises end to end:
+
+```bash
+.venv/bin/python scripts/turbo_check.py           # the model drives: dropdown, checkbox, submit
+.venv/bin/python scripts/turbo_check.py --headed  # watch it decide
+```
+
+It serves the same fixture, points a real Chrome at it, and lets Jev drive the goal, then verifies
+the page the model left behind with code rather than trusting its claim of success. Without a key it
+prints `skipped` and exits 0, so the exit code and the word agree.
+
 ---
 
 ## Layout
@@ -508,6 +525,7 @@ scripts/
   smoke.py         end-to-end proof against a real browser
   mcp_check.py     drives the server over real stdio MCP
   live_check.py    the same, against real websites (needs the network)
+  turbo_check.py   lets the decision model drive a real browser (needs a key)
 ```
 
 ## Development

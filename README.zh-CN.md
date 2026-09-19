@@ -358,8 +358,13 @@ e12  btn    Delete account
 `params` 会替换输入文本和 URL 里的 `{{占位符}}`。
 
 ### `browser_goal(goal, session="default", max_steps=20, verify=[...])`
-在服务端跑完整个循环，用 TypeSafe 的投机扇出（每步一次请求）。需要 `TYPESAFE_API_KEY`；
+在服务端跑完整个循环，用 TypeSafe 的投机扇出（每步一次请求）。需要 `TYPESAFE_API_KEY`，
+或者用 `OPENROUTER_API_KEY` 并把 `TYPESAFE_BASE_URL` 指向 OpenRouter 的 decisions 路由。
 给了 `verify` 检查时返回 `verified: PASS/FAIL`。
+
+决策模型所有可能的失败方式——没 key、没余额、连不上、返回的形状不对、返回的 body 不是 JSON——
+统一以 `turbo_unavailable:` 返回，且**不会执行任何动作**。已经走过的步骤仍保留在 trace 里，所以
+一个在第 5 步挂掉的 goal 依然会告诉你第 1–4 步做了什么。
 
 ### `browser_tabs` · `browser_sessions` · `browser_close` · `browser_doctor`
 标签页管理（列 / 新建 / 切换 / 关闭）、会话列举、收尾，以及自检 —— 报告找到的是哪个浏览器、
@@ -465,6 +470,16 @@ agent → 用这个。
 这个需要联网、会访问第三方站点，所以刻意没放进 CI。连不上的站点会记为 *skipped*，摘要里也会
 明说，这样"全部跳过"的一次运行不会被误当成"全部通过"。
 
+要验证 turbo 模式本身——唯一会花钱、也因此是唯一没有被其他检查端到端覆盖的路径：
+
+```bash
+.venv/bin/python scripts/turbo_check.py           # 由模型决定：下拉框、勾选框、提交
+.venv/bin/python scripts/turbo_check.py --headed  # 看着它做决策
+```
+
+它用同一个夹具页面，让真实 Chrome 加载，然后由 Jev 自己驱动完成目标；最后用代码去核对模型留下的
+页面，而不是听信它自称成功。没有 key 时会打印 `skipped` 并以 0 退出，退出码和文字说的是同一件事。
+
 ---
 
 ## 目录结构
@@ -486,6 +501,7 @@ scripts/
   smoke.py         对真实浏览器的端到端验证
   mcp_check.py     走真实 stdio MCP 协议驱动服务端
   live_check.py    同上，但打真实网站（需要联网）
+  turbo_check.py   让决策模型真的驱动一个浏览器（需要 key）
 ```
 
 ## 开发

@@ -23,9 +23,47 @@ All notable changes to this project are documented here. The format follows
   to do" / "what it cannot do" / FAQ, before the technical reference.
 - `JEVMCP_SETTLE_TIMEOUT` and `JEVMCP_SETTLE_POLL_MS` — how long to wait for a late-rendering page,
   and how often to re-read while waiting.
+- **`scripts/turbo_check.py`** — runs turbo mode end to end: it serves `tests/fixture.html`, lets the
+  decision model drive it through a goal (set a dropdown, tick a checkbox, submit), and verifies the
+  page the model left behind with code rather than trusting the model's claim of success. Every other
+  check stops short of `browser_goal` — `smoke.py` drives the browser directly, `mcp_check.py` never
+  enters the loop, and the unit tests fake the provider — which left the one path that spends money as
+  the one path nothing ran. Deliberately not in CI: without a key it prints `skipped` and exits 0, so
+  the exit code and the word agree.
 
 ### Fixed
 
+- **Turbo mode raised `KeyError` / `JSONDecodeError` instead of reporting a failure.** The decision
+  model is reachable through more than one route, and none of them is guaranteed to honour the
+  contract: a gateway can answer 200 with an error envelope, a route can rename a field, a proxy can
+  answer with an HTML error page. All of those mean the same thing — no decision was made, so nothing
+  was executed — but they arrived as exceptions from inside the loop, which the host reads as a bug in
+  the server rather than a provider that did not answer. A response is now unwrapped through one
+  helper (`policy._answers`) that names the question left unanswered and what the envelope did
+  contain, and a non-JSON body is reported as such. Covered by `tests/test_turbo_resilience.py`,
+  which fakes the provider and needs no key.
+- **A provider failing mid-goal erased the steps already taken.** `browser_goal` caught the failure
+  outside the loop, so a run that died on step five reported only the error — the host could not tell
+  a goal that was one click from done from one that never started. The failure is now handled where
+  it happens, keeping the trace, and every way the model can fail answers under the single
+  `turbo_unavailable:` prefix the tool already used for "no key".
+- **Turbo mode's stale-ref recovery was bounded per goal while its comment claimed per step.** The
+  counter was never reset, so a page that invalidated a ref once per step spent the whole goal's
+  recovery on its first few steps and then failed a goal that was working. Recovery is now per step,
+  with a goal-wide ceiling so per-step recovery cannot multiply the request count by
+  `STALE_REF_RETRIES` — `max_steps` still bounds what a run can cost. Both ends are pinned by tests.
+- **`install.py` could write a config the client cannot start.** It names a repo-local
+  `.venv/bin/python`, or falls back to whatever interpreter is running the script — and that
+  interpreter may not have the package installed, only the checkout. The client then spawns it from
+  its own directory, finds no module, logs nothing, and the tools simply never appear: the same
+  silent failure the installer exists to remove, one level down. It now probes the interpreter from a
+  neutral directory in isolated mode before writing, refuses with the exact `pip install -e` command
+  to run, still warns rather than blocking under `--print`, and never blocks `--uninstall` — a
+  deleted venv is a reason to remove the entry, not a reason to be stuck with it.
+- **The fixture server's per-request log was never silenced.** `scripts/smoke.py` assigned
+  `log_message` to the `functools.partial` handed to the HTTP server, which sets the attribute on the
+  partial object and never reaches the handler class, so every request printed a line interleaved with
+  the check output the suppression was meant to keep readable. It is a handler subclass now.
 - **`browser_goal` crashed on the model's own answer.** The operation offered to the decision model
   and the operation the server dispatched on were different strings: `Element.target_kinds()` reported
   `TYPE` while the dispatch table was keyed on `TYPE_TEXT` — the name upstream uses and this project's
