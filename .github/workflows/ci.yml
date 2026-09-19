@@ -31,7 +31,11 @@ jobs:
         run: ruff check .
 
       - name: Unit tests
-        run: python -m pytest -q
+        id: unit
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          python -m pytest -q 2>&1 | tee pytest.log
 
       - name: Locate Chrome
         run: |
@@ -57,21 +61,24 @@ jobs:
       # Downloading job logs needs repo admin rights; annotations and the step
       # summary do not. So a failing run here is diagnosable from an API call.
       - name: Publish failure detail
-        if: steps.smoke.outcome != 'success' || steps.mcpcheck.outcome != 'success'
+        if: steps.unit.outcome != 'success' || steps.smoke.outcome != 'success' || steps.mcpcheck.outcome != 'success'
         run: |
-          for f in smoke.log mcp.log; do
+          for f in pytest.log smoke.log mcp.log; do
             [ -f "$f" ] || continue
             {
               echo "### $f"
               echo '```'
-              tail -c 5000 "$f"
+              tail -c 6000 "$f"
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
           done
           grep -h -F '[FAIL]' smoke.log mcp.log 2>/dev/null | head -25 | while IFS= read -r line; do
             echo "::error title=failing check::$(printf '%s' "$line" | sed 's/^ *//' | cut -c1-700)"
           done
-          if grep -q -F 'Traceback' smoke.log mcp.log 2>/dev/null; then
-            echo "::error title=script crashed::$(grep -h -A8 -F 'Traceback' smoke.log mcp.log | tr '\n' '|' | cut -c1-900)"
+          if grep -q -F 'Traceback' pytest.log smoke.log mcp.log 2>/dev/null; then
+            echo "::error title=script crashed::$(grep -h -A8 -F 'Traceback' pytest.log smoke.log mcp.log | tr '\n' '|' | cut -c1-900)"
+          fi
+          if grep -q -F 'failed' pytest.log 2>/dev/null; then
+            echo "::error title=pytest failed::$(grep -h -F 'scenario failed' -A6 pytest.log | tr '\n' '|' | cut -c1-900)"
           fi
           exit 1
