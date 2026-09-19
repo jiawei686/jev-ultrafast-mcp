@@ -259,8 +259,19 @@ All notable changes to this project are documented here. The format follows
   because downloading job logs requires repo admin rights and a red X on a public repo was otherwise
   undiagnosable. Also bumped to `actions/checkout@v7` / `actions/setup-python@v7`.
 
+## [0.1.5] — 2026-09-20
+
+The release that makes the registry entry submittable. `0.1.4` could not be: the registry proves
+ownership of a PyPI package by finding a marker line in the package's README, and a published PyPI
+description cannot be edited, so the marker had to arrive with a new version.
+
 ### Added
 
+- **`mcp-name: io.github.jiawei686/jev-ultrafast-mcp` in `README.md`** — the line the registry looks
+  for to prove the package is ours. It is hidden in an HTML comment, which is the form the registry
+  documents for PyPI (and which crates.io strips, hence the note there). `tests/test_docs.py` asserts
+  it matches `name` in `server.json`, because a validator's token is invisible to a reader and fatal
+  to forget.
 - **The MCP registry entry is submitted by the release workflow** —
   [`.github/workflows/registry.yml`](.github/workflows/registry.yml), which `publish.yml` calls with
   `needs: publish`. It authenticates over GitHub OIDC (`mcp-publisher login github-oidc`), so the
@@ -282,6 +293,11 @@ All notable changes to this project are documented here. The format follows
   agent: read the page as a table, act, then verify."*
 - Both READMEs said the registry submission was "the step still outstanding". It is wired to happen
   on every tag now, so they say that instead of describing a manual step nobody had run.
+- **The registry rejected the submission for a missing marker, which only a real submission could
+  reveal.** `mcp-publisher validate` checks the schema and passed; `publish` then failed with
+  `400 ... must appear as 'mcp-name: io.github.jiawei686/jev-ultrafast-mcp' in the package README`,
+  because ownership is verified against the *published* description and not the file. The workflow
+  and the marker are the two halves of that fix, and neither was visible from inside the repository.
 
 ## [0.1.4] — 2026-09-20
 
@@ -403,7 +419,8 @@ First public release.
 - **Verification** — 51-check end-to-end smoke suite against a real browser, 17-check real-stdio MCP
   suite, and 5 pytest unit tests.
 
-[Unreleased]: https://github.com/jiawei686/jev-ultrafast-mcp/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/jiawei686/jev-ultrafast-mcp/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/jiawei686/jev-ultrafast-mcp/releases/tag/v0.1.5
 [0.1.4]: https://github.com/jiawei686/jev-ultrafast-mcp/releases/tag/v0.1.4
 [0.1.3]: https://github.com/jiawei686/jev-ultrafast-mcp/releases/tag/v0.1.3
 [0.1.2]: https://github.com/jiawei686/jev-ultrafast-mcp/releases/tag/v0.1.2

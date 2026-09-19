@@ -851,3 +851,13 @@ whole point of the project.
 ## License
 
 MIT — see [`LICENSE`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/LICENSE).
+
+<!--
+  The MCP registry proves ownership of a PyPI package by looking for the line below in the README,
+  because this file is the description PyPI publishes. It has to match `name` in `server.json`
+  exactly; `tests/test_docs.py` fails if the two drift, and the registry rejects the entry with a
+  400 if the marker is missing -- which is how this was found, by running the submission.
+  Hidden in a comment on purpose: it is a token for a validator, not something to read.
+  https://modelcontextprotocol.io/registry/package-types
+-->
+<!-- mcp-name: io.github.jiawei686/jev-ultrafast-mcp -->

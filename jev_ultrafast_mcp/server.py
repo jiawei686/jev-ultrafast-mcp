@@ -55,7 +55,7 @@ Rules that keep it fast and correct:
 SERVER = MCPServer(
     "jev-ultrafast-mcp",
     instructions=INSTRUCTIONS,
-    version="0.1.4",
+    version="0.1.5",
 )
 
 CONFIG = Config.from_env()

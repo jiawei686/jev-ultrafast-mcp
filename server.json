@@ -3,7 +3,7 @@
   "name": "io.github.jiawei686/jev-ultrafast-mcp",
   "title": "jev-ultrafast-mcp",
   "description": "Hand browser work off to a server-side agent: read the page as a table, act, then verify.",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "websiteUrl": "https://github.com/jiawei686/jev-ultrafast-mcp",
   "repository": {
     "url": "https://github.com/jiawei686/jev-ultrafast-mcp",
@@ -13,7 +13,7 @@
     {
       "registryType": "pypi",
       "identifier": "jev-ultrafast-mcp",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"

@@ -6,7 +6,7 @@ one opt-in exception is `browser_goal`, which drives the loop server-side with a
 decision model once you give it a key.
 """
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 
 from .browser import BrowserManager, Session
 from .config import Config

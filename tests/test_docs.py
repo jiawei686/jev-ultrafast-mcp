@@ -82,6 +82,22 @@ def test_the_registry_entry_respects_the_limits_the_schema_sets():
         assert package["transport"] == {"type": "stdio"}, package["transport"]
 
 
+def test_the_readme_carries_the_marker_the_registry_looks_for():
+    """The registry proves the PyPI package is ours by finding this line in the published README.
+
+    The README *is* the description PyPI publishes (`readme = "README.md"` in `pyproject.toml`), so
+    the marker has to be in this file and not merely in `server.json`. Without it the submission
+    fails with a 400 and an explanation that names the exact string to add -- which is how this was
+    found, after the schema-level validation had already passed. A validator's token is invisible to
+    a reader and fatal to forget, so it is asserted rather than trusted.
+    """
+    readme = README.read_text(encoding="utf-8")
+    name = json.loads((ROOT / "server.json").read_text(encoding="utf-8"))["name"]
+
+    assert f"mcp-name: {name}" in readme, (
+        f"README.md must contain 'mcp-name: {name}' or the registry rejects the entry")
+
+
 def test_server_json_points_at_the_real_package():
     entry = json.loads((ROOT / "server.json").read_text(encoding="utf-8"))
     project = _pyproject()["project"]

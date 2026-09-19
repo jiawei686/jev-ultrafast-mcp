@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "jev-ultrafast-mcp — element table",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "See the element table jev-ultrafast-mcp hands a model: the same observer, the same renderer, the same refs.",
   "homepage_url": "https://github.com/jiawei686/jev-ultrafast-mcp",
   "minimum_chrome_version": "95",

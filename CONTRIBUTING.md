@@ -136,6 +136,14 @@ Releases go to PyPI and to the MCP registry, and a `v*.*.*` tag is the whole tri
    caps are also asserted in `tests/test_docs.py`, so a local `pytest` catches the common case before
    a tag does.
 
+   **Ownership is proved by a line in `README.md`, not by `server.json`.** The registry checks that
+   the package's *published* description contains `mcp-name: <the name in server.json>`, and the
+   description PyPI publishes is this project's `README.md` (`readme` in `pyproject.toml`). The marker
+   sits at the bottom of that file in an HTML comment, which is the form the registry documents for
+   PyPI. Two consequences worth knowing: `validate` does **not** check it — only `publish` does, and it
+   fails with a `400` naming the exact string to add — and because a published PyPI description cannot
+   be edited, adding or changing the marker requires a new version rather than a re-submission.
+
 One trap worth knowing before the next release: Actions evaluates a workflow **at the tagged
 commit**, so a tag pointing at a commit that predates `publish.yml` publishes nothing — and reports
 no failure either. `v0.1.0` was moved to a commit that had the workflow for exactly this reason. The
