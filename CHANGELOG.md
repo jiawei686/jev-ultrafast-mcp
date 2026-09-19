@@ -93,6 +93,16 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Attach mode could not connect to Chrome 144+.** The debugging server started from
+  `chrome://inspect/#remote-debugging` is WebSocket-only: it answers 404 to `/json/version` and to
+  every other `/json/*` path, by design, so "404" does not mean "nothing is listening" — a client
+  that only speaks the HTTP discovery API concludes exactly that, and there is no way to attach to a
+  current Chrome through the toggle. `attach_chrome` now falls back to the port and browser
+  WebSocket path in the browser's `DevToolsActivePort` file (searched in the platform's usual browser
+  data directories, or wherever `JEVMCP_ATTACH_PROFILE_DIR` points), accepts an explicit `ws://` URL
+  without probing at all, and reports which of the three it used when none works. The socket is also
+  opened with a human-sized `open_timeout`, because Chrome gates each client behind an approval
+  dialog and the handshake waits on that click rather than on the network.
 - **Attach mode quit the user's own browser on shutdown.** `JEVMCP_MODE=attach` drives the browser
   the user is already using, but `shutdown()` sent `Browser.close` unconditionally — correct in
   `launch` mode, where the browser belongs to this process, and wrong in `attach`, where it means

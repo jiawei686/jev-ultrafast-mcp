@@ -142,6 +142,20 @@ def test_the_readmes_promise_attach_mode_leaves_the_users_browser_alone():
         assert word in text, f"{path.name} documents attach mode without saying it detaches"
 
 
+def test_the_readmes_explain_the_chrome_144_404():
+    """A 404 from /json/version is the documented behaviour now, not a failure.
+
+    The most likely way a reader concludes this project is broken is by probing the port with the
+    habit every browser-automation guide taught them, getting a 404, and stopping there. Both
+    READMEs have to say what that 404 is and what is used instead.
+    """
+    for path in (README, README_ZH):
+        text = path.read_text(encoding="utf-8")
+        assert "DevToolsActivePort" in text, f"{path.name} does not name the fallback"
+        assert "JEVMCP_ATTACH_PROFILE_DIR" in text, path.name
+        assert "/json/version" in text, f"{path.name} does not name the probe people will run"
+
+
 def test_local_links_in_the_readmes_resolve():
     """A README whose screenshots and design notes are 404s reads as an abandoned project."""
     pattern = re.compile(r"\]\((?!https?://|#)([^)]+)\)")

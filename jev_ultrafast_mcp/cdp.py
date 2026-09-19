@@ -14,6 +14,7 @@ import socket
 import subprocess
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import deque
 from pathlib import Path
@@ -40,11 +41,15 @@ def _free_port() -> int:
 class Cdp:
     """One websocket to a browser or page endpoint."""
 
-    def __init__(self, ws_url: str, timeout: float = 30.0, max_size: int = 128 * 1024 * 1024):
+    def __init__(self, ws_url: str, timeout: float = 30.0, max_size: int = 128 * 1024 * 1024,
+                 open_timeout: float | None = None):
         self.ws_url = ws_url
         self.timeout = timeout
         self._ids = itertools.count(1)
-        self._ws = connect(ws_url, max_size=max_size, open_timeout=timeout,
+        # `open_timeout` is separate because Chrome gates each debugging client
+        # behind a user-approval dialog: the handshake waits on a person, not on
+        # the network, so it gets more room than the calls that follow it.
+        self._ws = connect(ws_url, max_size=max_size, open_timeout=open_timeout or timeout,
                            close_timeout=5, max_queue=64)
         self.events: deque[dict] = deque(maxlen=400)
 
@@ -217,13 +222,80 @@ def launch_chrome(cfg: Config, *, headless: bool | None = None) -> tuple[Cdp, su
     raise ChromeLaunchError(f"Chrome failed to start: {last_error}")
 
 
-def attach_chrome(url: str, timeout: float = 30.0) -> Cdp:
-    """Connect to an already-running browser (its `/json/version` ws endpoint)."""
+def attach_chrome(
+    url: str,
+    timeout: float = 30.0,
+    data_dirs: "list[Path] | None" = None,
+    open_timeout: float | None = None,
+) -> Cdp:
+    """Connect to an already-running browser.
+
+    Three shapes are accepted, in the order the caller is likely to have them:
+
+      * `ws://…/devtools/browser/<id>` -- used as-is.
+      * `http://127.0.0.1:9222` -- the classic `--remote-debugging-port` case,
+        resolved through `/json/version`.
+      * `http://127.0.0.1:9222` where `/json/version` answers 404 -- what Chrome
+        144+ looks like. The debugging server started by
+        `chrome://inspect/#remote-debugging` is WebSocket-only and deliberately
+        serves no HTTP discovery endpoints, so a 404 there does not mean
+        "nothing is listening". The port and the browser WebSocket path are in
+        `DevToolsActivePort` inside the browser's data directory, which is where
+        the endpoint is read from instead.
+
+    Chrome asks the user to approve each new debugging client, so the socket is
+    opened with a generous `open_timeout`: the handshake sits there until the
+    approval dialog is answered rather than failing.
+    """
     endpoint = url.rstrip("/")
-    if endpoint.startswith("http"):
+    if endpoint.startswith(("ws://", "wss://")):
+        return Cdp(endpoint, timeout=timeout, open_timeout=open_timeout)
+    if not endpoint.startswith("http"):
+        return Cdp(endpoint, timeout=timeout, open_timeout=open_timeout)
+
+    ws_url = _from_json_version(endpoint, timeout)
+    if ws_url is None:
+        ws_url = _from_active_port(endpoint, data_dirs or [])
+    if ws_url is None:
+        raise ChromeLaunchError(
+            f"Cannot reach a CDP endpoint at {url}. Nothing answered /json/version, and no "
+            "DevToolsActivePort file was found in the usual browser data directories — so the "
+            "browser either is not running with debugging enabled, or keeps its data directory "
+            "somewhere else (set JEVMCP_ATTACH_PROFILE_DIR to it). If you enabled debugging with "
+            "the chrome://inspect toggle, check that it still says 'Server running at'."
+        )
+    return Cdp(ws_url, timeout=timeout, open_timeout=open_timeout)
+
+
+def _from_json_version(endpoint: str, timeout: float) -> str | None:
+    """The classic discovery path. Returns None when the server has no HTTP API."""
+    try:
+        with urllib.request.urlopen(f"{endpoint}/json/version", timeout=timeout) as response:
+            return json.load(response)["webSocketDebuggerUrl"]
+    except (urllib.error.URLError, KeyError, OSError, ValueError):
+        return None
+
+
+def _from_active_port(endpoint: str, data_dirs: list[Path]) -> str | None:
+    """Resolve the WebSocket endpoint from `DevToolsActivePort`.
+
+    The file is two lines: the port, then the browser endpoint path. Its port has
+    to be the one we were pointed at; otherwise it belongs to some other browser
+    that happens to have run on this machine.
+    """
+    wanted = urllib.parse.urlparse(endpoint).port or 9222
+    for directory in data_dirs:
         try:
-            with urllib.request.urlopen(f"{endpoint}/json/version", timeout=timeout) as response:
-                endpoint = json.load(response)["webSocketDebuggerUrl"]
-        except (urllib.error.URLError, KeyError, OSError) as exc:
-            raise ChromeLaunchError(f"Cannot reach a CDP endpoint at {url}: {exc}") from None
-    return Cdp(endpoint, timeout=timeout)
+            lines = (directory / "DevToolsActivePort").read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        if len(lines) < 2 or not lines[1].startswith("/devtools/"):
+            continue
+        try:
+            port = int(lines[0].strip())
+        except ValueError:
+            continue
+        if port != wanted:
+            continue
+        return f"ws://127.0.0.1:{port}{lines[1].strip()}"
+    return None

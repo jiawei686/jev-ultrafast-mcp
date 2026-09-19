@@ -519,7 +519,8 @@ All optional; the defaults are the point.
 |---|---|---|
 | `JEVMCP_CHROME` | auto-detected | Chrome/Chromium/Edge/Brave executable |
 | `JEVMCP_MODE` | `launch` | `launch` a browser, or `attach` to a running CDP endpoint |
-| `JEVMCP_CDP_URL` | — | `http://127.0.0.1:9222` when `mode=attach` |
+| `JEVMCP_CDP_URL` | — | `http://127.0.0.1:9222` when `mode=attach`, or a `ws://` URL to skip discovery |
+| `JEVMCP_ATTACH_PROFILE_DIR` | *(browser defaults)* | data directory of the browser being attached to, if `DevToolsActivePort` is not found automatically |
 | `JEVMCP_HEADLESS` | `1` | `0` for a visible window |
 | `JEVMCP_FOREGROUND` | `0` | `1` activates the owned tab |
 | `JEVMCP_SANDBOX` | `auto` | `auto` retries with `--no-sandbox` if the browser aborts on startup |
@@ -544,9 +545,11 @@ All optional; the defaults are the point.
 | `TEXT_MODEL` | `deepseek-chat` | model for that helper |
 
 `JEVMCP_MODE=attach` is the "use the browser I already have open" route — the one to take when the
-login you need already lives in your own profile. Attach mode only ever touches the tab it opens:
-`browser_close` detaches rather than quitting, and the same holds when the server exits. Your other
-windows, and the session in them, are never closed.
+login you need already lives in your own profile. Chrome 144+ exposes that through
+`chrome://inspect/#remote-debugging`, and its server answers 404 to `/json/version` by design; jev
+falls back to `DevToolsActivePort` rather than treating that as "nothing is listening". Attach mode
+only ever touches the tab it opens: `browser_close` detaches rather than quitting, and the same holds
+when the server exits. Your other windows, and the session in them, are never closed.
 
 Everything above the last seven rows is local: it configures a browser on your machine. Only the
 decision-model group talks to the network, and only when `browser_goal` actually runs. Pointing
@@ -586,6 +589,20 @@ watch it work.
 Set `JEVMCP_PROFILE_DIR` to a persistent directory, open the browser once by hand, log in, and the
 session is remembered. That is far better than teaching an agent your password — and password
 fields are redacted in observations when you do type them.
+
+**Can it just use the browser I already have open, with my logins in it?**
+Yes. `JEVMCP_MODE=attach` plus `JEVMCP_CDP_URL=http://127.0.0.1:9222` drives your own Chrome. In
+Chrome 144+ you switch debugging on from `chrome://inspect/#remote-debugging` — no restart, so your
+tabs and logins survive — and Chrome asks you to approve the client. The first connection waits on
+that click, so give it a moment before deciding it failed.
+
+**`curl http://127.0.0.1:9222/json/version` returns 404. Is debugging even on?**
+Probably yes. The server behind `chrome://inspect/#remote-debugging` is **WebSocket-only** and
+deliberately serves no HTTP discovery endpoints, so a 404 there is the documented behaviour rather
+than a broken setup (and it is not the same thing as `--remote-debugging-port=9222`, even though both
+print port 9222). jev does not rely on it: when `/json/version` does not answer, it reads the port and
+the browser WebSocket path out of Chrome's `DevToolsActivePort` file. If your browser keeps its data
+directory somewhere unusual, point `JEVMCP_ATTACH_PROFILE_DIR` at it.
 
 **Nothing is happening and the page looks empty.**
 A page that renders from JavaScript can briefly look empty. The server waits for controls to appear

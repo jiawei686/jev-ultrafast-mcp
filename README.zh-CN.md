@@ -487,7 +487,8 @@ e12  btn    Delete account
 |---|---|---|
 | `JEVMCP_CHROME` | 自动探测 | Chrome/Chromium/Edge/Brave 可执行文件 |
 | `JEVMCP_MODE` | `launch` | `launch` 自己启动，或 `attach` 到已运行的 CDP |
-| `JEVMCP_CDP_URL` | — | `mode=attach` 时填 `http://127.0.0.1:9222` |
+| `JEVMCP_CDP_URL` | — | `mode=attach` 时填 `http://127.0.0.1:9222`；也可以直接给 `ws://` 地址跳过发现步骤 |
+| `JEVMCP_ATTACH_PROFILE_DIR` | *(各浏览器默认位置)* | 被 attach 的那个浏览器的 data 目录；自动找不到 `DevToolsActivePort` 时用 |
 | `JEVMCP_HEADLESS` | `1` | `0` 显示窗口 |
 | `JEVMCP_FOREGROUND` | `0` | `1` 激活自有标签页 |
 | `JEVMCP_SANDBOX` | `auto` | 浏览器启动即崩时，`auto` 会用 `--no-sandbox` 重试 |
@@ -512,7 +513,9 @@ e12  btn    Delete account
 | `TEXT_MODEL` | `deepseek-chat` | 该助手用的模型 |
 
 `JEVMCP_MODE=attach` 是「用我已经开着的那个浏览器」这条路 —— 需要的登录态本来就在你自己的 profile
-里时，走这条。attach 模式只会碰它自己打开的那个标签页：`browser_close` 是**断开**而不是退出，服务进程
+里时，走这条。Chrome 144+ 是用 `chrome://inspect/#remote-debugging` 开它的，而那个服务对
+`/json/version` 就是回 404（设计如此）；jev 会退到 `DevToolsActivePort`，而不是把这个 404 当成
+「没人在听」。attach 模式只会碰它自己打开的那个标签页：`browser_close` 是**断开**而不是退出，服务进程
 结束时也一样。你其他的窗口、以及里面的登录态，不会被关掉。
 
 上面最后七行之前的所有变量都是本地的：它们配置的是你机器上的浏览器。只有「决策模型」这一组会联外，
@@ -545,6 +548,18 @@ e12  btn    Delete account
 **已经登录的网站怎么用？**
 把 `JEVMCP_PROFILE_DIR` 指到一个持久目录，手动开一次浏览器登录，会话就记住了。这比教 agent 你的
 密码好得多 —— 而且真要输入时，密码字段在观测里是脱敏的。
+
+**能直接用我已经开着的、带登录态的那个浏览器吗？**
+可以。`JEVMCP_MODE=attach` 加 `JEVMCP_CDP_URL=http://127.0.0.1:9222` 就是驱动你自己的 Chrome。
+Chrome 144+ 从 `chrome://inspect/#remote-debugging` 开调试 —— **不用重启**，标签页和登录态都在 ——
+Chrome 会要求你批准这个客户端，**第一次连接会一直等你这下点击**，所以别急着判定它失败。
+
+**`curl http://127.0.0.1:9222/json/version` 返回 404，调试到底开没开？**
+多半是开着的。`chrome://inspect/#remote-debugging` 起的那个服务是 **WebSocket-only**，刻意不提供任何
+HTTP 发现接口，所以 404 是**官方预期行为**而不是配置坏了（它和 `--remote-debugging-port=9222` 不是
+一回事，尽管两者都显示 9222）。jev 不依赖它：`/json/version` 不响应时，它改去读 Chrome 的
+`DevToolsActivePort` 文件，从里面拿端口和浏览器级 WebSocket 路径。如果你的浏览器 data 目录不在常规
+位置，用 `JEVMCP_ATTACH_PROFILE_DIR` 指过去。
 
 **什么动静都没有，页面看着是空的？**
 用 JavaScript 渲染的页面会短暂「看起来是空的」。服务端会等控件出现（上限 `JEVMCP_SETTLE_TIMEOUT`），

@@ -43,6 +43,31 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def chrome_data_dirs() -> list[Path]:
+    """Where a Chromium-family browser keeps `DevToolsActivePort`.
+
+    Chrome 144+ exposes remote debugging as a WebSocket-only server: the port it
+    prints on `chrome://inspect/#remote-debugging` answers 404 to every `/json/*`
+    path, so the port number alone is not enough to attach. The same port and the
+    browser-level WebSocket path are written to `DevToolsActivePort` inside the
+    browser's data directory, which is what this list is for. Most likely first.
+    """
+    home = Path.home()
+    if sys.platform == "darwin":
+        base = home / "Library" / "Application Support"
+        names = ["Google/Chrome", "Chromium", "Google/Chrome Beta",
+                 "Microsoft Edge", "BraveSoftware/Brave-Browser"]
+    elif sys.platform.startswith("win"):
+        base = Path(os.environ.get("LOCALAPPDATA", str(home / "AppData" / "Local")))
+        names = ["Google/Chrome/User Data", "Chromium/User Data",
+                 "Microsoft/Edge/User Data", "BraveSoftware/Brave-Browser/User Data"]
+    else:
+        base = Path(os.environ.get("XDG_CONFIG_HOME", str(home / ".config")))
+        names = ["google-chrome", "chromium", "microsoft-edge",
+                 "BraveSoftware/Brave-Browser"]
+    return [base / name for name in names]
+
+
 def _env_list(name: str) -> list[str]:
     raw = os.environ.get(name, "")
     return [part.strip() for part in raw.replace(";", ",").split(",") if part.strip()]
@@ -117,6 +142,7 @@ class Config:
     foreground: bool = False              # True = activate the owned tab (watch it work)
     sandbox: str = "auto"                 # auto | on | off
     profile_dir: Path | None = None
+    attach_profile_dir: Path | None = None  # data dir of the browser we attach to
     window: tuple[int, int] = (1280, 860)
     max_actions: int = 250
     max_text: int = 6000
@@ -146,6 +172,7 @@ class Config:
     @classmethod
     def from_env(cls) -> "Config":
         profile = os.environ.get("JEVMCP_PROFILE_DIR")
+        attach_profile = os.environ.get("JEVMCP_ATTACH_PROFILE_DIR")
         turbo_endpoint, turbo_key = _turbo_backend()
         window = os.environ.get("JEVMCP_WINDOW", "1280x860")
         try:
@@ -160,6 +187,9 @@ class Config:
             foreground=_env_bool("JEVMCP_FOREGROUND", False),
             sandbox=os.environ.get("JEVMCP_SANDBOX", "auto"),
             profile_dir=Path(profile).expanduser() if profile else None,
+            attach_profile_dir=(
+                Path(attach_profile).expanduser() if attach_profile else None
+            ),
             window=(w, h),
             max_actions=int(os.environ.get("JEVMCP_MAX_ACTIONS", "250")),
             max_text=int(os.environ.get("JEVMCP_MAX_TEXT", "6000")),
@@ -185,6 +215,13 @@ class Config:
         path = self.profile_dir or (self.state_dir / "chrome-profile")
         path.mkdir(parents=True, exist_ok=True)
         return path
+
+    def attach_data_dirs(self) -> list[Path]:
+        """Data dirs to look for `DevToolsActivePort` in, most likely first."""
+        dirs = list(chrome_data_dirs())
+        if self.attach_profile_dir:
+            dirs.insert(0, self.attach_profile_dir)
+        return dirs
 
     def macros_dir(self) -> Path:
         path = self.state_dir / "macros"

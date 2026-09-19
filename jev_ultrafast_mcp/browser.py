@@ -871,7 +871,15 @@ class BrowserManager:
             if self.cfg.mode == "attach":
                 if not self.cfg.cdp_url:
                     raise ChromeLaunchError("JEVMCP_CDP_URL is required when JEVMCP_MODE=attach")
-                self._cdp = attach_chrome(self.cfg.cdp_url)
+                self._cdp = attach_chrome(
+                    self.cfg.cdp_url,
+                    timeout=self.cfg.call_timeout,
+                    data_dirs=self.cfg.attach_data_dirs(),
+                    # Chrome asks the user to approve a new debugging client. The
+                    # handshake waits on that click, so it gets a human-sized budget
+                    # rather than the call timeout.
+                    open_timeout=max(60.0, self.cfg.call_timeout),
+                )
             else:
                 self._cdp, self._process, self._profile = launch_chrome(self.cfg)
         return self._cdp
