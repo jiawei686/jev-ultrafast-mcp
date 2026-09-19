@@ -67,6 +67,31 @@ def unreachable(exc: BaseException) -> bool:
     ))
 
 
+# A site deciding you are a robot belongs to the same class of event as the
+# network saying no: not a defect here, not something this tool can fix, and
+# counting it as a failure would make this script cry wolf. It is not rare --
+# observed live, a fresh headless profile gets "Select all squares containing a
+# duck" from DuckDuckGo after a handful of runs, which is exactly when a
+# red build would be most misleading.
+BOT_CHALLENGE = (
+    "complete the following challenge",        # DuckDuckGo
+    "select all squares",
+    "are you a robot",
+    "verify you are human",
+    "unusual traffic",                         # Google
+    "just a moment",                           # Cloudflare interstitial
+    "checking your browser",
+    "attention required",
+    "enable javascript and cookies to continue",
+)
+
+
+def bot_challenge(text: str) -> str | None:
+    """The challenge phrase the page is showing, or None if it looks like a page."""
+    lowered = text.lower()
+    return next((phrase for phrase in BOT_CHALLENGE if phrase in lowered), None)
+
+
 # ------------------------------------------------------------------- plumbing
 
 REACHABLE = re.compile(r"reachable=(\d+)/(\d+)")
@@ -145,6 +170,15 @@ async def csr_check(call, target: str) -> int:
         raise Offline(str(exc)) from exc
     took = time.monotonic() - started
 
+    challenge = bot_challenge(view)
+    if challenge:
+        # Do not report a pass either: an interstitial full of buttons would
+        # satisfy "first read sees actionable elements" while proving nothing
+        # about the page we came to measure.
+        report(SKIPPED, f"{target}: first read",
+               f"the site served a bot challenge ({challenge!r}) — nothing measured")
+        return 0
+
     reachable, total = reachable_count(view)
     report(PASSED if reachable else FAILED,
            f"{target}: first read sees actionable elements",
@@ -162,6 +196,11 @@ async def search_check(call) -> int:
     """Type into a real search box, press Enter, and read real results."""
     print("\n\033[1m[ddg] real form — type, submit, read the results\033[0m")
     view = await call("browser_open", url="https://duckduckgo.com/", hint="search")
+    challenge = bot_challenge(view)
+    if challenge:
+        report(SKIPPED, "ddg: real form",
+               f"the site served a bot challenge on open ({challenge!r})")
+        return 0
     box = find_search_box(view)
     if not box:
         report(SKIPPED, "ddg: search box located", "the home page layout changed")
@@ -177,6 +216,11 @@ async def search_check(call) -> int:
            "ddg: type and submit in one round trip", acted.splitlines()[0][:80])
 
     results = await call("browser_observe", mode="full")
+    challenge = bot_challenge(results)
+    if challenge:
+        report(SKIPPED, "ddg: search results",
+               f"the site served a bot challenge after submit ({challenge!r})")
+        return 0
     url_line = results.splitlines()[0] if results.splitlines() else ""
     links = count_roles(results, "lnk")
     report(PASSED if "q=" in url_line and "asyncio" in url_line else FAILED,
@@ -197,6 +241,11 @@ async def macro_check(call) -> int:
     """Record a real flow, then replay it without a model in the loop."""
     print("\n\033[1m[ddg] macro — record a real search, replay it\033[0m")
     view = await call("browser_open", url="https://duckduckgo.com/", hint="search")
+    challenge = bot_challenge(view)
+    if challenge:
+        report(SKIPPED, "ddg: macro record",
+               f"the site served a bot challenge on open ({challenge!r})")
+        return 0
     box = find_search_box(view)
     if not box:
         report(SKIPPED, "ddg: macro recording", "no search box on the home page")
@@ -223,10 +272,17 @@ async def macro_check(call) -> int:
            "ddg: every step re-resolved (no model calls)", replayed.splitlines()[0][:80])
 
     after = await call("browser_observe", mode="full")
-    first = after.splitlines()[0] if after.splitlines() else ""
-    report(PASSED if "dataclasses" in first else FAILED,
-           "ddg: the parameterised query reached the page",
-           first.split()[1][:90] if " " in first else "")
+    challenge = bot_challenge(after)
+    if challenge:
+        # This one would otherwise pass *because* the query is in the URL --
+        # true even when the page shows no results at all. Do not claim it.
+        report(SKIPPED, "ddg: the parameterised query reached the page",
+               f"the site served a bot challenge ({challenge!r})")
+    else:
+        first = after.splitlines()[0] if after.splitlines() else ""
+        report(PASSED if "dataclasses" in first else FAILED,
+               "ddg: the parameterised query reached the page",
+               first.split()[1][:90] if " " in first else "")
 
     listed = await call("browser_macro", action="list")
     report(PASSED if "live-search" in listed else FAILED, "ddg: macro is on disk",
@@ -322,11 +378,13 @@ async def run(headless: bool, targets: list[str]) -> int:
     passed = sum(1 for status, _, _ in RESULTS if status == PASSED)
     failed = [name for status, name, _ in RESULTS if status == FAILED]
     skipped = [name for status, name, _ in RESULTS if status in (SKIPPED, NETWORK_SKIP)]
+    offline = [name for status, name, _ in RESULTS if status == NETWORK_SKIP]
 
     print("\n\033[1mSummary\033[0m")
     print(f"  checks passed     : {passed}/{len(RESULTS)}")
     print(f"  skipped           : {len(skipped)}"
-          + ("  (offline — nothing was proven)" if skipped else ""))
+          + (f"  ({len(offline)} offline, {len(skipped) - len(offline)} site-side)"
+             if skipped else ""))
     print(f"  bytes to the agent: {observed:,} (~{observed // 4:,} tokens)")
     print(f"  state dir         : {state}")
     if failed:
@@ -334,7 +392,8 @@ async def run(headless: bool, targets: list[str]) -> int:
         for name in failed:
             print(f"    - {name}")
     if skipped and not passed:
-        print("\n  \033[33mEvery check was skipped. This run proves nothing — check the network.\033[0m")
+        print("\n  \033[33mEvery check was skipped. This run proves nothing —\033[0m"
+              "\n  \033[33mthe network, or the sites themselves, said no.\033[0m")
     return 1 if failed else 0
 
 
