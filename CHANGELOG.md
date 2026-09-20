@@ -58,9 +58,9 @@ All notable changes to this project are documented here. The format follows
   evaluated by a script it cannot inspect. The three rules that keep an unattended replay away from
   password fields and "Buy now" are *not* divergences and are compared in full, refusal sentence
   included — a port that got one of those subtly wrong would not report a problem, it would click and
-  look exactly like success. `test/act-parity.mjs` runs 31 operations through both dispatchers and
+  look exactly like success. `test/act-parity.mjs` runs 32 operations through both dispatchers and
   compares the step report *and* the CDP commands each side issued, because a dispatcher that ignores
-  an argument still reports `ok`; 211 checks, and the port was mutated rather than merely observed —
+  an argument still reports `ok`; 214 checks, and the port was mutated rather than merely observed —
   19 mutations, the 3 that escaped were all real gaps and are now closed, one of them a host match
   that let `notexample.com` pass an `example.com` allow list.
   `scripts/extension_check.py` gained a sixth section for the two things fixtures cannot reach: it
@@ -73,7 +73,7 @@ All notable changes to this project are documented here. The format follows
   non-integral, where the two agree — so it surfaced only because a real replay of a macro that matched
   *perfectly* printed both. Fixed with a `pythonFloat` primitive, and pinned twice: a `float` fixture
   family holding it to Python's own `str(round(v, 3))` over every score the matcher can return, and an
-  assertion that the header reaches for it. 195 tests, 13 of them here — two new ones in
+  assertion that the header reaches for it. 197 tests, 15 of them here — four new ones in
   `tests/test_extension.py` for who may call the debugger, and `tests/test_act_port.py` for the
   execution layer, which also pins two genuine `browser.py` oddities rather than quietly improving on
   them: `scroll` documents a `ref` it never reads, because `scroll` is not in the set that reads one,
@@ -164,6 +164,29 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **The execution fixtures were generated for one platform.** `browser.py::_select_all` sends Meta
+  (4) on a Mac and Ctrl (2) everywhere else, so the modifier travelled from the generating machine
+  into `chrome-extension/test/act-fixtures.json`. This machine is a Mac; CI is Linux; so CI
+  regenerated the file as `2` and `test_the_committed_fixtures_are_what_the_generator_produces`
+  refused a file that was perfectly correct where it was written. Everything else was green — the
+  parity run, the whole suite, and the real-browser check — because none of them regenerate the file
+  on the other platform, and the JS side had hardcoded `platform: 'mac'` so both halves agreed here
+  and disagreed there. The platform is now an input per case rather than an inherited fact, the clear
+  path is generated once for each value, and the property is asserted rather than the mechanism:
+  build the file pretending to be three platforms and require one answer. Covering only the
+  generator's own platform is exactly the state that hid this, so the Ctrl/Meta pair is asserted as a
+  pair — which also means the branch that decides what the user's keyboard does has coverage for the
+  first time.
+- **A red CI run could not be asked why.** The four browser checks run with `continue-on-error`, so
+  GitHub reports every one of them as passing — a step that fails but is allowed to has
+  `conclusion: success` and only `outcome: failure`, which the API does not expose. The single detail
+  went to the step summary, which is rendered in the browser and returned by no API, so the comment
+  above it ("a failing run here is diagnosable from an API call") was only half true. The tails now go
+  to `::error` annotations as well, which the Checks API does return, along with an annotation naming
+  the four outcomes outright. That is how the failure above was found after the first attempt to read
+  it failed. A branch that could never fire is fixed too: it watched for `scenario failed`, a string
+  that only appears in `smoke.py`, while `pytest -q` says `1 failed` for a failing test and `1 error`
+  for a collection problem.
 - **A dropped browser socket is rebuilt instead of wedging the server forever.**
   `websockets` never reconnects, and the manager kept the `Cdp` object regardless of
   its state — so a quit browser, a slept machine or an unanswered keepalive turned the

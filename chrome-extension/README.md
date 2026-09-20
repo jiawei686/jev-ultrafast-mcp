@@ -35,7 +35,7 @@ So this ships the server's own parts instead.
 | `test/macro-fixtures.json` | 46 cases whose expected output was produced by the **real Python resolver** — refusals included. |
 | `test/live-observation.json` | Two raw observer payloads taken off a live page, so the resolver is held to the wire format as it actually arrives. |
 | `test/macro-parity.mjs` | Resolves each case with the port and compares, refusing for refusing. |
-| `test/act-fixtures.json` | 114 cases from the **real Python dispatcher** — the op tables, the three refusal rules, 31 dispatched ops, 9 rendered reports. |
+| `test/act-fixtures.json` | 115 cases from the **real Python dispatcher** — the op tables, the three refusal rules, 32 dispatched ops, 9 rendered reports. |
 | `test/act-parity.mjs` | Runs the same ops through both dispatchers and compares the step report *and* the CDP commands each one issued. |
 
 The port is Python-shaped in two places on purpose, because matching the server matters more than
@@ -129,7 +129,7 @@ wrong would not report a problem: it would click, and look exactly like success.
 ### How it was checked
 
 The port is held to Python by fixtures the real dispatcher wrote, and `test/act-parity.mjs` runs the
-same 31 operations through both — comparing not just "did the step report `ok`" but the CDP commands
+same 32 operations through both — comparing not just "did the step report `ok`" but the CDP commands
 each side issued, because a dispatcher that ignores an argument still reports `ok`. That equivalence
 is not measurable from the outside: a click on the wrong element and a click on the right one produce
 the same reply.

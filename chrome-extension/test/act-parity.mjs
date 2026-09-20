@@ -220,7 +220,12 @@ function comparable(calls) {
 for (const scenario of FIXTURES.scenarios) {
   const label = `${JSON.stringify(scenario.op.op)}  (${scenario.why})`;
   const driver = scriptedDriver(scenario);
-  const session = createSession(driver, { platform: 'mac', helperSource: '/* fixture */' });
+  // The platform comes from the fixture, not from here. `_select_all` sends Meta on a Mac and Ctrl
+  // elsewhere, so a case generated on one platform does not describe the other, and pinning this to
+  // 'mac' is what let a Linux CI machine regenerate the file as `2` while this side kept sending
+  // `4`. Every case records the platform it was generated on; the generator covers both.
+  const session = createSession(driver, {
+    platform: scenario.platform || 'mac', helperSource: '/* fixture */' });
   let actual;
   try {
     await session.attach();

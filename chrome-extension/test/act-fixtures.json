@@ -397,6 +397,7 @@
   "scenarios": [
     {
       "why": "a plain click",
+      "platform": "mac",
       "op": {
         "op": "click",
         "ref": "e5"
@@ -438,6 +439,7 @@
     },
     {
       "why": "a click on a confirmation rule",
+      "platform": "mac",
       "op": {
         "op": "click",
         "ref": "e5"
@@ -460,6 +462,7 @@
     },
     {
       "why": "the same click, confirmed",
+      "platform": "mac",
       "op": {
         "op": "click",
         "ref": "e5",
@@ -504,6 +507,7 @@
     },
     {
       "why": "a click with no ref",
+      "platform": "mac",
       "op": {
         "op": "click"
       },
@@ -521,6 +525,7 @@
     },
     {
       "why": "a click on a ref the page has moved on from",
+      "platform": "mac",
       "op": {
         "op": "click",
         "ref": "e5"
@@ -544,7 +549,8 @@
       }
     },
     {
-      "why": "typing into an ordinary field",
+      "why": "typing into an ordinary field, clearing first",
+      "platform": "mac",
       "op": {
         "op": "type",
         "ref": "e5",
@@ -611,7 +617,76 @@
       }
     },
     {
+      "why": "the same on a keyboard where select-all is Ctrl rather than Meta",
+      "platform": "other",
+      "op": {
+        "op": "type",
+        "ref": "e5",
+        "text": "Zurich"
+      },
+      "dry_run": false,
+      "script": {
+        "label": "Where from?"
+      },
+      "expected": {
+        "step": {
+          "op": "type",
+          "ok": true,
+          "ref": "e5",
+          "target": "Where from?"
+        },
+        "calls": [
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mousePressed",
+              "button": "left",
+              "clickCount": 1
+            }
+          },
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mouseReleased",
+              "button": "left",
+              "clickCount": 1
+            }
+          },
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "keyDown",
+              "key": "a",
+              "code": "KeyA",
+              "windowsVirtualKeyCode": 65,
+              "modifiers": 2,
+              "commands": [
+                "selectAll"
+              ]
+            }
+          },
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "keyUp",
+              "key": "a",
+              "code": "KeyA",
+              "windowsVirtualKeyCode": 65,
+              "modifiers": 2
+            }
+          },
+          {
+            "method": "Input.insertText",
+            "params": {
+              "text": "Zurich"
+            }
+          }
+        ]
+      }
+    },
+    {
       "why": "typing into a password field",
+      "platform": "mac",
       "op": {
         "op": "type",
         "ref": "e5",
@@ -635,6 +710,7 @@
     },
     {
       "why": "typing without clearing first, one key at a time",
+      "platform": "mac",
       "op": {
         "op": "type",
         "ref": "e5",
@@ -699,6 +775,7 @@
     },
     {
       "why": "typing and submitting",
+      "platform": "mac",
       "op": {
         "op": "type",
         "ref": "e5",
@@ -787,6 +864,7 @@
     },
     {
       "why": "selecting by value",
+      "platform": "mac",
       "op": {
         "op": "select",
         "ref": "e5",
@@ -806,6 +884,7 @@
     },
     {
       "why": "selecting by label",
+      "platform": "mac",
       "op": {
         "op": "select",
         "ref": "e5",
@@ -825,6 +904,7 @@
     },
     {
       "why": "a select with nothing to select",
+      "platform": "mac",
       "op": {
         "op": "select",
         "ref": "e5"
@@ -844,6 +924,7 @@
     },
     {
       "why": "selecting the empty string",
+      "platform": "mac",
       "op": {
         "op": "select",
         "ref": "e5",
@@ -863,6 +944,7 @@
     },
     {
       "why": "selecting zero",
+      "platform": "mac",
       "op": {
         "op": "select",
         "ref": "e5",
@@ -882,6 +964,7 @@
     },
     {
       "why": "a select the page cannot honour",
+      "platform": "mac",
       "op": {
         "op": "select",
         "ref": "e5",
@@ -907,6 +990,7 @@
     },
     {
       "why": "toggling on",
+      "platform": "mac",
       "op": {
         "op": "toggle",
         "ref": "e5",
@@ -948,6 +1032,7 @@
     },
     {
       "why": "a toggle already in the requested state",
+      "platform": "mac",
       "op": {
         "op": "toggle",
         "ref": "e5",
@@ -967,6 +1052,7 @@
     },
     {
       "why": "hovering",
+      "platform": "mac",
       "op": {
         "op": "hover",
         "ref": "e5"
@@ -991,6 +1077,7 @@
     },
     {
       "why": "a key combination",
+      "platform": "mac",
       "op": {
         "op": "keys",
         "keys": "ctrl+shift+k"
@@ -1031,6 +1118,7 @@
     },
     {
       "why": "a named key",
+      "platform": "mac",
       "op": {
         "op": "keys",
         "key": "Enter"
@@ -1071,6 +1159,7 @@
     },
     {
       "why": "keys with nothing to press",
+      "platform": "mac",
       "op": {
         "op": "keys"
       },
@@ -1088,6 +1177,7 @@
     },
     {
       "why": "scrolling with a ref it will not read",
+      "platform": "mac",
       "op": {
         "op": "scroll",
         "ref": "e5",
@@ -1115,6 +1205,7 @@
     },
     {
       "why": "scrolling up",
+      "platform": "mac",
       "op": {
         "op": "scroll",
         "dir": "up",
@@ -1142,6 +1233,7 @@
     },
     {
       "why": "a wait of zero ms",
+      "platform": "mac",
       "op": {
         "op": "wait",
         "ms": 0
@@ -1159,6 +1251,7 @@
     },
     {
       "why": "a wait with no argument",
+      "platform": "mac",
       "op": {
         "op": "wait"
       },
@@ -1175,6 +1268,7 @@
     },
     {
       "why": "waiting for text that is already there",
+      "platform": "mac",
       "op": {
         "op": "wait_for_text",
         "text": "body"
@@ -1191,6 +1285,7 @@
     },
     {
       "why": "a dry run",
+      "platform": "mac",
       "op": {
         "op": "click",
         "ref": "e5"
@@ -1210,6 +1305,7 @@
     },
     {
       "why": "nav outside the envelope",
+      "platform": "mac",
       "op": {
         "op": "nav",
         "url": "javascript:alert(1)"
@@ -1228,6 +1324,7 @@
     },
     {
       "why": "nav with no url",
+      "platform": "mac",
       "op": {
         "op": "nav"
       },
@@ -1245,6 +1342,7 @@
     },
     {
       "why": "an op nobody knows",
+      "platform": "mac",
       "op": {
         "op": "broadcast"
       },
@@ -1262,6 +1360,7 @@
     },
     {
       "why": "an op that is not an object",
+      "platform": "mac",
       "op": "not an op",
       "dry_run": false,
       "script": {},

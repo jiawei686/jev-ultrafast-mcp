@@ -28,6 +28,7 @@ Regenerate after touching `browser.py`, `safety.py`, `config.py` or the port:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sys
 from pathlib import Path
@@ -199,8 +200,10 @@ SCENARIOS: list[dict] = [
     {"why": "a click with no ref", "op": {"op": "click"}},
     {"why": "a click on a ref the page has moved on from", "op": {"op": "click", "ref": "e5"},
      "guard": {"ok": False, "reason": "detached"}},
-    {"why": "typing into an ordinary field", "op": {"op": "type", "ref": "e5", "text": "Zurich"},
-     "label": "Where from?"},
+    {"why": "typing into an ordinary field, clearing first",
+     "op": {"op": "type", "ref": "e5", "text": "Zurich"}, "label": "Where from?"},
+    {"why": "the same on a keyboard where select-all is Ctrl rather than Meta", "platform": "other",
+     "op": {"op": "type", "ref": "e5", "text": "Zurich"}, "label": "Where from?"},
     {"why": "typing into a password field", "op": {"op": "type", "ref": "e5", "text": "hunter2"},
      "label": "Password"},
     {"why": "typing without clearing first, one key at a time",
@@ -274,6 +277,32 @@ DIVERGENCES: list[dict] = [
 ]
 
 
+# The one op that reads `sys.platform` is `_select_all`, which sends Meta (4) on a Mac and Ctrl (2)
+# everywhere else -- so `modifiers` lands in this file, read off the machine that generated it. That
+# made the fixture machine-dependent: CI on Linux regenerated it as `2` where the committed file says
+# `4`, and `test_the_committed_fixtures_are_what_the_generator_produces` refused a file that was
+# perfectly correct on the machine that wrote it. A fixture whose bytes depend on where it was
+# generated is not a fixture, so the platform is an input per case rather than an inherited fact, and
+# the clear path is generated once for each value. That branch is a real decision about the user's
+# keyboard and it had no coverage at all before -- the two-platform pair is the fix and the coverage.
+PLATFORMS = {"mac": "darwin", "other": "linux"}
+
+
+@contextlib.contextmanager
+def platform_as(name: str):
+    """Run the real dispatcher as if it were on `name`'s platform.
+
+    `browser.py::_select_all` does its own `import sys`, so this patches the stdlib global rather
+    than anything local to the module.
+    """
+    original = sys.platform
+    sys.platform = PLATFORMS[name]
+    try:
+        yield
+    finally:
+        sys.platform = original
+
+
 def scenario_case(scenario: dict) -> dict:
     cdp = ScriptedCdp()
     if "label" in scenario:
@@ -282,8 +311,10 @@ def scenario_case(scenario: dict) -> dict:
         cdp.guard = scenario["guard"]
     if "select" in scenario:
         cdp.select = scenario["select"]
+    platform = scenario.get("platform", "mac")
     session = browser.Session(name="fixture", cfg=Config(), cdp=cdp)
-    step = session._run_op(scenario["op"], dry_run=scenario.get("dry_run", False), strict=True)
+    with platform_as(platform):
+        step = session._run_op(scenario["op"], dry_run=scenario.get("dry_run", False), strict=True)
     report = step.to_dict()
     # A fixture cannot contain a stopwatch. `ms` is a real reading of how long the step took, so
     # leaving it in makes this file differ from its own generator on every run and turns the
@@ -292,6 +323,9 @@ def scenario_case(scenario: dict) -> dict:
     report.pop("ms", None)
     return {
         "why": scenario["why"],
+        # Which platform the real dispatcher was told it was running on. Recorded rather than left
+        # implicit, because the machine that generated this file is not the machine that checks it.
+        "platform": platform,
         "op": scenario["op"],
         "dry_run": scenario.get("dry_run", False),
         # What the scripted page had to say, so the other side can set up the same page.

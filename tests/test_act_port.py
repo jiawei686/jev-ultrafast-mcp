@@ -46,7 +46,7 @@ FIXTURES = TEST / "act-fixtures.json"
 
 
 def test_the_dispatcher_port_agrees_with_python():
-    """Run the Node parity check: 31 operations through both dispatchers, reports and commands.
+    """Run the Node parity check: 32 operations through both dispatchers, reports and commands.
 
     Node is not a dependency of this package and is not on PATH in every sandbox, so this skips with
     a message that says what to set rather than passing quietly. A test that becomes a no-op when its
@@ -169,6 +169,53 @@ def test_a_score_is_the_only_float_either_report_carries():
         "`ms` is no longer built with `int(...)` on both paths; if it became a float it needs a "
         "case in FLOAT_CASES too")
     assert "_render_act" in (ROOT / "jev_ultrafast_mcp" / "server.py").read_text(encoding="utf-8")
+
+
+def test_the_fixtures_do_not_depend_on_the_machine_that_generated_them():
+    """The file has to be the same wherever it was made, and for a while it was not.
+
+    `browser.py::_select_all` reads `sys.platform` -- Meta (4) on a Mac, Ctrl (2) everywhere else --
+    so the modifier reached the fixture from the generating machine. This machine is a Mac and CI is
+    Linux, so the committed file was regenerated as `2` there and
+    `test_the_committed_fixtures_are_what_the_generator_produces` refused a file that was perfectly
+    correct where it was written. Everything else was green: the parity run, the whole suite, and the
+    real-browser check, because none of them regenerate the file on the other platform.
+
+    The generator now pins the platform per case, and this asserts the property rather than the
+    mechanism: build the file three times pretending to be three platforms, and require one answer.
+    """
+    generator = _generator()
+    original = sys.platform
+    try:
+        built = {}
+        for pretend in ("darwin", "linux", "win32"):
+            sys.platform = pretend
+            built[pretend] = json.dumps(generator.build(), indent=2, ensure_ascii=False) + "\n"
+    finally:
+        sys.platform = original
+
+    assert len(set(built.values())) == 1, (
+        "the fixture depends on the platform that generated it: "
+        + ", ".join(f"{name} differs" for name, text in built.items()
+                    if text != built["darwin"]))
+
+
+def test_both_select_all_modifiers_are_covered():
+    """Pinning the platform would be worthless if it pinned only the one this machine happens to be.
+
+    Covering the generator's own platform is exactly the state that let the file pass here and fail
+    on Linux, so the pair is asserted as a pair: Ctrl somewhere in the fixture, Meta somewhere in it,
+    and the two cases distinguishable by the platform each was generated for.
+    """
+    payload = json.loads(FIXTURES.read_text(encoding="utf-8"))
+    platforms = sorted({case["platform"] for case in payload["scenarios"]})
+    modifiers = {call["params"]["modifiers"]
+                 for case in payload["scenarios"]
+                 for call in case["expected"]["calls"]
+                 if "modifiers" in call["params"]}
+
+    assert platforms == ["mac", "other"], platforms
+    assert {2, 4} <= modifiers, f"only one select-all modifier is covered: {sorted(modifiers)}"
 
 
 # --- what the port reproduces on purpose ----------------------------------------------------------
