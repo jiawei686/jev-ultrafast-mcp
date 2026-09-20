@@ -1,12 +1,12 @@
 # jev-ultrafast-mcp
 
 > An MCP server that lets an AI agent hand browser work off instead of paying a turn per click. The
-> agent sends a goal; the loop runs server-side, driven by a decision model that picks targets from
-> an indexed table of the page's controls and never writes a selector. Actions address those refs
-> in batches, assertions — not the model's opinion — decide whether it worked, and a discovered
-> path replays with zero model calls. Drive it yourself instead if you prefer: it is the same
-> tools. No Playwright, no Selenium, no screenshots in the loop: it speaks CDP directly to a Chrome
-> you already have.
+> agent sends a task and its URL; the loop runs server-side, driven by a decision model that picks
+> targets from an indexed table of the page's controls and never writes a selector. Actions address
+> those refs in batches, assertions — not the model's opinion — decide whether it worked, and a
+> discovered path replays with zero model calls. A task is handed over whole, in one call; a look at
+> a page stays direct, free and keyless, because a read is not a task. No Playwright, no Selenium, no
+> screenshots in the loop: it speaks CDP directly to a Chrome you already have.
 
 Works with any MCP client (WorkBuddy, Claude Code, Claude Desktop, Codex CLI, Cursor, VS Code,
 Cline, Windsurf, Gemini CLI). MIT licensed. Requires Python ≥ 3.10 and any Chromium-family browser.
@@ -29,9 +29,10 @@ Cline, Windsurf, Gemini CLI). MIT licensed. Requires Python ≥ 3.10 and any Chr
 
 ## Tools
 
-- `browser_goal(goal, session, max_steps, verify)` — hand the whole goal over: a decision model
-  drives the loop server-side, so the caller spends one turn rather than one per action. Reports
-  what it cost (`turbo: N decisions · N tokens · Ns model + Ns page · Ns wall`).
+- `browser_goal(goal, url, session, max_steps, verify)` — hand the whole task over: pass the URL and
+  the goal, and a decision model opens the page and drives the loop server-side, so the caller spends
+  one turn rather than one per action. Reports what it cost
+  (`turbo: N decisions · N tokens · Ns model + Ns page · Ns wall`).
 - `browser_open(url, session, hint)` — open a URL in a background tab it owns, return the element table
 - `browser_observe(session, mode, include_text, include_json)` — re-read the page; `mode=auto` emits a delta
 - `browser_act(ops, session, dry_run, stop_on_error, observe_after)` — many ops in one round trip

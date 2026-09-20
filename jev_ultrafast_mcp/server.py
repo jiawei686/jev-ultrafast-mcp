@@ -28,7 +28,19 @@ from .safety import SafetyError
 INSTRUCTIONS = """\
 Fast browser control for agents.
 
-Loop:  browser_open -> read the element table -> browser_act -> browser_assert.
+Hand the task over. A browser task -- fill this form, check in here, find that
+and click it -- goes to browser_goal(goal, url, verify=[...]) in one call: it
+opens the page, drives the loop server-side with a decision model, and proves
+the outcome with `verify`. Do not drive a task yourself, click by click; that is
+what this server is for.
+
+Reading a page is not a task. browser_open / browser_observe / browser_assert
+are direct, free, and need no key -- use them to inspect, to read a value, or to
+work out why a goal failed. The only other reason to fall back is browser_goal
+answering `turbo_unavailable`, which means no model key is configured.
+
+The manual loop, for those two cases only:
+    browser_open -> read the element table -> browser_act -> browser_assert.
 
 The element table lists one line per actionable control:
     e12 btn  "Sign in"
@@ -48,7 +60,8 @@ Rules that keep it fast and correct:
      did nothing — change strategy, do not repeat the ref.
   4. A step that fails says why (occluded, stale, out_of_viewport). The right
      response is usually to observe again, not to retry.
-  5. Use browser_assert to prove an outcome. Do not infer success from "no error".
+  5. Prove the outcome instead of trusting a summary: pass `verify` to
+     browser_goal, or call browser_assert. Do not infer success from "no error".
   6. After discovering a path, record it as a macro: replay costs no tokens.
 """
 
@@ -98,6 +111,36 @@ def _view(observation: Observation, mode: str = "auto", include_text: bool = Tru
 def _brief(observation: Observation) -> str:
     return (f"{observation.url} — {len(observation.elements)} elements, "
             f"{observation.reachable} reachable, obs#{observation.sequence}")
+
+
+def _first_read(tab) -> Observation:
+    """Read a freshly opened page until its element set stops changing.
+
+    `load` fires long before a page's JavaScript has finished mounting. The
+    observer's own settle pass only waits while there is *nothing* actionable at
+    all, which a content-rich page never is, so it answers at once with a table
+    that is missing exactly the late half. On 1point3acres that is the header —
+    and with it the signed-in state and the "today's tasks" menu the goal is
+    after: absent from the first read, present from the second. A goal handed
+    that first table can only answer BLOCKED, or click at something that is not
+    there yet, which is what makes a working goal look impossible.
+
+    Stop as soon as two consecutive reads agree on the ref set, so a page that
+    is already rendered costs one extra read and nothing more. Bounded by
+    `JEVMCP_SETTLE_TIMEOUT`, which is the knob that already means "how long to
+    wait for a client-rendered page".
+    """
+    observation = tab.observe()
+    seen = {element.ref for element in observation.elements}
+    deadline = time.monotonic() + CONFIG.settle_timeout
+    while time.monotonic() < deadline:
+        time.sleep(CONFIG.settle_poll_ms / 1000.0)
+        observation = tab.observe()
+        refs = {element.ref for element in observation.elements}
+        if refs == seen:
+            break
+        seen = refs
+    return observation
 
 
 def _tabs_list(tab) -> str:
@@ -192,7 +235,7 @@ def browser_open(url: str, session: str = "default", hint: str = "") -> str:
     try:
         tab = _session(session)
         tab.navigate(url)
-        observation = tab.observe()
+        observation = _first_read(tab)
         head = f"opened {_brief(observation)}"
         if hint:
             head += f"\ngoal: {hint}"
@@ -368,36 +411,45 @@ STALE_REF_RETRIES = 3
 
 
 @SERVER.tool(annotations=WRITES)
-def browser_goal(goal: str, session: str = "default", max_steps: int = 20,
+def browser_goal(goal: str, url: str = "", session: str = "default", max_steps: int = 20,
                  verify: list[dict] | None = None, verbose: bool = False) -> str:
-    """Run a whole goal inside the server (turbo mode). Needs a decision-model key.
+    """Hand a whole browser task over. Needs a decision-model key.
+
+    This is the entry point for browser work, not an optimisation on top of the
+    manual loop. Pass `url` and the goal and the page is opened and driven to
+    the end here: one call, one host turn, instead of a turn per click.
+
+    Leave `url` out when the task continues from a page an earlier step left
+    behind; the goal then runs against whatever the session is already showing.
 
     Each step costs one request (operation + every target head in a single
-    speculative fan-out). Use this when you want the browser driven end
-    to end without spending a host turn per click. Without a key, use
-    browser_observe + browser_act instead.
+    speculative fan-out). `verify` runs browser_assert-style checks on the final
+    page, so the result is a fact rather than a model's claim of success.
 
     The key is TYPESAFE_API_KEY, or OPENROUTER_API_KEY when TYPESAFE_BASE_URL
     points at https://openrouter.ai/api/alpha/decisions -- same model, same
-    contract, no TypeSafe account needed.
-
-    `verify` runs browser_assert-style checks on the final page, so the result
-    is a fact rather than a model's claim of success.
+    contract, no TypeSafe account needed. Reading a page needs no key at all, so
+    when no key is set the handoff is unavailable while browser_open,
+    browser_observe and browser_act keep working.
     """
     if not policy.available(CONFIG):
-        return ("turbo_unavailable: no decision-model key is set.\n"
+        return ("turbo_unavailable: no decision-model key is set, so the task cannot be "
+                "handed over.\n"
                 "Set TYPESAFE_API_KEY, or OPENROUTER_API_KEY with "
                 "TYPESAFE_BASE_URL=https://openrouter.ai/api/alpha/decisions.\n"
-                "Drive the same loop yourself: browser_observe → pick a ref → browser_act.")
+                "Until then, drive the loop yourself: browser_observe → pick a ref → browser_act.")
     try:
         tab = _session(session)
         started = time.perf_counter()
-        observation = tab.observe()
+        if url:
+            tab.navigate(url)
+        observation = _first_read(tab)
         trace: list[str] = []
         status = "running"
         steps = 0
         stale = 0        # re-observations spent on the step currently in flight
         recovered = 0    # re-observations spent by the goal as a whole
+        re_read = False  # the one re-read allowed when the first answer is BLOCKED
         calls = 0        # decision requests, including the one that said DONE
         model_ms = 0     # time spent waiting on the decision model
         browser_ms = 0   # time spent waiting on the page
@@ -420,6 +472,19 @@ def browser_goal(goal: str, session: str = "default", max_steps: int = 20,
             tokens += _tokens(decision.get("usage"))
             operation = decision["operation"]
             if operation in {"DONE", "BLOCKED"}:
+                # "Nothing to act on" about a page that has not finished
+                # rendering is not an answer about the goal, it is an answer
+                # about the clock. Re-read once, only while nothing has been
+                # attempted yet, and only out of the goal-wide recovery budget
+                # so `max_steps` stays a bound on billed requests.
+                if (operation == "BLOCKED" and steps == 0 and not re_read
+                        and recovered < max_steps):
+                    re_read = True
+                    recovered += 1
+                    trace.append("  -   BLOCKED on a page with nothing to act on; "
+                                 "re-reading in case it is still mounting")
+                    observation = _first_read(tab)
+                    continue
                 status = operation.lower()
                 trace.append(f"  {steps + 1}. {operation} (conf {decision.get('confidence', 0):.2f})")
                 break

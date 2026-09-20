@@ -8,6 +8,28 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Both READMEs now say how to make the handoff actually arrive.** Pointing a client at the server
+  is half of it; an agent that never hears the rule drives the page itself, one call per click. The
+  new section under *Connecting an agent* names the measured failure (WorkBuddy ships a server's
+  tools and drops its `instructions`), gives the two-line skill install that closes it, and — more
+  useful than a claim — says how to tell it took: a `browser_goal` call with a `url` inside it means
+  the handoff is live. The tool table now leads with handoffs and demotes reading to "a look is not a
+  task", which is what `instructions` and the skill already said.
+- **Search metadata brought in line with the pitch.** `server.json`'s description — the registry caps
+  that field at 100 characters, which `tests/test_docs.py` asserts — now reads "Hand a whole browser
+  task off in one call: a server-side decision model drives the page." `pyproject.toml` gained a
+  `PyPI` project URL so the package page and the repository link to each other.
+- **`skills/jev-ultrafast-mcp/SKILL.md`** — the handoff rule as a skill, for clients that do not
+  surface a server's `instructions` (WorkBuddy does not; measured under `### Changed` below). It
+  carries the one-call signature, why `verify` is mandatory rather than tidy, the two cases that
+  justify the manual loop, and the operational traps that waste a run: a backgrounded tab never
+  clears a bot check, the server reads its config once at import, and a machine that sleeps kills its
+  browser socket for good. It also says what `attach` mode does not do — start a browser — with the
+  headed, non-default-profile launch that supplies one, and how to read the two failures that are
+  not failures: `blocked` with 0 steps means the model could not see the target, so suspect your
+  `verify` string and the element table's `omitted N` before suspecting the engine, while a
+  `TYPE_TEXT needs TEXT_MODEL_API_KEY` refusal means the model answered and the policy layer
+  declined, which only ever affects writing a value into an input.
 - **One-command client setup** — `scripts/install.py` detects the MCP clients on the machine
   (WorkBuddy, Claude Code, Claude Desktop, Codex CLI, Cursor, VS Code, Cline, Windsurf, Gemini CLI)
   and writes the dialect each one expects. Merges rather than overwrites, backs up to `*.bak`, and
@@ -49,7 +71,55 @@ All notable changes to this project are documented here. The format follows
   the wall time, which tells you whether the next optimisation belongs in the prompt or in the page.
   Absent when no decision was ever made, so a refusal does not print a budget implying it ran.
 
+### Fixed
+
+- **A goal no longer plans against a page that is still mounting.** `load` fires long before a
+  page's JavaScript has finished, and the observer's settle pass only waits while there is
+  *nothing* actionable at all — so on a content-rich page it answers immediately with a table
+  that is missing exactly the late half. `browser_goal` and `browser_open` now read until two
+  consecutive reads agree on the ref set, bounded by `JEVMCP_SETTLE_TIMEOUT`, so a page that is
+  already rendered costs one extra read and nothing more.
+- **A first `BLOCKED` is re-read once before it is believed.** "Nothing to act on" about a page
+  that has not finished rendering is an answer about the clock, not about the goal. The re-read
+  is allowed only while nothing has been attempted yet, only once per goal, and only out of the
+  goal-wide recovery budget, so `max_steps` stays a bound on billed requests.
+
+  Both are honest about their reach: they cover the page that is *late*, not the element the
+  observer never reports. On 1point3acres the daily-task menu is still absent from every read of
+  `/home` even after settling, so that case is **not** fixed by these two changes.
+
 ### Changed
+
+- **Handing the task over is now the design, not an option.** `browser_goal` gained `url`, so a whole
+  browser task is **one call** — open, drive, verify — instead of requiring the caller to open the
+  page first and then hand over. The server's own `instructions` were rewritten around that rule: a
+  task goes to `browser_goal`; the manual loop is the fallback for the two cases that need it (no
+  model key, or a page you want to look at yourself); and reading is explicitly *not* a task, so the
+  free keyless tools remain the right answer for a look. Both READMEs, `llms.txt` and the tool
+  reference were brought in line.
+
+  This is where the previous pass stopped short. The READMEs, `llms.txt`, `docs/DESIGN.md` and
+  `browser_goal`'s own docstring had all been corrected to sell the handoff — but `instructions` is
+  the one text a *connecting host* receives before it picks a tool, and it still described the manual
+  loop (`browser_open -> observe -> act -> assert`) without ever naming `browser_goal`. A host that
+  read it did exactly that, one call per click, so delegation only ever happened when a human asked
+  for it by name.
+
+  The guards pin the properties that were missing rather than the presence of a word:
+  `tests/test_instructions.py` checks the handoff is stated *first* and stated *as the rule* (a guard
+  that only checked "`browser_goal` is mentioned" passes while the text still reads as "drive it
+  yourself", which is how the drift survived a docs pass in the first place), and
+  `tests/test_turbo_resilience.py` checks the goal navigates *before* it observes — a goal that plans
+  against the page it just left is the failure `url` exists to remove.
+
+  One measurement decided the rest of the change. **WorkBuddy delivers a server's *tools* to the
+  model and drops its *instructions*.** Across the recorded model requests, the MCP tool schemas are
+  plainly there — in the newest one, `browser_goal` sits at offset 43,594 of the payload and
+  `browser_observe` at 78,394 — while the instructions appear nowhere. Absence is meaningful rather
+  than truncation: the system prompt begins at offset 13, so anything appended to it lands far above
+  the payload cap. Fixing `INSTRUCTIONS` therefore helps every client that honours it (Claude Code,
+  Claude Desktop, Cursor, …) and does **nothing** for WorkBuddy. That is why the rule also ships as
+  `skills/jev-ultrafast-mcp/SKILL.md`, in a channel that client does render.
 
 - **Both READMEs, `docs/DESIGN.md` and the one-line summaries now lead with the handoff.** They used
   to sell the project as a keyless server with no second model — descriptionally true of the browser

@@ -53,6 +53,7 @@ Repository = "https://github.com/jiawei686/jev-ultrafast-mcp"
 Issues = "https://github.com/jiawei686/jev-ultrafast-mcp/issues"
 Changelog = "https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/CHANGELOG.md"
 Documentation = "https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/docs/DESIGN.md"
+PyPI = "https://pypi.org/project/jev-ultrafast-mcp/"
 
 [project.scripts]
 jev-ultrafast-mcp = "jev_ultrafast_mcp.server:main"

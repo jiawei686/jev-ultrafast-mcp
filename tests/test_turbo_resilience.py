@@ -129,8 +129,15 @@ class _FakeSession:
         self.history: list = []
         self.last: Observation | None = None
         self.acts: list[list[dict]] = []
+        # Order matters for the handoff: a goal that navigates has to do it
+        # before it reads the page, or it plans against the page it just left.
+        self.events: list[str] = []
+
+    def navigate(self, url: str) -> None:
+        self.events.append(f"navigate {url}")
 
     def observe(self, **_kwargs) -> Observation:
+        self.events.append("observe")
         self.last = _observation()
         return self.last
 
@@ -166,7 +173,7 @@ def _checked_in() -> Observation:
 
 
 def _drive(monkeypatch, session: _FakeSession, decisions: list[dict], max_steps: int = 20,
-           verify: list[dict] | None = None):
+           verify: list[dict] | None = None, url: str = ""):
     """Run `browser_goal` against a scripted session and decision sequence."""
     seen: list[dict] = []
 
@@ -182,12 +189,41 @@ def _drive(monkeypatch, session: _FakeSession, decisions: list[dict], max_steps:
     monkeypatch.setattr(server.policy, "available", lambda _cfg: True)
     monkeypatch.setattr(server.policy, "choose", fake_choose)
     monkeypatch.setattr(server, "_session", lambda _name: session)
-    return server.browser_goal("do the thing", max_steps=max_steps, verify=verify,
+    return server.browser_goal("do the thing", url=url, max_steps=max_steps, verify=verify,
                                verbose=True), seen
 
 
 def _click() -> dict:
     return {"operation": "CLICK", "ref": "e1", "confidence": 0.9}
+
+
+def test_the_handoff_opens_the_page_before_it_plans(monkeypatch):
+    """`url` is what makes the handoff complete: one call, no pre-opened page.
+
+    The order is the substance, not a detail. A goal that reads the page before
+    navigating plans against whatever the session happened to be showing -- and
+    on a session that has never opened anything that is `about:blank`, so the
+    model is asked to work out a task from an empty page.
+    """
+    session = _FakeSession([_ok()])
+    decisions = [_click(), {"operation": "DONE", "confidence": 0.9}]
+
+    out, _seen = _drive(monkeypatch, session, decisions, url="https://example.test/checkin")
+
+    assert session.events[0] == "navigate https://example.test/checkin", (
+        f"the goal must open the page before it reads it, got {session.events[:3]}")
+    assert session.events[1] == "observe", session.events[:3]
+    assert "status: done" in out, out
+
+
+def test_a_goal_without_a_url_runs_on_the_page_it_is_given(monkeypatch):
+    """Continuing from an earlier page is why `url` is optional, not required."""
+    session = _FakeSession([_ok()])
+
+    _drive(monkeypatch, session, [{"operation": "DONE", "confidence": 0.9}])
+
+    assert session.events[0] == "observe", session.events[:3]
+    assert not [e for e in session.events if e.startswith("navigate")], session.events[:3]
 
 
 def test_a_stale_ref_does_not_spend_the_next_step_s_budget(monkeypatch):
@@ -261,15 +297,89 @@ def test_the_page_beats_a_blocked_model_when_it_proves_the_goal(monkeypatch):
 
 
 def test_a_blocked_model_stays_blocked_when_the_page_does_not_prove_it(monkeypatch):
-    """The converse, so the rule above cannot be satisfied by optimism alone."""
-    session = _FakeSession([_ok()])
+    """The converse, so the rule above cannot be satisfied by optimism alone.
 
-    out, _seen = _drive(monkeypatch, session,
-                        [{"operation": "BLOCKED", "ref": None, "confidence": 1.0}],
-                        verify=PROOF)
+    The first BLOCKED is re-read (see the mounting tests below), so a genuinely
+    blocked goal has to be blocked on the second answer too: the re-read buys a
+    second look, not a different verdict.
+    """
+    session = _FakeSession([_ok()])
+    blocked = {"operation": "BLOCKED", "ref": None, "confidence": 1.0}
+
+    out, seen = _drive(monkeypatch, session, [dict(blocked), dict(blocked)], verify=PROOF)
 
     assert "status: blocked" in out, out
     assert "verified: FAIL" in out, out
+    assert len(seen) == 2, "the first BLOCKED is re-read, the second is believed"
+
+
+# ------------------------------------------------------ the page is not ready yet
+
+
+def _thin() -> Observation:
+    """The page as it reads before its JavaScript has mounted the header."""
+    return dataclasses.replace(_observation(), elements=[])
+
+
+def _mounted() -> Observation:
+    """The same page once the header — and the menu the goal is after — is there."""
+    return dataclasses.replace(
+        _observation(),
+        elements=[Element(ref="e9", role="button", name="Today's tasks")])
+
+
+def test_the_first_read_waits_for_the_page_to_stop_growing(monkeypatch):
+    """`load` is not "rendered": the header arrives afterwards.
+
+    The observer's own settle pass only waits while there is *nothing*
+    actionable at all, so on a content-rich page it answers immediately and
+    misses exactly the late half — on 1point3acres the signed-in state and the
+    daily-task menu. A goal handed that table can only answer BLOCKED.
+    """
+    session = _FakeSession([])
+    reads = iter([_thin(), _mounted(), _mounted()])
+    monkeypatch.setattr(session, "observe", lambda **_kwargs: next(reads, _mounted()))
+
+    settled = server._first_read(session)
+
+    assert [element.ref for element in settled.elements] == ["e9"], (
+        "the first read must be the settled page, not the one that answered first")
+
+
+def test_a_blocked_first_answer_is_re_read_before_it_is_believed(monkeypatch):
+    """BLOCKED on the first read is usually the page, not the goal.
+
+    The menu is not missing, it is late. Believing the first answer ends a goal
+    that would have worked one second later, so the loop spends one re-read
+    before it accepts "nothing to act on".
+    """
+    session = _FakeSession([_ok()])
+    reads = iter([_thin(), _thin(), _mounted(), _mounted(), _mounted()])
+    monkeypatch.setattr(session, "observe", lambda **_kwargs: next(reads, _mounted()))
+
+    out, seen = _drive(monkeypatch, session,
+                       [{"operation": "BLOCKED", "ref": None, "confidence": 0.6},
+                        {"operation": "CLICK", "ref": "e9", "confidence": 0.9},
+                        {"operation": "DONE", "confidence": 0.9}])
+
+    assert "re-reading" in out, out
+    assert "status: done" in out, out
+    assert [element.ref for element in seen[0].elements] == [], (
+        "the first look was the page that had not mounted yet")
+    assert [element.ref for element in seen[1].elements] == ["e9"], (
+        "the re-read found the menu, which is what unblocked the goal")
+
+
+def test_the_re_read_is_bounded_so_max_steps_still_bounds_the_bill(monkeypatch):
+    """A page that never mounts must not turn BLOCKED into a retry loop."""
+    session = _FakeSession([])
+    monkeypatch.setattr(session, "observe", lambda **_kwargs: _thin())
+    blocked = {"operation": "BLOCKED", "ref": None, "confidence": 1.0}
+
+    out, seen = _drive(monkeypatch, session, [dict(blocked)] * 10)
+
+    assert "status: blocked" in out, out
+    assert len(seen) == 2, f"{len(seen)} requests for one BLOCKED answer"
 
 
 def test_a_provider_failure_mid_goal_keeps_what_the_goal_already_did(monkeypatch):

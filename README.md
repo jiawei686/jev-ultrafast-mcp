@@ -10,9 +10,11 @@
 
 **Hand the browser work off — an MCP server that drives the page for your agent.**
 
-One tool call instead of twenty. Three seconds instead of a minute. A cent instead of a frontier
-model's context. And it never invents a target: it picks from what the page actually has, and the
-server refuses rather than guesses.
+Your agent should not be opening the browser at all. A browser task goes over whole — the URL, the
+goal, and the check that proves it — and the loop runs on the server. One tool call instead of
+twenty. Three seconds instead of a minute. A cent instead of a frontier model's context. And it
+never invents a target: it picks from what the page actually has, and the server refuses rather than
+guesses.
 
 **What it cost.** A cent for the whole day, and a cent is all of it:
 
@@ -38,11 +40,13 @@ config and saving a `.bak` first. Needs Python ≥ 3.10 and any Chromium-family 
 Restart the client, and then just say what you want:
 
 > **You:** Set this form to 3 adults, tick *Nonstop only*, then submit it.
-> **Your agent:** `browser_goal(goal=…, verify=[…])` — **one** call; the loop runs server-side, and
-> the page is checked by code afterwards. ([what that costs](#cheap-and-fast-and-here-is-the-bill))
+> **Your agent:** `browser_goal(goal=…, url=…, verify=[…])` — **one** call; the page is opened and the
+> loop runs server-side, and the result is checked by code afterwards.
+> ([what that costs](#cheap-and-fast-and-here-is-the-bill))
 
 > **You:** Open example.com and tell me what the page says.
-> **Your agent:** `browser_open` → reads the element table → answers.
+> **Your agent:** `browser_open` → reads the element table → answers — a look is not a task, so it
+> does not need the model.
 > ([verbatim run](#what-a-session-actually-looks-like))
 
 **Restarted and the tools are not there?** Some clients make you approve the server once. In
@@ -334,18 +338,48 @@ declare `"type": "stdio"` or it is silently skipped.
 The browser does not start until the first `browser_open`, and the tab it drives is a **background
 tab it owns** — focus emulation keeps animations and menus running without stealing your window.
 
+### Making sure your agent actually hands it over
+
+Pointing the client at the server is half of it. The other half is that the agent has to *know* to
+hand over — and that part is not automatic everywhere.
+
+A server sends a short `instructions` block when a client connects, and this one's first rule is
+that a browser task goes to `browser_goal`, in one call, with the URL. Clients that read it behave.
+Not all of them do: **WorkBuddy delivers a server's tools to the model and drops its
+`instructions`** — measured, not assumed: the tool schemas are in the recorded request payload, the
+instructions text is not. A host in that position does the obvious thing and drives the page itself,
+one call per click, which is exactly the work this server exists to take away.
+
+Two ways to close that gap — either is enough:
+
+1. **Install the skill.** [`skills/jev-ultrafast-mcp/SKILL.md`](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/skills/jev-ultrafast-mcp/SKILL.md)
+   carries the same rule in the form a client reads as a skill, plus the traps that waste a run.
+   Copy it into your client's skills folder (`~/.workbuddy/skills/` for WorkBuddy):
+
+   ```bash
+   mkdir -p ~/.workbuddy/skills/jev-ultrafast-mcp
+   cp /path/to/jev-ultrafast-mcp/skills/jev-ultrafast-mcp/SKILL.md ~/.workbuddy/skills/jev-ultrafast-mcp/
+   ```
+
+2. **Or say it once.** "Browser tasks go to `browser_goal`" is enough for most sessions — an agent
+   told that keeps doing it.
+
+**How to tell it took.** Ask for something that needs a click. If `browser_goal` comes back with a
+`url` inside the call, the handoff is live. If the agent opens the page and starts walking the
+element table for you instead, the rule did not arrive — install the skill, or say it once.
+
 ---
 
 ## What you can ask it to do
 
 | Say this | What happens |
 |---|---|
-| "Open this page and tell me what it says" | reads the visible text and the controls |
-| "Fill in this form and submit it" | one batched `browser_act`, many fields per round trip |
-| "Log in and download last month's invoice" | you log in by hand once; the profile persists |
-| "Check every product page in this list" | loop in your agent, refs stay valid between steps |
-| "Do this same thing again tomorrow" | record a **macro**; replay costs zero model calls |
+| "Fill in this form and submit it" | **handed over whole** — one `browser_goal` carrying the URL, the goal and a check; the loop runs server-side |
+| "Walk this flow in staging and tell me if it worked" | the same one call — `verify` decides PASS/FAIL by code, and it outranks the model's own account |
+| "Do this same thing again tomorrow" | record a **macro**; replay costs zero model calls and needs no key at all |
+| "Open this page and tell me what it says" | a look, not a task: reads the visible text and the controls — no model, no key |
 | "Did the deploy actually ship?" | `browser_assert` returns PASS/FAIL, not an opinion |
+| "Log in and download last month's invoice" | you log in by hand once; the profile persists |
 | "Click through checkout in staging" | payment-like buttons come back as `needs_confirmation` |
 
 ## What it is **not**
@@ -437,11 +471,13 @@ second way to drive.
 
 Two differences, and the first one is the reason this exists.
 
-**The agent is allowed to decline the driving.** A browser flow is a loop, and in most servers that
-loop lives in the calling agent: read the page, name one element, wait, read again. Fine for two
-steps, absurd for twenty — twenty turns of an expensive context to do what a smaller model could
-have done in one call. Here you can hand the whole goal over instead and pay a single turn, or keep
-the wheel and drive it yourself. Same tools, same guards, either way.
+**The driving is not the agent's job.** A browser flow is a loop, and in most servers that loop
+lives in the calling agent: read the page, name one element, wait, read again. Fine for two steps,
+absurd for twenty — twenty turns of an expensive context to do what a smaller model could have done
+in one call. Here the loop lives on the server: one `browser_goal` call carries the URL, the goal
+and the check, and the agent never opens the browser itself. The manual tools stay for the two cases
+that need them — reading a page, which is not a task and should not cost a model call, and the
+fallback when no model key is configured.
 
 **The model never invents a target.** Most browser MCP servers hand over CDP primitives —
 `click_at_xy`, a CSS selector, `evaluate`. Maximum flexibility, minimum safety: a wrong selector
@@ -452,9 +488,9 @@ is choosing among options the page actually has, so accuracy does not rest on it
 
 | | primitives-based browser MCP | **jev-ultrafast-mcp** |
 |---|---|---|
-| Who runs the loop | the calling agent, every step | **either — `browser_goal` runs it server-side** |
+| Who runs the loop | the calling agent, every step | **the server — one `browser_goal` call** |
 | How a target is named | a selector / coordinate / JS the model writes | **a `ref` from an element table** |
-| Extra model calls | none | **none to drive it yourself; `browser_goal` is opt-in** |
+| Extra model calls | none | **one small decision model per step, and only inside `browser_goal`** |
 | API keys required | none | **none for the browser tools**; a decision-model key only for `browser_goal` |
 | Ref lifetime | n/a (agent re-invents each step) | **stable across observations** |
 | Re-reading the page | full dump every time | **delta** — `+` added, `~` changed, `-` removed, `= no change` |
@@ -536,10 +572,15 @@ navigates back to where the task began and re-resolves every step by role + acce
 refusing weak or ambiguous matches rather than clicking the wrong thing. `params` fills
 `{{placeholders}}` in typed text and URLs.
 
-### `browser_goal(goal, session="default", max_steps=20, verify=[...])`
-Runs the whole loop server-side using TypeSafe speculative fan-out (one request per step). Needs
-`TYPESAFE_API_KEY`, or `OPENROUTER_API_KEY` with `TYPESAFE_BASE_URL` pointed at OpenRouter's
-decisions route. Returns `verified: PASS/FAIL` when `verify` checks are supplied.
+### `browser_goal(goal, url="", session="default", max_steps=20, verify=[...])`
+Hands the whole task over. Pass `url` and the goal and the page is opened and driven to the end
+server-side using TypeSafe speculative fan-out (one request per step) — one call, one turn. Leave
+`url` out to carry on from the page the session is already showing. Needs `TYPESAFE_API_KEY`, or
+`OPENROUTER_API_KEY` with `TYPESAFE_BASE_URL` pointed at OpenRouter's decisions route. Returns
+`verified: PASS/FAIL` when `verify` checks are supplied.
+
+Reading a page is not a task: `browser_open`, `browser_observe` and `browser_assert` are direct,
+free and keyless, so a look stays cheap. The handoff is for work that changes the page.
 
 Every run also reports its own bill — `turbo: 4 decisions · 14,626 tokens · 1.8s model + 1.1s page ·
 3.3s wall` — so what the handoff cost is visible in the answer, alongside how much of the wall time
