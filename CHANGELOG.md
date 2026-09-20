@@ -288,6 +288,23 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **The two ways to attach a page now share one setup block, and the reason is written down.** A
+  `Session` reaches a page either by attaching to a target it just created (`_attach_page`, via
+  `browser_open`) or by attaching to a tab that already exists (`switch_tab`). CDP documents
+  `Emulation.setDeviceMetricsOverride`, `Emulation.setFocusEmulationEnabled` and
+  `Page.addScriptToEvaluateOnNewDocument` as session-scoped, which made the second route look like it
+  was missing three calls — the shape of a bug where a switched-to tab is read and photographed
+  through a viewport the config never asked for. It was investigated as the likely cause of the
+  intermittent `Page.captureScreenshot` failure, and **it is not that**: with `switch_tab` skipping
+  the block entirely, a switched-to tab still reported `window.innerWidth` as `cfg.window`, still
+  answered `document.hasFocus()` true, still ran rAF, and still fired a document-start script after
+  navigating itself. Chrome applies these to the *target*, so a re-attach inherits them and the
+  missing calls cost nothing observable. The block is shared anyway — the scoping is undocumented, a
+  silent failure here would look like an ordinary observation rather than an error, and one block
+  means the next per-session setting cannot be added to one path and forgotten in the other — and
+  `tests/test_session_prep.py` pins that sharing rather than any pixel. The screenshot flake stays
+  open; nothing here closes it.
+
 - **Handing the task over is now the design, not an option.** `browser_goal` gained `url`, so a whole
   browser task is **one call** — open, drive, verify — instead of requiring the caller to open the
   page first and then hand over. The server's own `instructions` were rewritten around that rule: a

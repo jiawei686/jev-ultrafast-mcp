@@ -126,12 +126,33 @@ class Session:
             self.navigate(url)
         return self
 
-    def _attach_page(self, url: str) -> None:
-        result = self.cdp.call("Target.createTarget", url=url, background=self.background)
-        self.target_id = result["targetId"]
-        self.page_session = self.cdp.call(
-            "Target.attachToTarget", targetId=self.target_id, flatten=True
-        )["sessionId"]
+    def _prepare_page(self) -> None:
+        """The setup every freshly attached session gets, in one place.
+
+        Two routes reach a page: attaching a session to a target we just created
+        (`_attach_page`) and attaching one to a tab that already exists
+        (`switch_tab`). These calls are documented as session-scoped, so the
+        second route looks like it must re-issue them.
+
+        Measured on this build, it does not. With `switch_tab` skipping this
+        block entirely, a switched-to tab still reported `window.innerWidth` as
+        `cfg.window`, still answered `document.hasFocus()` true, still ran rAF,
+        and still fired a document-start script after navigating itself. Chrome
+        applies these to the *target*, so a re-attach inherits them and skipping
+        the block costs nothing observable today.
+
+        It is shared anyway, because that is not a property to rely on. The
+        scoping is undocumented, it is the sort of thing a Chrome release
+        changes, and the failure would be silent -- a tab read through the wrong
+        viewport produces an ordinary-looking observation, not an error. One
+        block means the next per-session setting added here cannot be forgotten
+        there.
+
+        `Target.activateTarget` is deliberately *not* part of it. Bringing a
+        window to the front is a decision about the user's desktop, not about
+        the session, so it stays in `_attach_page`, where `background` governs
+        it.
+        """
         self.cdp.call("Page.enable", session_id=self.page_session)
         self.cdp.call("Runtime.enable", session_id=self.page_session)
         width, height = self.cfg.window
@@ -142,6 +163,14 @@ class Session:
         self.cdp.call("Emulation.setFocusEmulationEnabled", session_id=self.page_session, enabled=True)
         self.cdp.call("Page.addScriptToEvaluateOnNewDocument", session_id=self.page_session,
                       source=HELPER_SRC)
+
+    def _attach_page(self, url: str) -> None:
+        result = self.cdp.call("Target.createTarget", url=url, background=self.background)
+        self.target_id = result["targetId"]
+        self.page_session = self.cdp.call(
+            "Target.attachToTarget", targetId=self.target_id, flatten=True
+        )["sessionId"]
+        self._prepare_page()
         if not self.background:
             try:
                 self.cdp.call("Target.activateTarget", targetId=self.target_id)
@@ -263,8 +292,7 @@ class Session:
         self.page_session = self.cdp.call(
             "Target.attachToTarget", targetId=self.target_id, flatten=True
         )["sessionId"]
-        self.cdp.call("Page.enable", session_id=self.page_session)
-        self.cdp.call("Runtime.enable", session_id=self.page_session)
+        self._prepare_page()
         self._ensure_helper()
         self.last = None  # a fresh tab is a fresh observation context
         self._refresh_tabs()
