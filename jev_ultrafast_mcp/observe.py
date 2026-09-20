@@ -50,6 +50,10 @@ class Element:
     multiple: bool = False
     label: str = ""
     in_viewport: bool = True
+    # True when the element is a menu trigger -- it names or tracks a popup, so
+    # whatever it opens is only reachable after pointing at it. The observer
+    # decides this from `aria-haspopup`/`aria-expanded`; see js/observer.js.
+    hoverable: bool = False
 
     @property
     def code(self) -> str:
@@ -74,6 +78,7 @@ class Element:
             accept=raw.get("accept"),
             multiple=bool(raw.get("multiple")),
             label=_short(raw.get("label") or "", 160),
+            hoverable=bool(raw.get("hoverable")),
             # The observer reports this as `inViewport`. Dropping it left `in_viewport`
             # permanently True, so the `»` flag never rendered even though the header
             # advertises it and counts the same elements in `offscreen`.
@@ -108,6 +113,11 @@ class Element:
             kinds.append("CLICK")
         else:
             kinds.append("CLICK")
+        if self.hoverable:
+            # Not an alternative to CLICK: whatever this trigger opens is absent
+            # from the table until the pointer rests on it, so the trigger has to
+            # be hovered before anything behind it can even be named.
+            kinds.append("HOVER")
         return kinds
 
     def render(self, *, detail: bool = False, mask: bool = True) -> str:
@@ -118,6 +128,8 @@ class Element:
             flags += "\u2298"
         elif not self.in_viewport:
             flags += "\u00bb"          # off-screen: act will scroll it into view
+        if self.hoverable and self.expanded != "true":
+            flags += "\u22ee"          # menu trigger: hover it, then choose
         if self.expanded == "true":
             flags += "\u25be"
         if self.checked is True:
@@ -237,6 +249,12 @@ class Observation:
             header += f"  (omitted {self.omitted} low-priority)"
         if self.offscreen:
             header += f"  (offscreen {self.offscreen}, \u00bb = will scroll on act)"
+        triggers = sum(
+            1 for element in self.elements
+            if element.hoverable and element.expanded != "true"
+        )
+        if triggers:
+            header += f"  ({triggers} \u22ee = menu trigger, hover before choosing)"
         lines.append(header)
 
         warnings = []

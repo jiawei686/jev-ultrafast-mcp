@@ -640,7 +640,17 @@ def browser_doctor() -> str:
     }
     report["hints"] = []
     if not report.get("connected"):
-        if CONFIG.mode == "attach":
+        if report.get("connection") == "dropped":
+            # The socket is gone but the setup is fine, so the "point me at a
+            # browser" advice below would send the caller off to fix a config
+            # that was never wrong. Say what actually happened instead.
+            report["hints"].append(
+                "The socket to the browser dropped — Chrome quit, the machine slept, or a "
+                "keepalive went unanswered. Nothing needs setting up: the next call opens a "
+                "fresh socket, adopting the browser already running rather than starting a "
+                "second one."
+            )
+        elif CONFIG.mode == "attach":
             report["hints"].append(
                 "Attach mode: nothing is started for you. Point JEVMCP_CDP_URL at a browser "
                 f"already exposing CDP (now {CONFIG.cdp_url or 'unset'}) — e.g. the "

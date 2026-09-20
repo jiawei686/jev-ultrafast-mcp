@@ -226,7 +226,7 @@ BASE_ACTION = {
     "ref": "e1", "role": "button", "name": "Search", "label": "Search", "value": "",
     "editable": False, "occluded": False, "inViewport": True, "checked": None, "expanded": None,
     "current": None, "options": [], "opts_total": 0, "secret": False, "context": "",
-    "accept": None, "multiple": False,
+    "accept": None, "multiple": False, "hoverable": False,
 }
 
 # The observer's per-action contract, and the `Element` field each key has to reach. This exists
@@ -237,6 +237,7 @@ ACTION_TO_ELEMENT = {
     "editable": "editable", "occluded": "occluded", "inViewport": "in_viewport",
     "checked": "checked", "expanded": "expanded", "current": "current", "options": "options",
     "opts_total": "opts_total", "secret": "secret", "accept": "accept", "multiple": "multiple",
+    "hoverable": "hoverable",
 }
 
 # The observer's own bookkeeping. `node`, `rank` and `order` are how it builds and sorts the list
@@ -250,7 +251,7 @@ ACTION_MUTATIONS: dict[str, object] = {
     "value": "a value", "editable": True, "occluded": True, "inViewport": False,
     "checked": True, "expanded": "true", "current": "2 adults",
     "options": [{"ref": "e1:1", "label": "One", "value": "1", "selected": True}],
-    "opts_total": 5, "secret": True, "accept": ".pdf", "multiple": True,
+    "opts_total": 5, "secret": True, "accept": ".pdf", "multiple": True, "hoverable": True,
 }
 
 
@@ -312,6 +313,7 @@ def test_the_flags_on_an_element_come_from_the_observer():
         "\u25be": {"expanded": "true"},
         "\u2713": {"checked": True},
         "\u00b7": {"checked": False},
+        "\u22ee": {"hoverable": True},
     }
 
     for glyph, override in flags.items():

@@ -71,8 +71,53 @@ All notable changes to this project are documented here. The format follows
   the wall time, which tells you whether the next optimisation belongs in the prompt or in the page.
   Absent when no decision was ever made, so a refusal does not print a budget implying it ran.
 
+- **`HOVER` is in the vocabulary, so a hover-only menu is reachable.** The decision
+  model could only click, type, select, toggle, scroll and wait — so a header trigger
+  that opens its menu on hover (1point3acres' 「今日任务」) was unreachable: its items
+  are not in the DOM until a pointer rests on the trigger, the model clicked the
+  trigger instead, the menu toggled, and the goal looped to `max_steps`. Three layers
+  now agree, and the executor already knew how: the observer reports `hoverable` from
+  `aria-haspopup` / `aria-expanded` — never from a Tailwind `hover:` class, which is a
+  style, not a signal — `Element.target_kinds()` **appends** `HOVER` beside `CLICK` so
+  a trigger keeps both, and `OPERATION_LABELS` / `OPERATION_TO_ACT` carry `HOVER` →
+  `hover`. Triggers render with a `⋮` and the observation header counts them, and each
+  one's criteria say `opens_on: hover, not click`. Measured on a real page (W3C's ARIA
+  menubar example), cold start with empty history: `HOVER` chosen at **p=0.98**, where
+  the same page previously took eight consecutive `CLICK`s on one trigger.
+- **`browser_doctor` separates "never connected" from "the socket died."** It gained a
+  `connection` field — `attached` / `dropped` / `idle` — and `connected` now means the
+  socket we hold is *usable* rather than merely *present*. `dropped` also gets its own
+  hint, because the existing attach-mode advice ("point `JEVMCP_CDP_URL` at a browser
+  exposing CDP") would send the caller off to fix a config that was never wrong.
+
 ### Fixed
 
+- **A dropped browser socket is rebuilt instead of wedging the server forever.**
+  `websockets` never reconnects, and the manager kept the `Cdp` object regardless of
+  its state — so a quit browser, a slept machine or an unanswered keepalive turned the
+  first hiccup into a permanent one: every later call failed with
+  `transport closed … keepalive ping timeout` until the process was restarted, with
+  `connected: true` reported throughout because it only meant "the object is not None".
+  The manager now checks liveness before each call, drops a dead socket along with the
+  sessions bound to it (their target ids only exist on that socket), and opens a fresh
+  one. In `launch` mode it **adopts the browser it already started** via
+  `reattach_chrome` rather than launching a second one and orphaning the first. This is
+  the shape of failure that reads as "this tool is hard to use": one silent break, then
+  every attempt failing with the same cryptic error.
+- **What the page just added is no longer the first thing cut.** Candidate targets were
+  truncated in document order, so a menu that only enters the DOM on hover sorted last
+  and fell outside the 120-candidate window — measured on 1point3acres, where the
+  check-in item sat at index 189 of 195. `reachable_first` now picks the first `limit`
+  candidates by `(occluded, not in viewport)` and then restores document order, which
+  keeps the newly-revealed item and the model's ordering predictable at the same time.
+- **A retried operation stops being offered for that element.** The model has no memory
+  between steps beyond the history it is shown, and an operation already in the history
+  is evidence for repeating it — clicking a hover-only trigger toggles its `aria-expanded`,
+  which the model read as progress, so eight clicks looked like eight steps forward.
+  Measured distribution: `HOVER 0.65 / CLICK 0.28` cold, `CLICK 0.35 / HOVER 0.28` after
+  three clicks on the same trigger. `stalled_targets` / `withdraw_stalled` now withdraw
+  the third repeat of one `(operation, ref)` pair while leaving other operations on the
+  same element on offer — `HOVER` on a clicked trigger survives.
 - **A goal no longer plans against a page that is still mounting.** `load` fires long before a
   page's JavaScript has finished, and the observer's settle pass only waits while there is
   *nothing* actionable at all — so on a content-rich page it answers immediately with a table
@@ -85,8 +130,9 @@ All notable changes to this project are documented here. The format follows
   goal-wide recovery budget, so `max_steps` stays a bound on billed requests.
 
   Both are honest about their reach: they cover the page that is *late*, not the element the
-  observer never reports. On 1point3acres the daily-task menu is still absent from every read of
-  `/home` even after settling, so that case is **not** fixed by these two changes.
+  observer never reports. On 1point3acres the daily-task menu is absent from every read of
+  `/home` even after settling — that one is a hover-only menu, not a slow page, and is what
+  the `HOVER` entry under *Added* addresses.
 
 ### Changed
 

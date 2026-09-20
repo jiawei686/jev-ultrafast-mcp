@@ -18,7 +18,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import macros as macros_mod
-from .cdp import Cdp, CdpError, ChromeLaunchError, attach_chrome, launch_chrome
+from .cdp import (
+    Cdp,
+    CdpError,
+    ChromeLaunchError,
+    attach_chrome,
+    launch_chrome,
+    reattach_chrome,
+)
 from .config import Config
 from .observe import Observation
 from .safety import SafetyError, check_url, confirm_reason, is_secret
@@ -870,23 +877,59 @@ class BrowserManager:
 
     @property
     def cdp(self) -> Cdp:
+        """The live socket to the browser, rebuilt if the one we had went dead.
+
+        A server outlives its socket. The user closes Chrome, the machine
+        sleeps, a keepalive goes unanswered -- and `websockets` never
+        reconnects, so the stored object goes on looking like a connection while
+        answering nothing. Without this check the first hiccup is permanent:
+        every later call fails with `transport closed` and no way back short of
+        restarting the process. Checking here instead makes the failure one
+        call wide, and it heals on the next one.
+        """
+        if self._cdp is not None and not self._cdp.alive:
+            self._drop_connection()
         if self._cdp is None:
-            if self.cfg.mode == "attach":
-                if not self.cfg.cdp_url:
-                    raise ChromeLaunchError("JEVMCP_CDP_URL is required when JEVMCP_MODE=attach")
-                self._cdp = attach_chrome(
-                    self.cfg.cdp_url,
-                    timeout=self.cfg.call_timeout,
-                    data_dirs=self.cfg.attach_data_dirs(),
-                    # Chrome asks the user to approve a new debugging client. The
-                    # handshake waits on that click, so it gets a human-sized budget
-                    # rather than the call timeout.
-                    open_timeout=max(60.0, self.cfg.call_timeout),
-                )
-            else:
-                self._cdp, self._process, self._profile = launch_chrome(
-                    self.cfg, allow_extensions=self.allow_extensions)
+            self._connect()
         return self._cdp
+
+    def _drop_connection(self) -> None:
+        """Forget a socket that stopped carrying commands.
+
+        The sessions go with it: each is bound to a socket and to target ids
+        that only exist on it, so they cannot be replayed against a new one. The
+        browser itself is left running -- in attach mode it is the user's, and
+        in launch mode the process we started is usually still alive with only
+        the socket gone, so `_connect` adopts it rather than starting a second
+        one.
+        """
+        try:
+            self._cdp.close()
+        except Exception:
+            pass
+        self._cdp = None
+        self._sessions.clear()
+
+    def _connect(self) -> None:
+        if self.cfg.mode == "attach":
+            if not self.cfg.cdp_url:
+                raise ChromeLaunchError("JEVMCP_CDP_URL is required when JEVMCP_MODE=attach")
+            self._cdp = attach_chrome(
+                self.cfg.cdp_url,
+                timeout=self.cfg.call_timeout,
+                data_dirs=self.cfg.attach_data_dirs(),
+                # Chrome asks the user to approve a new debugging client. The
+                # handshake waits on that click, so it gets a human-sized budget
+                # rather than the call timeout.
+                open_timeout=max(60.0, self.cfg.call_timeout),
+            )
+            return
+        if (self._process is not None and self._process.poll() is None
+                and self._profile is not None):
+            self._cdp = reattach_chrome(self._profile, timeout=self.cfg.call_timeout)
+            return
+        self._cdp, self._process, self._profile = launch_chrome(
+            self.cfg, allow_extensions=self.allow_extensions)
 
     def session(self, name: str = "default") -> Session:
         session = self._sessions.get(name)
@@ -948,11 +991,18 @@ class BrowserManager:
 
     def doctor(self) -> dict:
         from .config import find_chrome
+        # Deliberately does not go through `self.cdp`: reporting is read-only, and
+        # a report that starts a browser is a report that lies about the state it
+        # was asked to describe. So "connected" answers "is the socket we already
+        # hold usable", which is the question a wedged server needs answered.
+        held = self._cdp is not None
+        live = held and self._cdp.alive
         report: dict = {
             "version": __import__("jev_ultrafast_mcp").__version__,
             "mode": self.cfg.mode,
             "headless": self.cfg.headless,
-            "connected": self._cdp is not None,
+            "connected": live,
+            "connection": "attached" if live else ("dropped" if held else "idle"),
             "sessions": sorted(self._sessions),
             "typesafe_turbo": bool(self.cfg.typesafe_key),
             "text_model": bool(self.cfg.text_model_key),
@@ -965,11 +1015,13 @@ class BrowserManager:
             report["chrome"] = find_chrome(self.cfg.chrome)
         except RuntimeError as exc:
             report["chrome_error"] = str(exc)
-        if self._cdp is not None:
+        if live:
             try:
                 version = self._cdp.call("Browser.getVersion")
                 report["browser"] = version.get("product")
                 report["protocol"] = version.get("protocolVersion")
             except CdpError as exc:
                 report["browser_error"] = str(exc)
+        elif held:
+            report["browser_error"] = "the socket to the browser dropped; the next call reconnects"
         return report

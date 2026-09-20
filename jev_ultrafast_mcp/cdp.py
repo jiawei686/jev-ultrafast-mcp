@@ -19,6 +19,7 @@ import urllib.request
 from collections import deque
 from pathlib import Path
 
+from websockets.protocol import State
 from websockets.sync.client import connect
 
 from .config import Config, find_chrome
@@ -38,6 +39,26 @@ def _free_port() -> int:
         return sock.getsockname()[1]
 
 
+def _read_active_port(directory: Path) -> tuple[int, str] | None:
+    """`DevToolsActivePort` as (port, websocket path), or None if unusable.
+
+    The file is two lines: the port, then the browser endpoint path. Both the
+    attach path and the reconnect path need exactly this, and both need to be
+    strict about it -- a half-written file (Chrome is mid-startup) must read as
+    "not ready" rather than as a port number with a garbage path.
+    """
+    try:
+        lines = (directory / "DevToolsActivePort").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    if len(lines) < 2 or not lines[1].startswith("/devtools/"):
+        return None
+    try:
+        return int(lines[0].strip()), lines[1].strip()
+    except ValueError:
+        return None
+
+
 class Cdp:
     """One websocket to a browser or page endpoint."""
 
@@ -52,6 +73,20 @@ class Cdp:
         self._ws = connect(ws_url, max_size=max_size, open_timeout=open_timeout or timeout,
                            close_timeout=5, max_queue=64)
         self.events: deque[dict] = deque(maxlen=400)
+
+    @property
+    def alive(self) -> bool:
+        """Whether this socket can still carry a command.
+
+        `websockets` never reconnects, so a browser that quit, a machine that
+        slept, or a keepalive ping that went unanswered leaves this object
+        holding a socket that still *looks* present and answers nothing. A
+        server that keeps one of these for the life of the process therefore
+        cannot use "the object exists" as a stand-in for "the browser is
+        reachable" -- that is the difference between one failed call and every
+        call failing forever.
+        """
+        return self._ws.state is State.OPEN
 
     def call(self, method: str, session_id: str | None = None, timeout: float | None = None, **params):
         """Issue a CDP command and return its `result` object."""
@@ -291,23 +326,37 @@ def _from_json_version(endpoint: str, timeout: float) -> str | None:
 def _from_active_port(endpoint: str, data_dirs: list[Path]) -> str | None:
     """Resolve the WebSocket endpoint from `DevToolsActivePort`.
 
-    The file is two lines: the port, then the browser endpoint path. Its port has
-    to be the one we were pointed at; otherwise it belongs to some other browser
-    that happens to have run on this machine.
+    Its port has to be the one we were pointed at; otherwise it belongs to some
+    other browser that happens to have run on this machine.
     """
     wanted = urllib.parse.urlparse(endpoint).port or 9222
     for directory in data_dirs:
-        try:
-            lines = (directory / "DevToolsActivePort").read_text(encoding="utf-8").splitlines()
-        except OSError:
+        found = _read_active_port(directory)
+        if found is None or found[0] != wanted:
             continue
-        if len(lines) < 2 or not lines[1].startswith("/devtools/"):
-            continue
-        try:
-            port = int(lines[0].strip())
-        except ValueError:
-            continue
-        if port != wanted:
-            continue
-        return f"ws://127.0.0.1:{port}{lines[1].strip()}"
+        return f"ws://127.0.0.1:{found[0]}{found[1]}"
     return None
+
+
+def reattach_chrome(profile: Path, timeout: float = 30.0,
+                    open_timeout: float | None = None) -> Cdp:
+    """Reconnect to a browser we launched that is still running.
+
+    A socket to a browser is not the browser. A dropped connection, a slept
+    machine or an unanswered keepalive leaves the process alive with its
+    `DevToolsActivePort` still accurate, so the recovery is a new socket -- not
+    a second browser, which would leave the first one orphaned and holding the
+    profile directory.
+    """
+    found = _read_active_port(profile)
+    if found is None:
+        raise ChromeLaunchError(
+            f"No running browser is recorded in {profile / 'DevToolsActivePort'}"
+        )
+    port, ws_path = found
+    try:
+        return Cdp(f"ws://127.0.0.1:{port}{ws_path}", timeout=timeout, open_timeout=open_timeout)
+    except Exception as exc:  # noqa: BLE001 - any failure means "cannot reconnect"
+        raise ChromeLaunchError(
+            f"Cannot reconnect to the running browser on port {port}: {exc}"
+        ) from None

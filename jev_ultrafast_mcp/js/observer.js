@@ -354,15 +354,25 @@
       // Keep the control usable, but never let its value leave the page.
       const secretField = typeOf(e) === 'password' || (SECRET_HINT.test(name) && isEditable(e));
       const editable = isEditable(e);
+      // A menu that only opens on hover is reachable through its trigger and
+      // nothing else, and the trigger announces itself: `aria-haspopup` names
+      // the popup, `aria-expanded` tracks it. Those two attributes are the
+      // entire signal on purpose -- any looser guess would spend a candidate
+      // slot on every page to catch a case it cannot verify.
+      const expanded = e.getAttribute('aria-expanded');
+      const popup = e.getAttribute('aria-haspopup');
+      const hoverable = (popup !== null && popup !== 'false')
+        || (expanded !== null && !editable
+            && !['checkbox', 'radio', 'switch'].includes(it.role));
       built.push({
         node, ref: 'e' + node, role: it.role, name, label: name || it.role,
         value: secretField ? '' : valueOf(e).slice(0, 300),
-        editable, occluded, inViewport,
+        editable, occluded, inViewport, hoverable,
         rank: (inViewport ? 100 : 0) + (editable || PRIMARY.has(it.role) ? 40 : 0)
           + (SECONDARY.has(it.role) ? 15 : 0),
         order: built.length,
         checked: ['checkbox', 'radio'].includes(typeOf(e)) ? !!e.checked : null,
-        expanded: e.getAttribute('aria-expanded'),
+        expanded,
         current: e.tagName === 'SELECT' ? clean([...e.selectedOptions].map(o => o.label).join(', ')).slice(0, 120) : null,
         multiple: e.tagName === 'SELECT' ? !!e.multiple : false,
         accept: isFile(e) ? (e.getAttribute('accept') || '') : null,

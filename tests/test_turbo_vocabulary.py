@@ -141,3 +141,146 @@ def test_every_guard_reason_is_classified():
         f"or is the action impossible (end the goal)?"
     )
     assert not (server.STALE_REF_REASONS & NOT_STALE_REASONS)
+
+
+def test_a_menu_trigger_is_offered_hover_beside_click():
+    """HOVER is added to a trigger, never swapped in for CLICK.
+
+    A trigger is usually both: a mouse user clicks it, and it is also the only
+    way into the menu. Offering just one of the two would make the other
+    unreachable, so the observer's flag appends a kind instead of replacing one.
+    """
+    trigger = Element(ref="e1", role="button", name="今日任务", hoverable=True)
+
+    assert set(trigger.target_kinds()) == {"CLICK", "HOVER"}
+    operations, heads = policy._operation_heads(_observation([trigger]))
+
+    assert "HOVER" in operations
+    assert "e1" == heads["HOVER"][0].ref
+    assert "e1" == heads["CLICK"][0].ref
+    assert set(policy.OPERATION_TO_ACT) >= operations
+
+
+def test_hover_is_absent_without_the_trigger_flag():
+    """Nothing earns HOVER by accident: the flag is the only source."""
+    plain = Element(ref="e1", role="button", name="Save")
+
+    assert "HOVER" not in plain.target_kinds()
+    operations, heads = policy._operation_heads(_observation([plain]))
+
+    assert "HOVER" not in operations
+    assert "HOVER" not in heads
+
+
+def test_the_observer_decides_hoverable_from_aria_alone():
+    """The rule that grants HOVER lives in JavaScript, so its inputs are pinned here.
+
+    `hoverable` decides whether the model is offered an operation at all, and
+    every offer travels with each step. A looser rule -- a class name, or "it
+    looks clickable" -- would buy a case it cannot verify at the price of a
+    candidate slot on every page. Adding a third signal is a decision, and one
+    worth failing a test over.
+    """
+    source = OBSERVER_JS.read_text()
+    assert "const hoverable" in source, "the observer no longer computes hoverable"
+
+    start = source.index("const expanded = e.getAttribute")
+    rule = source[start:][:400]
+    assert "const hoverable" in rule, "the window no longer reaches the rule; widen it"
+    assert "aria-haspopup" in rule and "aria-expanded" in rule
+    assert "hover:" not in rule, (
+        "a Tailwind `hover:` variant is usually a colour change, not a menu: "
+        "matching it would offer HOVER on nearly every button on the page"
+    )
+
+
+def test_the_observer_and_the_reader_agree_on_the_field_name():
+    """A field the observer emits and Python never reads fails silently.
+
+    The flag crosses a language boundary with no type checker on either side, so
+    it is asserted from both ends: the observer writes `hoverable`, `from_raw`
+    reads it, and an absent key means False rather than an exception.
+    """
+    marked = Element.from_raw(
+        {"ref": "e1", "role": "button", "name": "Tasks", "hoverable": True}
+    )
+    unmarked = Element.from_raw({"ref": "e2", "role": "button", "name": "Save"})
+
+    assert marked.hoverable and "HOVER" in marked.target_kinds()
+    assert not unmarked.hoverable and "HOVER" not in unmarked.target_kinds()
+
+
+def test_a_retried_target_stops_being_offered_for_that_operation():
+    """The loop eight real steps went into, pinned as a test.
+
+    A hover-only trigger answers a click by flipping its own state, so the
+    transcript shows a change while the goal stands still, and the model reads
+    its own past click as evidence for the next one. Past the threshold the
+    target is withdrawn for the operation that is looping -- while the others,
+    HOVER most of all, stay on offer, which is what leaves a way out.
+    """
+    trigger = Element(ref="e8", role="button", name="今日任务", hoverable=True)
+    history = [{"op": "click", "ref": "e8", "ok": True}] * 3
+
+    assert policy.stalled_targets(history) == {"CLICK": {"e8"}}
+
+    _, heads = policy._operation_heads(_observation([trigger]))
+    policy.withdraw_stalled(heads, history)
+
+    assert [element.ref for element in heads["HOVER"]] == ["e8"], "the way in stays on offer"
+    assert [element.ref for element in heads["CLICK"]] == ["e8"], (
+        "dropping the only CLICK candidate would turn a loop into a dead end")
+
+
+def test_a_retried_target_is_dropped_when_another_one_can_take_its_place():
+    """With somewhere else to go, the looping target goes."""
+    looping = Element(ref="e1", role="button", name="Next")
+    other = Element(ref="e2", role="button", name="Back")
+    history = [{"op": "click", "ref": "e1", "ok": True}] * 3
+
+    _, heads = policy._operation_heads(_observation([looping, other]))
+    policy.withdraw_stalled(heads, history)
+
+    assert [element.ref for element in heads["CLICK"]] == ["e2"]
+
+
+def test_a_retry_below_the_threshold_is_left_alone():
+    """Two repeats can be an ordinary two-step control; three are a loop.
+
+    `WAIT` and `SCROLL` carry no ref, and a history entry without one cannot say
+    which target stalled, so neither is ever withdrawn.
+    """
+    history = [{"op": "click", "ref": "e8", "ok": True}] * 2
+
+    assert policy.stalled_targets(history) == {}
+    assert policy.stalled_targets([]) == {}
+    assert policy.stalled_targets([{"op": "click"}] * 5) == {}
+    assert policy.stalled_targets([{"op": "wait"}] * 5) == {}
+
+
+def test_what_the_page_just_added_is_not_the_first_thing_cut():
+    """The truncation that hid the target of a real task, pinned as a test.
+
+    A menu opens *after* the element table was built, so its items sort last in
+    document order while the trigger that opened them sorts first. Cutting the
+    candidate list at the limit in document order therefore drops the answer and
+    keeps the step already taken -- on a real check-in that entry was candidate
+    189 of 195, in the viewport, unoccluded, and never offered.
+    """
+    trigger = Element(ref="e1", role="button", name="Tasks", hoverable=True)
+    offscreen = [Element(ref=f"e{i}", role="link", name=f"Post {i}", in_viewport=False)
+                 for i in range(2, 200)]
+    appeared = Element(ref="e200", role="menuitem", name="Check in")
+    candidates = [trigger, *offscreen, appeared]
+
+    kept = policy.reachable_first(candidates, limit=20)
+    refs = [element.ref for element in kept]
+
+    assert "e200" in refs, "the element that just appeared lost its place to off-screen links"
+    assert len(refs) == 20
+    assert refs == sorted(refs, key=lambda ref: int(ref[1:])), (
+        "the kept set is still shown in document order; only the choice of what to "
+        "keep is allowed to change")
+
+    short = candidates[:5]
+    assert policy.reachable_first(short) == short, "a list under the limit is returned as it is"
