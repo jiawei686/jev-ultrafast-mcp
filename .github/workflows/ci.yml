@@ -84,9 +84,22 @@ jobs:
 
       # Downloading job logs needs repo admin rights; annotations and the step
       # summary do not. So a failing run here is diagnosable from an API call.
+      #
+      # The step summary alone is not: it is rendered in the browser and no API returns it, so a
+      # reader without a token can see that this job failed and nothing about why. The four checks
+      # above run with `continue-on-error`, so the job's step list reports all of them as passing --
+      # `conclusion` is success for a step that failed but was allowed to. What follows therefore
+      # announces, through the one channel the Checks API does expose, which of the four actually
+      # failed and what each log ends with.
+      #
+      # That gap is not theoretical: a run went red with no `[FAIL]` line, no `Traceback` and no
+      # `failed` in pytest.log, and there was no way to ask which check it was.
       - name: Publish failure detail
         if: steps.unit.outcome != 'success' || steps.smoke.outcome != 'success' || steps.mcpcheck.outcome != 'success' || steps.extcheck.outcome != 'success'
         run: |
+          echo "unit=${{ steps.unit.outcome }} smoke=${{ steps.smoke.outcome }} mcp=${{ steps.mcpcheck.outcome }} ext=${{ steps.extcheck.outcome }}"
+          echo "::error title=which check failed::unit=${{ steps.unit.outcome }} smoke=${{ steps.smoke.outcome }} mcp=${{ steps.mcpcheck.outcome }} ext=${{ steps.extcheck.outcome }}"
+
           for f in pytest.log smoke.log mcp.log extension.log; do
             [ -f "$f" ] || continue
             {
@@ -95,14 +108,27 @@ jobs:
               tail -c 6000 "$f"
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
+
+            # The same tail again, as the only form of it an API client can read. A workflow command
+            # needs its newlines escaped as %0A, which is all the python below is doing. It is one
+            # line because a heredoc body would have to sit at column zero, which ends the YAML block
+            # scalar this run step is written as. An empty log says so rather than sending an
+            # annotation with no message, which is dropped: "this step wrote nothing" is itself the
+            # finding, and it is the shape a killed process leaves behind.
+            LOG="$f" python -c "import os,pathlib;b=pathlib.Path(os.environ['LOG']).read_text(errors='replace')[-5000:] or '(this log is empty -- the step wrote nothing)';print('::error title=tail of %s::%s' % (os.environ['LOG'], b.replace('%','%25').replace(chr(13),'%0D').replace(chr(10),'%0A')))"
           done
+
           grep -h -F '[FAIL]' smoke.log mcp.log extension.log 2>/dev/null | head -25 | while IFS= read -r line; do
             echo "::error title=failing check::$(printf '%s' "$line" | sed 's/^ *//' | cut -c1-1800)"
           done
           if grep -q -F 'Traceback' pytest.log smoke.log mcp.log extension.log 2>/dev/null; then
             echo "::error title=script crashed::$(grep -h -A12 -F 'Traceback' pytest.log smoke.log mcp.log extension.log | tr '\n' '|' | cut -c1-1800)"
           fi
-          if grep -q -F 'failed' pytest.log 2>/dev/null; then
-            echo "::error title=pytest failed::$(grep -h -F 'scenario failed' -A8 pytest.log | tr '\n' '|' | cut -c1-1800)"
+          # `pytest -q` says "1 failed" for a failing test and "1 error" for a collection or fixture
+          # problem. This branch used to look for `scenario failed` -- a string that only ever appears
+          # in smoke.py's output -- so it could not fire, and a pytest failure that was not a plain
+          # `[FAIL]` reached the summary with nothing to explain it. Now it reports pytest's own line.
+          if grep -q -E '(passed|failed|error)' pytest.log 2>/dev/null; then
+            echo "::error title=pytest summary::$(grep -E '[0-9]+ (passed|failed|error)' pytest.log | tail -3 | tr '\n' '|' | cut -c1-1800)"
           fi
           exit 1
