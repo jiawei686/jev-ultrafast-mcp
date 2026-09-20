@@ -160,6 +160,23 @@ def _shot_is_real(path: Path | None) -> bool:
     return path is not None and path.is_file() and path.stat().st_size > 1000
 
 
+def _report_retry(what: str, payload: dict) -> None:
+    """Say so when a capture had to be retried.
+
+    A screenshot whose first attempt stalls is retried once, and the retry is
+    recorded in the step rather than swallowed -- but a step detail is not
+    something anyone reads on a green run, and the whole risk of a retry is that
+    it becomes invisible. CI intermittently stalls this exact capture (see
+    `Session._capture`), so the frequency is the open question, and this line is
+    what answers it: a retry per run is a flake being absorbed, and a retry on
+    every capture is a defect being hidden.
+    """
+    ops = payload.get("ops") or [{}]
+    note = ops[0].get("detail") if ops else ""
+    if note:
+        print(f"  [note] {what} needed a second attempt  —  {note}")
+
+
 def _shot_detail(payload: dict, path: Path | None) -> str:
     """What was written, or why nothing was.
 
@@ -507,6 +524,7 @@ def _run(base: str, cfg: Config, manager: BrowserManager, workdir: Path) -> int:
     payload = act(session, [{"op": "screenshot"}])
     shot = _shot_path(payload)
     check("screenshot written to a file", _shot_is_real(shot), _shot_detail(payload, shot))
+    _report_retry("screenshot", payload)
     # `quality` is JPEG-only and CDP rejects an explicit null, so asking for
     # PNG used to fail while the default JPEG path worked.
     png_payload = act(session, [{"op": "screenshot", "format": "png"}])
@@ -514,6 +532,7 @@ def _run(base: str, cfg: Config, manager: BrowserManager, workdir: Path) -> int:
     check("png screenshots work as well as jpeg",
           png is not None and png.suffix == ".png" and _shot_is_real(png),
           _shot_detail(png_payload, png))
+    _report_retry("png screenshot", png_payload)
 
     # ------------------------------------------- 14. client-rendered pages
     section("14. Client-rendered pages — waits for evidence, not for a timer")

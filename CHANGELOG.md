@@ -164,6 +164,20 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **A stalled screenshot capture is retried once, and says so.** The intermittent failure below now
+  has a name: CI reports `Page.captureScreenshot: timed out after 30.0s`, on the *first* capture after
+  a tab is closed and another promoted — while the capture immediately after it succeeds, in the same
+  run, on the same page, in 0.04s, and the PNG that follows lands a 40KB file. So it is a stall rather
+  than a refusal: the command was accepted and no frame came back inside the client's own 30s timeout.
+  `Session._capture` now retries exactly once, only for a timeout, and records that it happened in the
+  step, so the condition cannot settle into a slow green build nobody hears about;
+  `scripts/smoke.py` prints it as `[note] … needed a second attempt`. The mechanism is **not**
+  established and the retry is mitigation, not a fix — it reproduces on CI's Chrome 152 and never on
+  the local 153 across a dozen runs, the page reports itself visible either way, and the two surviving
+  explanations (the first capture forcing the frame the second then finds ready; a burst of
+  target-destruction events after the close delaying the reply past 30s) are not told apart by
+  anything here. The retry is the part that can be justified without knowing which it is, and the
+  note is what keeps the question open rather than closed.
 - **A screenshot check that could pass without a screenshot.** `scripts/smoke.py` built the path from
   the op's `target` with `Path(target or "")`, and the empty path resolves to the current directory —
   which exists, and on Linux is 4096 bytes. A screenshot op that failed therefore read as
@@ -173,8 +187,8 @@ All notable changes to this project are documented here. The format follows
   check failed — on its `.png` suffix test, reporting the directory's own size as the file's. The
   path is now `None` rather than the empty path, both halves are asserted, and the op's own
   `error`/`detail` is printed, because a missing file and a check that never looked are otherwise
-  indistinguishable. The failure underneath — `Page.captureScreenshot` reporting no target, on CI
-  only, on one of the two ops, never once across five consecutive local runs — is still open.
+  indistinguishable. Printing that detail is what produced the diagnosis above; before it, the same
+  failure reported only `browser_error`.
 - **A goal that had stopped making progress kept spending steps until `max_steps`.** `Session.act` has
   counted consecutive no-change actions for as long as it has existed, and reports them as `stuck`;
   the goal loop never read it, so the only bound on a stalled goal was the caller's step budget.

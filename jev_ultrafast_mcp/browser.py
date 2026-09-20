@@ -518,6 +518,10 @@ class Session:
         ref_raw = raw_op.get("ref")
         ref = None
         target_label = None
+        # Set by the ops that have something to say beyond their target, so a
+        # caller reading the step learns it without a second call. `None`, not
+        # `""`: `Step.to_dict` drops `None` and would keep an empty string.
+        note = None
 
         try:
             if op in REQUIRES_REF:
@@ -704,7 +708,7 @@ class Session:
             elif op == "screenshot":
                 if dry_run:
                     return Step(op=op, ok=True, detail="dry run")
-                path = self._do_screenshot(raw_op)
+                path, note = self._do_screenshot(raw_op)
                 target_label = str(path)
 
             elif op == "eval":
@@ -745,7 +749,7 @@ class Session:
                         error=_error_code(exc), detail=str(exc)[:300],
                         ms=int((time.monotonic() - started) * 1000))
 
-        step = Step(op=op, ref=ref, target=target_label, ok=True,
+        step = Step(op=op, ref=ref, target=target_label, ok=True, detail=note,
                     ms=int((time.monotonic() - started) * 1000))
         if not dry_run:
             self._record(raw_op, op, ref, target_label)
@@ -793,7 +797,43 @@ class Session:
             raise PageStale("file input is gone")
         self._call("DOM.setFileInputFiles", files=paths, objectId=remote["objectId"])
 
-    def _do_screenshot(self, raw_op: dict) -> Path:
+    def _capture(self, params: dict) -> tuple[dict, str | None]:
+        """`Page.captureScreenshot`, retried once if the first attempt stalls.
+
+        CI reports `Page.captureScreenshot: timed out after 30.0s` on the *first*
+        capture after a tab is closed and another promoted -- and the capture
+        immediately after it succeeds, in the same run, on the same page, in
+        0.04s. That is a stall rather than a refusal: the command was accepted
+        and no frame came back inside the client's timeout, and whatever the
+        first attempt did left the second one able to answer.
+
+        The mechanism is *not* established, which is why this is written as a
+        retry rather than as a fix, and why the retry is reported. It reproduces
+        on CI's Chrome (152) and not on the local one (153) across a dozen runs,
+        the page reports itself visible either way, and the driven tab is
+        activated on the paths that are allowed to. Two unconfirmed explanations
+        survive -- the first capture forcing the frame that the second then finds
+        ready, and a burst of target-destruction events after the close delaying
+        the reply past 30s -- and nothing here distinguishes them.
+
+        A silent retry would turn a real defect into a slow green build, so the
+        step carries the fact that it happened: if this starts firing on every
+        run, that is visible in the report instead of hidden behind a pass.
+
+        The note is `None` and not `""` when there was no retry, because
+        `Step.to_dict` drops `None` and keeps empty strings: a `""` would put a
+        `detail` field on every successful step, which the extension's port does
+        not emit, and the two reports are compared field for field.
+        """
+        try:
+            return self._call("Page.captureScreenshot", **params), None
+        except CdpError as exc:
+            if "timed out" not in str(exc):
+                raise
+        result = self._call("Page.captureScreenshot", **params)
+        return result, "the first capture timed out; this is the second attempt"
+
+    def _do_screenshot(self, raw_op: dict) -> tuple[Path, str | None]:
         directory = self.cfg.state_dir / "shots"
         directory.mkdir(parents=True, exist_ok=True)
         fmt = str(raw_op.get("format") or "jpeg").lower()
@@ -805,14 +845,14 @@ class Session:
         }
         if fmt != "png":
             params["quality"] = 80
-        result = self._call("Page.captureScreenshot", **params)
+        result, note = self._capture(params)
         import base64
         name = raw_op.get("path") or f"shot-{int(time.time() * 1000)}.{'png' if fmt == 'png' else 'jpg'}"
         path = Path(name)
         if not path.is_absolute():
             path = directory / path.name
         path.write_bytes(base64.b64decode(result["data"]))
-        return path
+        return path, note
 
     def _select_all(self) -> None:
         import sys
