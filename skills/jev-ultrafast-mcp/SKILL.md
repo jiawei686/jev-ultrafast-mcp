@@ -67,10 +67,32 @@ Exactly two cases:
    `browser_open` → read the element table → `browser_act` → `browser_assert`.
 2. You only want to look (see above).
 
+## Recurring work: record it once, then replay for free
+
+`browser_macro` records the path a goal discovered and replays it **with no model
+calls**. Replay re-resolves each step by role + name against a fresh observation
+and refuses to act when the best match is weak or ambiguous (`threshold`, default
+`0.7`), so it fails loudly instead of clicking the wrong thing.
+
+A chore that repeats *identically* is the wrong shape for `browser_goal` forever:
+pay the model once, `record_stop` it, then `run` the macro on later days. `params`
+fills `{{placeholders}}` in text and URLs, which is what lets one macro serve many
+days or many inputs. `inspect` shows the recorded steps before you trust them.
+
+**Replay only fits a flow whose steps are the same every time.** Judge a candidate
+by whether the *labels it clicks* are stable, not by whether the task is
+repetitive. A daily quiz whose question and options are new every morning is the
+wrong shape and belongs on `browser_goal` — the resolver refuses rather than
+guesses, so a macro there fails safely and uselessly. A check-in form whose buttons
+are always in the same place replays; a quiz whose answers change does not.
+
 ## Before handing over: is there a browser at all?
 
-`browser_doctor` returning `connected: false` usually means **nothing is
-listening on the CDP URL** — not that the server is broken. In `attach` mode the
+`browser_doctor` reports `connection` — `idle`, `attached` or `dropped`. **`idle`
+is the normal state, not a fault**: the server connects lazily, so a browser that
+has not been needed yet reads `connected: false, connection: idle`. Only `dropped`
+means a socket existed and died. Read `connected: false` as "nothing is listening
+on the CDP URL" only when something should be listening: in `attach` mode the
 server deliberately starts nothing (its own hint says "nothing is started for
 you"), so `JEVMCP_CDP_URL=http://127.0.0.1:9222` can point at empty air.
 
@@ -100,9 +122,7 @@ Two traps when supplying that browser:
   `DevToolsActivePort` inside the browser's data directory, and the server reads
   them from there — so a browser started by that toggle (including the user's own
   Chrome, which is where their logins are) works fine. If the data directory is
-  unusual, set `JEVMCP_ATTACH_PROFILE_DIR`. Chrome then asks the user to approve
-  the new debugging client, so expect a dialog on first connect and a handshake
-  that waits for it.
+  unusual, set `JEVMCP_ATTACH_PROFILE_DIR`.
 - **One port, one browser.** Two Chromes cannot share 9222: whichever binds IPv4
   answers, and if that is the wrong one you get 404s while the good instance sits
   on `[::1]`. If a launch seems to have silently failed, check
@@ -110,6 +130,22 @@ Two traps when supplying that browser:
   `open -na "Google Chrome" --args …` can drop the arguments and start the default
   profile — verify the profile from the process's own open files rather than
   trusting the command you typed.
+
+## `attach` costs a click per connection; `launch` costs one login
+
+On Chrome 144+ the `chrome://inspect/#remote-debugging` server shows an
+**"Allow remote debugging?" dialog for every incoming connection** — not once per
+launch. Attach mode therefore asks the user to approve *every* connection, and a
+reconnect **is** a connection, so anything recurring pays a click each time.
+
+`launch` mode with a non-default `--user-data-dir` needs neither the toggle nor
+any dialog (measured: launch, connect, `Browser.getVersion` in 4.6s, zero
+prompts). The price is that a fresh profile is signed out once. For a recurring
+job that is the better trade — sign in in that profile a single time, and every
+later run is prompt-free.
+
+Attach to the user's own Chrome only when their existing logins are the point
+*and* the run is a one-off.
 
 ## Reading a failure
 
@@ -120,6 +156,19 @@ Two signatures that look like engine bugs but are not:
   target **in the element table**? `observe` reports `omitted N low-priority` —
   anything not in the table is invisible to the model, and a target it cannot see
   can only produce `blocked`. Both of these are correct behaviour, not failures.
+  A large `omitted` count used to make this non-deterministic — the ranking put
+  viewport position above role, so the same goal could reach its target once and
+  report `blocked` at step 0 the next time. That is fixed (role now outranks
+  position, in both `observer.js` and `policy.reachable_first`), so a repeated
+  `blocked` at step 0 is a statement about your goal or your `verify`, not about
+  the clock.
+- **`status: stopped: no progress`.** The page stopped changing for the limit
+  `browser.py` defines, so the run ended rather than spending the rest of
+  `max_steps` on `WAIT`s. This is the usual shape of a goal that has *already
+  succeeded* — the last action removed the thing it acted on — so read `verified`
+  before you read `status`: a passing assertion upgrades this to `done`. If
+  `verified` is absent or failing, the goal genuinely stalled and needs a
+  different goal string, not a retry.
 - **`turbo_unavailable: … TYPE_TEXT … needs TEXT_MODEL_API_KEY`.** The model *did*
   answer — it returned a plan that types into a field, and the **policy layer**
   refused it. The optional `TEXT_MODEL_API_KEY` (DeepSeek by default, via
@@ -135,6 +184,14 @@ Two signatures that look like engine bugs but are not:
 Judge a handoff by `verified: PASS` **and** the final URL actually having changed —
 not by `status`.
 
+**`status: unconfirmed: …` means the model reported `done` and `verify` did not confirm it.** The
+assertion wins, so treat it as unfinished — but check your own string first, because a wrong
+`verify` produces the same line. Measured on a real daily check-in: the model clicked the submit
+button, reported `done` twice, and moved no points either time. Note also that `done` can arrive at
+`steps: 0` with the element you named not even on the page — a model that finds its target absent
+says `done` about as readily as it says `blocked`, which is the whole reason `verify` is not
+optional.
+
 ## Operational gotchas that waste a run
 
 - **The page must be in a foreground tab.** A backgrounded tab is throttled by
@@ -144,11 +201,12 @@ not by `status`.
 - **The server reads its config once, at import.** After editing the MCP config
   you must restart the client (and in WorkBuddy, click **Trust** again if you
   added or removed an env *key name* — values alone do not change the approval).
-- **A long-lived server does not reconnect.** If the machine sleeps, its browser
-  socket dies and every browser tool fails with
-  `transport closed … keepalive ping timeout` until the server restarts. A fresh
-  process attaching to the same browser works fine, which tells you the browser is
-  healthy and the server is stale.
+- **A dropped socket is self-healing, and no longer needs a restart.** The manager
+  checks liveness before each call and, on a dead socket, drops it *together with
+  the sessions bound to it* (a target id exists only on the socket that minted it)
+  and opens a fresh one. `doctor` shows `connection: dropped` for that case instead
+  of a stale `connected: true`. If `transport closed … keepalive ping timeout`
+  nevertheless stays permanent, the server predates that fix — restart it.
 - **Login state lives in the browser profile**, not in the server. A task behind
   a login only works while that profile is signed in.
 

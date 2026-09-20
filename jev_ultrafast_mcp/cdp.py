@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import itertools
 import json
+import os
+import signal
 import socket
 import subprocess
 import time
@@ -259,14 +261,53 @@ def launch_chrome(cfg: Config, *, headless: bool | None = None,
             return cdp, process, profile
         except Exception as exc:  # noqa: BLE001 - any failure means "try the next flag set"
             last_error = exc
-            try:
-                process.terminate()
-                process.wait(timeout=5)
-            except Exception:
-                process.kill()
+            # A launch that failed halfway still leaves a process group behind.
+            stop_chrome(process)
             if extra:
                 break
     raise ChromeLaunchError(f"Chrome failed to start: {last_error}")
+
+
+def stop_chrome(process: subprocess.Popen, grace: float = 5.0) -> None:
+    """Stop a browser this process started, and everything it spawned.
+
+    `launch_chrome` starts Chrome with `start_new_session=True`, so the browser
+    leads its own process group and its renderers, GPU process and utility
+    processes are in that group with it. Signalling only the leader leaves the
+    rest running: measured after a session of extension checks, 49 browsers and
+    392 processes were still alive, each holding a temporary profile open and
+    none of them reachable from the handle that started them. Signalling the
+    group is what actually reclaims them, and the escalation to SIGKILL is for
+    the browser that ignores a polite request to quit.
+
+    Never signals our own group. The guard is not paranoia: if a future caller
+    launches without `start_new_session`, `getpgid` returns the group this very
+    process is in, and the SIGTERM meant for a browser would take the caller
+    down with it.
+    """
+    if process.poll() is not None:
+        return
+    group: int | None
+    try:
+        group = os.getpgid(process.pid)
+    except (ProcessLookupError, PermissionError):
+        group = None
+    if group == os.getpgid(0):
+        group = None
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        if process.poll() is not None:
+            return
+        try:
+            if group is not None:
+                os.killpg(group, sig)
+            else:
+                process.send_signal(sig)
+        except (ProcessLookupError, PermissionError):
+            return
+        try:
+            process.wait(timeout=grace)
+        except subprocess.TimeoutExpired:
+            continue
 
 
 def attach_chrome(

@@ -246,6 +246,20 @@ def _operation_heads(observation: Observation) -> tuple[set[str], dict[str, list
     return set(heads), heads
 
 
+# The role tiers the observer ranks by, mirrored here because the cut that
+# decides what the model may choose from happens on this side. Kept in step with
+# PRIMARY/SECONDARY in js/observer.js by hand; the two lists have to agree or a
+# control can be ranked first by the page and cut first by the question.
+PRIMARY_ROLES = frozenset({
+    "button", "combobox", "listbox", "textbox", "searchbox", "checkbox",
+    "radio", "switch", "spinbutton", "file",
+})
+SECONDARY_ROLES = frozenset({
+    "option", "tab", "menuitem", "menuitemcheckbox", "menuitemradio",
+    "treeitem", "gridcell", "radio", "checkbox", "switch",
+})
+
+
 def reachable_first(candidates: list, limit: int = 120) -> list:
     """The candidates to put to the model: the most usable ones, in document order.
 
@@ -255,12 +269,32 @@ def reachable_first(candidates: list, limit: int = 120) -> list:
     entry the model has already used. Measured on a real page, the check-in entry
     was candidate 189 of 195: in the viewport, unoccluded, clickable, and absent
     from the question it was the answer to.
+
+    The sort below puts what the element *is* ahead of where it sits. Ordering by
+    position first is what let a submit button below the fold lose its place to a
+    hundred navigation links that happened to be on screen, and it made the cut
+    depend on how far the page had scrolled -- so the same page produced a
+    different question depending on when it was read. Position still separates
+    candidates inside a tier, because a control the model can use without
+    scrolling is worth preferring. Python's sort is stable, so document order
+    settles everything left over and the result is deterministic.
     """
     if len(candidates) <= limit:
         return candidates
-    usable = sorted(candidates, key=lambda element: (element.occluded, not element.in_viewport))
+    usable = sorted(candidates, key=_reachability)
     kept = {id(element) for element in usable[:limit]}
     return [element for element in candidates if id(element) in kept]
+
+
+def _reachability(element) -> tuple:
+    """Sort key for `reachable_first`: tier, then occlusion, then position."""
+    if element.editable or element.role in PRIMARY_ROLES:
+        tier = 0
+    elif element.role in SECONDARY_ROLES:
+        tier = 1
+    else:
+        tier = 2
+    return (tier, element.occluded, not element.in_viewport)
 
 
 def choose(cfg: Config, observation: Observation, goal: str, history: list[dict]) -> dict:

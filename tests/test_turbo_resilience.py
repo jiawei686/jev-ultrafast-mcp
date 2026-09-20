@@ -29,7 +29,7 @@ import json
 
 import pytest
 
-from jev_ultrafast_mcp import policy, server
+from jev_ultrafast_mcp import browser, policy, server
 from jev_ultrafast_mcp.config import Config
 from jev_ultrafast_mcp.observe import Element, Observation
 
@@ -129,12 +129,18 @@ class _FakeSession:
         self.history: list = []
         self.last: Observation | None = None
         self.acts: list[list[dict]] = []
+        self.resets = 0
+        self._streak = 0
         # Order matters for the handoff: a goal that navigates has to do it
         # before it reads the page, or it plans against the page it just left.
         self.events: list[str] = []
 
     def navigate(self, url: str) -> None:
         self.events.append(f"navigate {url}")
+
+    def reset_progress(self) -> None:
+        self.resets += 1
+        self._streak = 0
 
     def observe(self, **_kwargs) -> Observation:
         self.events.append("observe")
@@ -155,6 +161,19 @@ class _FakeSession:
         payload = {"ops": [step], "ok": step["ok"], "steps": len(self.acts)}
         if not step["ok"]:
             payload["view"] = "= no change"
+        # Mirror the real session rather than letting a test assert `stuck` into
+        # existence: the loop has to read the same contract the browser writes,
+        # so the fake counts the streak the way `browser.Session.act` does and
+        # derives `stuck` from the shared limit.
+        changed = scripted.get("page_changed", True)
+        self._streak = 0 if changed else self._streak + 1
+        payload["page_changed"] = changed
+        if self._streak >= browser.NO_CHANGE_LIMIT:
+            payload["stuck"] = (
+                f"{self._streak} consecutive actions changed nothing. "
+                "Do not retry the same ref: re-read the observation, look for a "
+                "covering dialog, or change strategy."
+            )
         return payload
 
 
@@ -164,6 +183,15 @@ def _stale() -> dict:
 
 def _ok() -> dict:
     return {"ok": True}
+
+
+def _still() -> dict:
+    """A step that succeeded and left the page exactly as it was."""
+    return {"ok": True, "page_changed": False}
+
+
+def _wait() -> dict:
+    return {"operation": "WAIT", "ref": None, "confidence": 0.6}
 
 
 def _checked_in() -> Observation:
@@ -311,6 +339,102 @@ def test_a_blocked_model_stays_blocked_when_the_page_does_not_prove_it(monkeypat
     assert "status: blocked" in out, out
     assert "verified: FAIL" in out, out
     assert len(seen) == 2, "the first BLOCKED is re-read, the second is believed"
+
+
+def test_a_model_that_says_done_over_an_unproven_page_is_not_reported_as_done(monkeypatch):
+    """The same rule pointing the other way, and the direction that costs more.
+
+    The rule above upgrades `BLOCKED` to `done` when the page proves the goal.
+    This is the converse: a model that reports DONE over a page that does not
+    prove it has not finished the goal, it has run out of ideas. Measured on a
+    real daily check-in, twice -- `status: done` after four steps, and `status:
+    done` at step 0 with the element it had been told to click not even on the
+    page -- while the points balance had not moved either time. A caller that
+    reads only `status` stops on an unfinished task, which is the one error
+    `verify` exists to prevent.
+    """
+    session = _FakeSession([_ok()])
+
+    out, _seen = _drive(monkeypatch, session,
+                        [_click(), {"operation": "DONE", "confidence": 0.9}], verify=PROOF)
+
+    assert "status: done" not in out, out
+    assert "status: unconfirmed" in out, out
+    assert "verified: FAIL" in out, out
+    assert "the assertion wins" in out, out
+
+
+def test_done_without_a_verify_is_still_taken_at_its_word(monkeypatch):
+    """With no assertion there is no second opinion, so the summary stands.
+
+    Pins the scope of the rule above: it fires on `verify` disagreeing with
+    `done`, not on `done` being doubted in general.
+    """
+    session = _FakeSession([_ok()])
+
+    out, _seen = _drive(monkeypatch, session,
+                        [_click(), {"operation": "DONE", "confidence": 0.9}])
+
+    assert "status: done" in out, out
+    assert "verified:" not in out, out
+
+
+# ------------------------------------------------------ the page has stopped moving
+
+
+def test_a_page_that_stops_changing_ends_the_goal_instead_of_burning_max_steps(monkeypatch):
+    """`act` counts how long the page has stood still; the loop has to read it.
+
+    Measured on a real daily check-in: the submit succeeded, the page never
+    changed again, and the model spent four WAITs discovering it. The run then
+    reported "stopped: hit max_steps=6", which reads as "still working" when the
+    truth is "there is nothing left to do". The count was already being kept --
+    the loop simply dropped it, so the only bound on a stalled goal was the
+    caller's step budget.
+    """
+    session = _FakeSession([_ok()] + [_still()] * 5)
+
+    out, _seen = _drive(monkeypatch, session, [_click()] + [_wait()] * 5, max_steps=20)
+
+    assert "status: stopped: no progress" in out, out
+    assert "hit max_steps" not in out, out
+    # Stopped once the page had been still for the shared limit -- not at the
+    # end of the budget, and not one step earlier than the limit allows.
+    assert len(session.acts) == browser.NO_CHANGE_LIMIT + 1, len(session.acts)
+
+
+def test_a_goal_that_stalls_after_succeeding_is_confirmed_by_its_assertion(monkeypatch):
+    """Stopping early must not turn a finished goal into a failed one.
+
+    The commonest way to stall is to have finished: the last action removed the
+    very thing it acted on. The observation is refreshed *before* the break for
+    this reason -- `verify` judges the page as it stands now, so the assertion
+    still gets to say the goal was met.
+    """
+    session = _FakeSession([_ok()] + [_still()] * 5)
+    monkeypatch.setattr(session, "observe", lambda **_kwargs: _checked_in())
+
+    out, _seen = _drive(monkeypatch, session, [_click()] + [_wait()] * 5,
+                        max_steps=20, verify=PROOF)
+
+    assert "status: done" in out, out
+    assert "verified: PASS" in out, out
+    assert "the assertion wins" in out, out
+
+
+def test_the_stall_count_does_not_carry_from_one_goal_into_the_next(monkeypatch):
+    """The streak belongs to a run, not to the session that serves it.
+
+    The count is only ever incremented, so a goal handed a session a previous
+    goal left near the limit would call itself stuck before it had acted once.
+    """
+    session = _FakeSession([_still(), _ok()])
+    session._streak = browser.NO_CHANGE_LIMIT - 1  # what the previous goal left behind
+
+    out, _seen = _drive(monkeypatch, session, [_click(), _click()], max_steps=2)
+
+    assert "no progress" not in out, out
+    assert session.resets == 1, "a goal starts its stall count from zero"
 
 
 # ------------------------------------------------------ the page is not ready yet

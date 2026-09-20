@@ -25,6 +25,7 @@ from .cdp import (
     attach_chrome,
     launch_chrome,
     reattach_chrome,
+    stop_chrome,
 )
 from .config import Config
 from .observe import Observation
@@ -81,6 +82,15 @@ class Step:
 
     def to_dict(self) -> dict:
         return {k: v for k, v in self.__dict__.items() if v is not None}
+
+
+# How many consecutive actions may change nothing before the page counts as
+# stuck. Three is long enough for a slow render to finish and short enough that
+# a model with nothing left to do stops paying for observations. Exposed as a
+# name because the goal loop reads the same number: the signal is computed here
+# and consumed there, and a caller that stopped one step earlier than this
+# limit would be stopping on a page that had not had its chance.
+NO_CHANGE_LIMIT = 3
 
 
 @dataclass
@@ -313,6 +323,14 @@ class Session:
         count = self._safe_eval("document.body ? document.body.childElementCount : 0")
         return isinstance(count, int) and count > 0
 
+    def reset_progress(self) -> None:
+        """Forget the stall streak, so a new goal starts from a clean count.
+
+        The streak belongs to a run, not to a session. A goal that inherits the
+        previous goal's count would report itself stuck on its very first step.
+        """
+        self._no_change_streak = 0
+
     def observe(self, *, include_text: bool = True, full: bool = False,
                 focus: list[str] | None = None) -> Observation:
         self._ensure_helper()
@@ -396,10 +414,11 @@ class Session:
                 self._no_change_streak = 0 if changed else self._no_change_streak + 1
                 payload["page_changed"] = changed
                 payload["view"] = observation.render(previous, mode="auto")
-        if self._no_change_streak >= 3:
+        if self._no_change_streak >= NO_CHANGE_LIMIT:
             payload["stuck"] = (
-                "Three consecutive actions changed nothing. Do not retry the same ref: "
-                "re-read the observation, look for a covering dialog, or change strategy."
+                f"{self._no_change_streak} consecutive actions changed nothing. "
+                "Do not retry the same ref: re-read the observation, look for a "
+                "covering dialog, or change strategy."
             )
         return payload
 
@@ -983,10 +1002,10 @@ class BrowserManager:
             self._cdp.close()
             self._cdp = None
         if self._process is not None:
-            try:
-                self._process.terminate()
-            except Exception:
-                pass
+            # Not `terminate()`: the browser leads its own process group and its
+            # renderers outlive a signal aimed at the leader alone. See
+            # `cdp.stop_chrome`.
+            stop_chrome(self._process)
             self._process = None
 
     def doctor(self) -> dict:

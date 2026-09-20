@@ -368,8 +368,15 @@
         node, ref: 'e' + node, role: it.role, name, label: name || it.role,
         value: secretField ? '' : valueOf(e).slice(0, 300),
         editable, occluded, inViewport, hoverable,
-        rank: (inViewport ? 100 : 0) + (editable || PRIMARY.has(it.role) ? 40 : 0)
-          + (SECONDARY.has(it.role) ? 15 : 0),
+        // Role outranks position. The reverse order -- viewport 100 against a
+        // primary control's 40 -- let a submit button below the fold lose its
+        // slot to a hundred in-viewport navigation links, and made the kept set
+        // a function of how far the page happened to be scrolled, so the same
+        // page produced a different table on the next read. Position still
+        // separates candidates inside a tier, which is why it stays.
+        rank: (editable || PRIMARY.has(it.role) ? 1000 : 0)
+          + (SECONDARY.has(it.role) ? 400 : 0)
+          + (inViewport ? 100 : 0),
         order: built.length,
         checked: ['checkbox', 'radio'].includes(typeOf(e)) ? !!e.checked : null,
         expanded,

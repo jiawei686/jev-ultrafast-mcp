@@ -16,7 +16,14 @@ browser, and `browser_close` says so instead of claiming "browser stopped".
 
 from __future__ import annotations
 
-from jev_ultrafast_mcp import server
+import os
+import shutil
+import subprocess
+import time
+
+import pytest
+
+from jev_ultrafast_mcp import cdp, server
 from jev_ultrafast_mcp.browser import BrowserManager
 from jev_ultrafast_mcp.config import Config
 
@@ -103,3 +110,77 @@ def test_doctor_hint_does_not_promise_to_launch_in_attach_mode(monkeypatch) -> N
     report = server.browser_doctor()
     assert "JEVMCP_CDP_URL" in report
     assert "launches on the first browser_open" not in report
+
+
+# ------------------------------------------------- stopping a browser we started
+#
+# The other half of the property above. In `launch` mode the browser is ours, and
+# stopping it means stopping all of it: `launch_chrome` passes
+# `start_new_session=True`, so Chrome leads its own process group and its
+# renderers, GPU process and utility processes are in that group with it.
+# Signalling only the leader leaves the rest running. Measured after a session of
+# extension checks: 49 browsers and 392 processes still alive, each holding a
+# temporary profile open, none of them reachable from the handle that started it.
+
+
+def _group_members(group: int) -> list[int]:
+    """Every live process in `group`. `ps` is not permitted in this sandbox."""
+    result = subprocess.run(["pgrep", "-g", str(group)], capture_output=True, text=True)
+    return [int(line) for line in result.stdout.split()]
+
+
+requires_pgrep = pytest.mark.skipif(
+    shutil.which("pgrep") is None, reason="needs pgrep to observe the process group")
+
+
+@requires_pgrep
+def test_stopping_a_browser_reclaims_the_whole_process_group() -> None:
+    """The leader is not the browser. Its children have to go too.
+
+    `sh -c "sleep 300 & sleep 300"` stands in for the shape of a real browser: one
+    process that forks others and waits. `terminate()` on the leader -- what this
+    used to do -- leaves the forked processes running, which is how a run that
+    looked like it had cleaned up left 392 processes behind.
+    """
+    process = subprocess.Popen(
+        ["sh", "-c", "sleep 300 & sleep 300"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    group = os.getpgid(process.pid)
+    try:
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and len(_group_members(group)) < 2:
+            time.sleep(0.05)
+        assert len(_group_members(group)) >= 2, "the fixture never forked a child"
+
+        cdp.stop_chrome(process)
+
+        assert process.poll() is not None, "the leader outlived the stop"
+        assert _group_members(group) == [], "a process in the browser's group survived"
+    finally:
+        if process.poll() is None:
+            os.killpg(group, 9)
+
+
+def test_stopping_a_browser_that_already_exited_is_a_no_op() -> None:
+    """`atexit` and an explicit `browser_close` can both land here."""
+    process = subprocess.Popen(["true"])
+    process.wait(timeout=5)
+    cdp.stop_chrome(process)  # must not raise
+
+
+def test_stop_chrome_never_signals_its_own_process_group() -> None:
+    """The guard that stops a caller from killing itself.
+
+    `stop_chrome` signals the browser's process *group*. If a caller ever launches
+    without `start_new_session`, that group is the caller's own -- and the SIGTERM
+    meant for a browser would take down the process that sent it. A child left
+    deliberately in our group pins the guard: reaching the end of this test at all
+    is the proof that the group was not signalled.
+    """
+    process = subprocess.Popen(["sleep", "300"], stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL)
+    assert os.getpgid(process.pid) == os.getpgid(0), "the fixture is not in our group"
+
+    cdp.stop_chrome(process)
+
+    assert process.poll() is not None, "the child was left running"

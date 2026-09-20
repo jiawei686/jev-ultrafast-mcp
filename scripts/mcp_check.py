@@ -15,6 +15,7 @@ import asyncio
 import http.server
 import json
 import os
+import shutil
 import socket
 import sys
 import tempfile
@@ -69,7 +70,20 @@ def _child_env(state: Path) -> dict[str, str]:
 
 
 async def run(base: str) -> int:
+    """`_run`, with the throwaway profile removed whether or not the checks pass.
+
+    The server this talks to launches its own Chrome under `JEVMCP_PROFILE_DIR`,
+    so the directory is not merely scratch: it is where a browser keeps its
+    state. Leaving it behind leaves a profile per run on disk.
+    """
     state = Path(tempfile.mkdtemp(prefix="jev-mcp-check-"))
+    try:
+        return await _run(base, state)
+    finally:
+        shutil.rmtree(state, ignore_errors=True)
+
+
+async def _run(base: str, state: Path) -> int:
     parameters = StdioServerParameters(
         command=sys.executable,
         args=["-m", "jev_ultrafast_mcp"],

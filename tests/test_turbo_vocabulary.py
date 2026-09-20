@@ -284,3 +284,62 @@ def test_what_the_page_just_added_is_not_the_first_thing_cut():
 
     short = candidates[:5]
     assert policy.reachable_first(short) == short, "a list under the limit is returned as it is"
+
+
+def test_a_control_below_the_fold_is_not_cut_to_keep_what_is_on_screen():
+    """Role outranks position -- the opposite of what the cut used to do.
+
+    The sort key was `(occluded, not in_viewport)` with no notion of role at all.
+    A submit button below the fold therefore lost its place to a hundred
+    navigation links that happened to be on screen. And because "on screen"
+    moves as the page scrolls and as ads push content down, the same page
+    produced a different question depending on when it was read: the same goal
+    reached its target page once and answered `BLOCKED` twice.
+    """
+    links = [Element(ref=f"e{i}", role="link", name=f"Feed {i}") for i in range(1, 200)]
+    submit = Element(ref="e900", role="button", name="Submit", in_viewport=False)
+
+    refs = [element.ref for element in policy.reachable_first([*links, submit], limit=20)]
+
+    assert "e900" in refs, "the submit button lost its place to on-screen links"
+    assert len(refs) == 20
+
+
+def test_position_still_separates_candidates_inside_a_tier():
+    """The fix reorders the tiers; it does not stop preferring what is usable now."""
+    on_screen = Element(ref="e1", role="button", name="Save")
+    below_fold = Element(ref="e2", role="button", name="Save", in_viewport=False)
+
+    ordered = sorted([below_fold, on_screen], key=policy._reachability)
+
+    assert [element.ref for element in ordered] == ["e1", "e2"]
+
+
+def test_a_control_outranks_a_menu_item_that_happens_to_be_on_screen():
+    """Tiers are absolute, so a button is never displaced by an on-screen item."""
+    on_screen_item = Element(ref="e1", role="menuitem", name="Item")
+    below_fold_button = Element(ref="e2", role="button", name="Go", in_viewport=False)
+
+    ordered = sorted([on_screen_item, below_fold_button], key=policy._reachability)
+
+    assert [element.ref for element in ordered] == ["e2", "e1"]
+
+
+def _js_set(source: str, name: str) -> frozenset[str]:
+    match = re.search(rf"const {name} = new Set\(\[(.*?)\]\)", source, re.S)
+    assert match, f"{name} is not declared in observer.js"
+    return frozenset(re.findall(r"'([^']+)'", match.group(1)))
+
+
+def test_the_role_tiers_match_the_observer_they_are_ranked_against():
+    """Two lists, one invariant, kept in step by hand -- so it gets a test.
+
+    `policy` decides which candidates the model may choose from; `observer.js`
+    decides which survive the table cap. If the tiers disagree, a control can be
+    ranked first by the page and cut first by the question, which is a failure
+    neither file can see on its own.
+    """
+    source = OBSERVER_JS.read_text()
+
+    assert _js_set(source, "PRIMARY") == policy.PRIMARY_ROLES
+    assert _js_set(source, "SECONDARY") == policy.SECONDARY_ROLES

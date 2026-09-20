@@ -325,6 +325,16 @@ class Popup:
 
 
 def run(base: str, headed: bool, screenshot: Path | None) -> int:
+    """`_run`, with the browser and the temporary profile reclaimed either way.
+
+    Every check below drives a real Chrome, and this script starts a new one per
+    run. The cleanup belongs here rather than at the end of `_run` because the
+    checks return early when they fail -- and a failed run is exactly when a
+    browser is most likely to be left behind. Without it, one run leaves a
+    browser, its renderers and a temporary profile on the machine: measured
+    across a session of test runs, 49 browsers and 392 processes were still
+    alive, each holding a profile directory open.
+    """
     workdir = Path(tempfile.mkdtemp(prefix="jev-extension-"))
     cfg = Config.from_env()
     cfg.headless = not headed
@@ -335,6 +345,15 @@ def run(base: str, headed: bool, screenshot: Path | None) -> int:
     # `allow_extensions` drops the `--disable-extensions` every other run relies on: that flag blocks
     # the extension's own pages outright (`ERR_BLOCKED_BY_CLIENT`) rather than merely leaving them out.
     manager = BrowserManager(cfg, allow_extensions=True)
+    try:
+        return _run(base, screenshot, cfg, manager, workdir)
+    finally:
+        manager.shutdown()
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def _run(base: str, screenshot: Path | None, cfg: Config, manager: BrowserManager,
+         workdir: Path) -> int:
     cdp = manager.cdp
     print(f"\033[2mchrome: {cdp.call('Browser.getVersion').get('product')}\033[0m")
 

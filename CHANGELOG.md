@@ -164,6 +164,52 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **A goal that had stopped making progress kept spending steps until `max_steps`.** `Session.act` has
+  counted consecutive no-change actions for as long as it has existed, and reports them as `stuck`;
+  the goal loop never read it, so the only bound on a stalled goal was the caller's step budget.
+  Measured on a real daily check-in: the submit succeeded, the page never changed again, and the
+  model spent four `WAIT`s discovering it before the run ended `stopped: hit max_steps=6` — a status
+  that reads as "still working" when the truth is "there is nothing left to do". The loop now stops
+  once the count reaches the limit `browser.py` already defines, and reports `stopped: no progress`.
+  The observation is refreshed *before* the break on purpose: `verify` judges the page as it stands,
+  so a goal whose last action removed the thing it acted on still ends `done` when the assertion
+  proves it. The count also belongs to a run rather than to the session — it is only ever
+  incremented, so a goal that inherited the previous goal's streak would call itself stuck on step 1.
+- **The candidate list was cut by where an element sat rather than by what it was.** Both truncations
+  — `observer.js`'s 250-element table cap and `policy.reachable_first`'s 120-candidate question cap —
+  ordered by viewport position with no notion of role, so a submit button below the fold lost its
+  place to a hundred navigation links that happened to be on screen. Worse than losing it, the cut
+  depended on how far the page had been scrolled: on 1point3acres `/home` the same goal reached its
+  target page once and answered `BLOCKED` twice, because the element it needed was in one read and
+  not the next. Role now outranks position in both places, position still separates candidates inside
+  a tier, and the role tiers in `policy.py` are compared against the ones in `observer.js` by a test
+  — two hand-maintained lists that have to agree is exactly the kind of invariant that quietly stops
+  holding.
+- **Every browser check left its browser — and its profile — behind.** `BrowserManager.shutdown`
+  called `terminate()` on the process it had started, and `launch_chrome` passes
+  `start_new_session=True`, so Chrome leads its own process group and its renderers, GPU process and
+  utility processes are in that group with it. Signalling the leader alone leaves the rest running:
+  measured on this machine, 49 processes on `jev-smoke-*` profiles were still alive, holding 50 MB of
+  temporary profiles nothing would ever remove. `cdp.stop_chrome` now signals the group, waits, and
+  escalates — with a guard that refuses to signal this process's own group, because a caller that
+  ever launched without `start_new_session` would otherwise take itself down along with the browser.
+  Two of the three scripts never got as far as stopping anything: `smoke.py`'s `main` loops over
+  `LIVE_MANAGERS` and nothing ever put a manager in it, and `extension_check.py` never called
+  `shutdown` at all. Both now reclaim the browser and the profile in a `finally`, which is where it
+  has to be — the checks return early when they fail, and a failed run is exactly when a browser is
+  most likely to be left behind.
+- **`status: done` was reported over a page that did not prove it.** The reconciliation between the
+  model's summary and `verify` only ever ran one way: an assertion that passed upgraded `BLOCKED` to
+  `done`, while an assertion that failed left `status` reading `done` with a `verified: FAIL` line
+  underneath it. That asymmetry is the wrong one to leave open, because the two errors do not cost the
+  same — a false "failed" invites redoing work that is already finished, but a false "done" invites
+  the caller to stop on a task that is not. Measured on a real daily check-in: `status: done` after
+  four steps, and again at step 0 with the element it had been told to click not even on the page,
+  while the points balance had not moved either time. A model that reports DONE over a page that does
+  not prove it has not finished the goal, it has run out of ideas; the status now reads
+  `unconfirmed: the model reported done, the page does not prove it`, and the trace records which way
+  the assertion won. With no `verify` there is no second opinion, so `done` still stands — also
+  pinned, so the rule stays scoped to a disagreement rather than to doubting the model in general.
 - **The execution fixtures were generated for one platform.** `browser.py::_select_all` sends Meta
   (4) on a Mac and Ctrl (2) everywhere else, so the modifier travelled from the generating machine
   into `chrome-extension/test/act-fixtures.json`. This machine is a Mac; CI is Linux; so CI

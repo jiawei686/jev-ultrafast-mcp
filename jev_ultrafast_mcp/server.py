@@ -440,6 +440,9 @@ def browser_goal(goal: str, url: str = "", session: str = "default", max_steps: 
                 "Until then, drive the loop yourself: browser_observe → pick a ref → browser_act.")
     try:
         tab = _session(session)
+        # The stall count belongs to a run, not to the session: a goal that
+        # inherited the previous goal's count would call itself stuck on step 1.
+        tab.reset_progress()
         started = time.perf_counter()
         if url:
             tab.navigate(url)
@@ -525,6 +528,20 @@ def browser_goal(goal: str, url: str = "", session: str = "default", max_steps: 
                 status = f"failed:{error}"
                 break
             observation = tab.last or tab.observe()
+            # `act` already counts how long the page has stood still; the loop
+            # used to drop that count on the floor and keep paying one decision
+            # request per step until `max_steps`. Measured on a real daily
+            # check-in: the submit succeeded, the page never changed again, and
+            # the model spent four WAITs discovering it. The run then reported
+            # "stopped: hit max_steps=6", which reads as "still working" when
+            # the truth is "there is nothing left to do". The observation above
+            # is refreshed before the break on purpose: `verify` below settles
+            # the goal against it, and a goal whose last action removed the
+            # thing it acted on must be judged on the page as it stands now.
+            if payload.get("stuck"):
+                trace.append(f"  !   {payload['stuck']}")
+                status = "stopped: no progress"
+                break
         else:
             status = f"stopped: hit max_steps={max_steps}"
 
@@ -544,6 +561,19 @@ def browser_goal(goal: str, url: str = "", session: str = "default", max_steps: 
                 trace.append(f"  =   the model reported {status!r}, but the page proves the "
                              f"goal was met; the assertion wins")
                 status = "done"
+            elif not verified["pass"] and status == "done":
+                # The same rule pointing the other way, and the direction that
+                # costs more when it is missing. A model that reports DONE over a
+                # page that does not prove it has not finished the goal, it has
+                # run out of ideas. Measured on a real daily check-in: `status:
+                # done` twice while the points balance had not moved -- once at
+                # step 4, once at step 0 with the target element not even on the
+                # page. Leaving `done` above a `verified: FAIL` line invites the
+                # caller to stop on an unfinished task, which is the one error an
+                # assertion exists to prevent.
+                trace.append("  =   the model reported 'done', but the page does not prove "
+                             "it; the assertion wins")
+                status = "unconfirmed: the model reported done, the page does not prove it"
 
         lines = [f"goal: {goal}", f"status: {status}", f"steps: {steps}"]
         if calls:

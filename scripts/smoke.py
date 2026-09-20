@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import http.server
 import json
+import shutil
 import socket
 import sys
 import tempfile
@@ -145,7 +146,17 @@ def op_error(payload: dict, index: int = 0) -> str:
 # ---------------------------------------------------------------------- flow
 
 
-def run(base: str, headed: bool) -> int:
+def run(base: str, headed: bool, keep: bool = False) -> int:
+    """`_run`, with the browser and its profile reclaimed either way.
+
+    `main` stops whatever is in `LIVE_MANAGERS`, but nothing ever put a manager
+    there, so that loop always ran over an empty list and no run ever stopped
+    its browser: measured across a session of runs, 49 `jev-smoke-` profiles
+    were still on disk with a browser attached to each.
+
+    The profile is what a run leaves behind in bulk and nothing reads it after
+    the run. `metrics.json` beside it does get read, so the directory stays.
+    """
     workdir = Path(tempfile.mkdtemp(prefix="jev-smoke-"))
     cfg = Config.from_env()
     cfg.headless = not headed
@@ -155,6 +166,16 @@ def run(base: str, headed: bool) -> int:
     cfg.allow_js = False
 
     manager = BrowserManager(cfg)
+    LIVE_MANAGERS.append(manager)
+    try:
+        return _run(base, cfg, manager, workdir)
+    finally:
+        if not keep:
+            manager.shutdown()
+            shutil.rmtree(workdir / "profile", ignore_errors=True)
+
+
+def _run(base: str, cfg: Config, manager: BrowserManager, workdir: Path) -> int:
     started = time.monotonic()
     session = manager.session("smoke")
     session.navigate(f"{base}/fixture.html")
@@ -527,7 +548,7 @@ def main() -> int:
     httpd, base = serve(ROOT / "tests")
     print(f"fixture server: {base}/fixture.html")
     try:
-        return run(base, args.headed)
+        return run(base, args.headed, args.keep)
     finally:
         httpd.shutdown()
         if not args.keep:
