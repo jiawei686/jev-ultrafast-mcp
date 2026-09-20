@@ -362,7 +362,58 @@ def test_the_fields_that_are_read_but_never_rendered_stay_readable():
     assert "sentinel-key" not in observation.render()
 
 
+def test_the_end_to_end_check_invokes_the_extension_rather_than_patching_it():
+    """The grant is the interesting half, so the check must not quietly stop exercising it.
+
+    `activeTab` is only granted when the extension is *invoked*, and `Extensions.triggerAction` is
+    the browser-level way to invoke it. The check used to run its comparison against a copy of the
+    extension carrying one added `host_permissions`, because a popup opened as a background tab has
+    no grant and nothing available at the time could produce one -- which meant the shipped manifest
+    was never the thing that read a page. That is a silent downgrade if it comes back, so the
+    *decision* is driven here with a stub rather than grepped for: the first call must be the
+    invocation, and the copy must only be reached when the browser cannot do it.
+    """
+    check = _load_script("extension_check")
+    invoked, why = check.invoke_action(_StubCdp(), "an-id", "a-tab-target")
+
+    assert invoked and why == ""
+    assert _StubCdp.last_method == "Extensions.triggerAction", (
+        "the check must invoke the extension; without it the activeTab grant goes untested")
+    assert _StubCdp.last_params["targetId"] == "a-tab-target", (
+        "the invocation must name the tab, which is the only kind of target it accepts")
+
+    # A browser without the command is the one case that may fall back.
+    refused, reason = check.invoke_action(_StubCdp(fail=True), "an-id", "a-tab-target")
+    assert not refused and "unavailable" in reason, reason
+
+
+def test_the_fallback_announces_that_it_skips_the_grant():
+    """A run that lost the `activeTab` coverage must not look like one that had it."""
+    script = (ROOT / "scripts" / "extension_check.py").read_text(encoding="utf-8")
+
+    assert "no grant tested" in script, "the fallback must announce that it skips the grant"
+    assert "invoke_action(" in script, "the primary path must go through the invocation"
+
+
 # --- helpers -----------------------------------------------------------------------------------
+
+
+class _StubCdp:
+    """Records what it was asked to do; raises on the command a Chrome without it would lack."""
+
+    last_method = ""
+    last_params: dict = {}
+
+    def __init__(self, *, fail: bool = False):
+        self.fail = fail
+
+    def call(self, method, **params):
+        type(self).last_method = method
+        type(self).last_params = params
+        if method == "Extensions.triggerAction" and self.fail:
+            raise RuntimeError("'Extensions.triggerAction' wasn't found")
+        return {}
+
 
 def _node() -> str | None:
     override = os.environ.get("JEVMCP_NODE")
@@ -383,6 +434,15 @@ def _node() -> str | None:
 def _load_fixture_generator():
     path = TEST / "make_fixtures.py"
     spec = importlib.util.spec_from_file_location("_jev_extension_fixtures", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_script(name: str):
+    """`scripts/` is not a package, so load a check the way a runner would rather than importing it."""
+    path = ROOT / "scripts" / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(f"_jev_script_{name}", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

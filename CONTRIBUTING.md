@@ -37,7 +37,7 @@ You need a Chromium-family browser on `PATH`, or point `JEVMCP_CHROME` at one.
 .venv/bin/python -m pytest -q
 .venv/bin/python scripts/smoke.py            # 58 checks against a real browser
 .venv/bin/python scripts/mcp_check.py        # 17 checks over real stdio MCP
-.venv/bin/python scripts/extension_check.py  # 18 checks: the extension's table vs the server's
+.venv/bin/python scripts/extension_check.py  # 20 checks: the extension's table vs the server's
 ```
 
 All five must pass. `smoke.py --headed` lets you watch the browser drive.
@@ -67,10 +67,16 @@ real page. It is also how both bugs in `observe.py`'s `from_raw` were found — 
 `offscreen` were emitted by the observer and never read, so the header advertised flags no row ever
 drew. Neither was visible from inside the repository.
 
-One thing it cannot check, and says so in its output: `activeTab` is granted by a real toolbar click,
-which no automation can produce, so the comparison runs against a throwaway copy of the extension
-with one added host permission. The shipped manifest is loaded too, and the check is that it declines
-a page it has no access to in words rather than throwing.
+The `activeTab` grant is exercised, not assumed. `activeTab` is only granted when the user *invokes*
+the extension, so a popup opened by navigating a tab to `popup.html` has no access to the page — and
+`chrome.action.openPopup()`, which looks like the answer, is a programmatic API that Chrome
+deliberately does not treat as a gesture (it opens the popup and the popup still cannot read the
+page). `Extensions.triggerAction` runs the extension's default action at the browser level, which is
+the same action a toolbar click runs, and it does grant `activeTab`. The check uses it, so the
+manifest under test is the one that ships, with `activeTab`, `scripting` and `storage` and no
+`host_permissions`. A Chrome too old for the command falls back to a copy with one added host
+permission and says so in its output, so a run that lost that coverage cannot look like one that had
+it. The toolbar *button* is still the one thing no automation presses.
 
 `scripts/checkin.py` is not a check but the shortest honest exercise of the whole system, and it runs
 without a key:

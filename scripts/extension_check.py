@@ -14,8 +14,9 @@ What it does:
   2. loads `chrome-extension/` with `Extensions.loadUnpacked` and checks that its popup runs and
      refuses to read a page it has no access to, rather than dying;
   3. points the server's own `Session.observe()` at `fixture.html` and keeps that table;
-  4. loads a **throwaway copy** of the extension with one added host permission, opens its popup in
-     the background, and compares its table with the server's, character for character;
+  4. **invokes the extension's action** with `Extensions.triggerAction` -- the browser-side equivalent
+     of the toolbar click, and the gesture `activeTab` is granted by -- and compares the popup the
+     browser opened against the server's table, character for character;
   5. does that again after opening the fixture's modal, which exercises the delta path, the overlay
      warning and the occlusion flags.
 
@@ -26,13 +27,14 @@ kind of run, and it fails silently -- the browser starts, the flag is accepted, 
 simply not there. The CDP command also returns the id, which is the only reliable way to know it:
 the id is derived from the absolute path, so it changes with the checkout.
 
-**The copy in step 4.** `activeTab` is granted by a real invocation of the extension -- a toolbar
-click, a context-menu item, a keyboard command -- and no automation can produce one. So a popup
-opened as a background tab has no access to the page, and the comparison in step 4 cannot run against
-the shipped manifest. The copy is byte-identical apart from one line of `host_permissions`, so
-everything under test is the real thing; what is *not* covered is the grant itself, and the script
-says so in its output rather than leaving it implied. Step 2 is what keeps that honest: the shipped
-extension is loaded too, and the check is that it degrades the way its README says it does.
+**`Extensions.triggerAction`, not a background tab.** The comparison in step 4 used to run against a
+throwaway copy of the extension carrying one added `host_permissions` line, because `activeTab` is
+granted by a real invocation and nothing here could produce one -- a popup opened by navigating a tab
+to `popup.html` is not how a popup opens, and `chrome.action.openPopup()` is a programmatic API that
+Chrome deliberately does not treat as a gesture (measured: it opens the popup and the popup still
+cannot read the page). `triggerAction` does produce one, so the shipped manifest is what runs. The
+copy survives only as a fallback for a Chrome old enough to lack the command, and the output says
+which path was taken.
 """
 
 from __future__ import annotations
@@ -121,10 +123,11 @@ def load_extension(cdp, path: Path) -> str:
 
 
 def with_host_permission(destination: Path, origin: str) -> Path:
-    """A copy of the extension that can read the fixture without a toolbar click.
+    """A copy of the extension that can read the fixture without an invocation.
 
-    One line differs. Everything the extension *does* is the shipped code, which is the point; the
-    one thing this cannot test is the `activeTab` grant, because that needs a real click.
+    The fallback for a Chrome without `Extensions.triggerAction`. One line differs; everything the
+    extension *does* is the shipped code. What it cannot exercise is the `activeTab` grant itself,
+    which is why it is not the first choice.
     """
     shutil.copytree(EXTENSION, destination)
     manifest_path = destination / "manifest.json"
@@ -134,24 +137,107 @@ def with_host_permission(destination: Path, origin: str) -> Path:
     return destination
 
 
+def _tab_target(cdp, url: str) -> str | None:
+    """The `tab` target for a URL.
+
+    Tab targets are filtered out of `Target.getTargets` by default, and `Extensions.triggerAction`
+    refuses anything that is not one: "Action can only be triggered on a tab target". The filter is
+    the documented way to ask for them.
+    """
+    infos = cdp.call("Target.getTargets", filter=[{"type": "tab", "exclude": False}, {}])
+    for target in infos.get("targetInfos", []):
+        if target.get("type") == "tab" and target.get("url") == url:
+            return target["targetId"]
+    return None
+
+
+def invoke_action(cdp, extension_id: str, tab_target: str) -> tuple[bool, str]:
+    """Invoke the extension's default action. Returns `(invoked, why_not)`.
+
+    `Extensions.triggerAction` is the browser-level action invocation, which is what grants
+    `activeTab`. Kept as its own function so the fallback decision is testable without a browser:
+    `tests/test_extension.py` drives this with a stub and asserts the invocation is attempted first.
+    """
+    try:
+        cdp.call("Extensions.triggerAction", id=extension_id, targetId=tab_target, timeout=30)
+    except Exception as exc:  # noqa: BLE001 - an older browser is a fallback, not a failure
+        return False, f"Extensions.triggerAction is unavailable ({exc})"
+    return True, ""
+
+
+def _open_by_action(cdp, extension_id: str, tab_target: str | None, workdir: Path,
+                    base: str) -> tuple[Popup | None, str]:
+    """Open the popup the way the browser opens it, and adopt it.
+
+    The invocation comes first and the patched copy is only a fallback, so the manifest under test is
+    the one that ships. A run that lost that coverage says so in its own output rather than looking
+    identical to one that had it.
+    """
+    invoked, reason = ((False, "no tab target") if not tab_target
+                       else invoke_action(cdp, extension_id, tab_target))
+    if invoked:
+        opened = wait_until(lambda: _popup_target(cdp, extension_id), timeout=20)
+        if opened:
+            return Popup.adopt(cdp, opened), "by invoking its action"
+        reason = "the action ran but the browser opened no popup"
+
+    print(f"  [note] falling back to a copy with host_permissions: {reason}")
+    patched_id = load_extension(cdp, with_host_permission(workdir / "extension",
+                                                          "http://127.0.0.1:*/*"))
+    return Popup(cdp, patched_id, tab_target or ""), "copy with host_permissions, no grant tested"
+
+
+def _popup_target(cdp, extension_id: str) -> str | None:
+    for target in cdp.call("Target.getTargets").get("targetInfos", []):
+        if (target.get("type") == "page"
+                and target.get("url") == f"chrome-extension://{extension_id}/popup.html"):
+            return target["targetId"]
+    return None
+
+
 # ------------------------------------------------------------------ the popup
 
 
 class Popup:
-    """The extension's popup, opened as a background tab and read over CDP."""
+    """The extension's popup, read over CDP.
 
-    def __init__(self, cdp, extension_id: str, activate_target: str):
-        self.cdp = cdp
-        self.target_id = cdp.call(
+    Two ways in, and the difference matters. `Popup(...)` creates a target and navigates it to
+    `popup.html`, which is not how a popup opens and gets no `activeTab` grant -- that is what the
+    refusal path needs. `Popup.attach(...)` adopts the popup the *browser* opened, which is the one
+    that follows a real action invocation.
+    """
+
+    def __init__(self, cdp, extension_id: str, activate_target: str = ""):
+        target_id = cdp.call(
             "Target.createTarget",
             url=f"chrome-extension://{extension_id}/popup.html",
             background=True,
         )["targetId"]
-        self.session = cdp.call(
-            "Target.attachToTarget", targetId=self.target_id, flatten=True)["sessionId"]
+        self.attach(cdp, target_id)
         # Creating the popup must not take the active tab away from the page under test: the popup
         # asks for `{active: true, currentWindow: true}` and would otherwise read itself.
-        cdp.call("Target.activateTarget", targetId=activate_target)
+        if activate_target:
+            cdp.call("Target.activateTarget", targetId=activate_target)
+
+    @classmethod
+    def adopt(cls, cdp, target_id: str) -> Popup:
+        """Wrap the popup the browser opened, which is the one a real invocation produced."""
+        popup = cls.__new__(cls)
+        popup.attach(cdp, target_id)
+        return popup
+
+    def attach(self, cdp, target_id: str) -> Popup:
+        self.cdp = cdp
+        self.target_id = target_id
+        self.session = cdp.call(
+            "Target.attachToTarget", targetId=target_id, flatten=True)["sessionId"]
+        return self
+
+    def close(self) -> None:
+        try:
+            self.cdp.call("Target.closeTarget", targetId=self.target_id)
+        except Exception:  # noqa: BLE001 - already gone is the outcome we wanted
+            pass
 
     def read(self, expression: str):
         return self.cdp.call(
@@ -240,11 +326,18 @@ def run(base: str, headed: bool, screenshot: Path | None) -> int:
     check("it declines the page it has no access to, in words",
           bool(settled) and REFUSAL in settled, settled or "(no note)")
     check("it rendered no table rather than a wrong one", shipped.table() is None)
+    shipped.close()
 
-    section("3. The same popup, with the one permission a click would grant it")
-    patched_id = load_extension(
-        cdp, with_host_permission(workdir / "extension", "http://127.0.0.1:*/*"))
-    popup = Popup(cdp, patched_id, fixture_target)
+    section("3. The same popup, after a real invocation of the extension")
+    tab_target = _tab_target(cdp, f"{base}/{FIXTURE}")
+    check("the fixture is a tab target, which is what an action is invoked on",
+          bool(tab_target), tab_target or "not found")
+
+    popup, how = _open_by_action(cdp, shipped_id, tab_target, workdir, base)
+    check(f"the popup opened the way a toolbar click opens it ({how})", popup is not None,
+          how if popup is None else "opened by the browser")
+    if popup is None:
+        return 1
     first = wait_until(popup.table)
     if not first:
         check("the popup rendered a table without being touched", False,
@@ -296,8 +389,10 @@ def run(base: str, headed: bool, screenshot: Path | None) -> int:
         size = popup.screenshot(screenshot)
         note(f"screenshot: {screenshot} ({size // 1024} KB)")
 
-    note("not covered here: the `activeTab` grant itself, which only a real toolbar click produces.")
-    note("`tests/test_extension.py` covers the permission list; section 2 covers the refusal path.")
+    note("section 3 invoked the action itself, so the `activeTab` grant is exercised: the shipped")
+    note("manifest reads the page with `activeTab`, `scripting` and `storage` and nothing else.")
+    note("What no automation reaches is the toolbar button: `Extensions.triggerAction` runs the same")
+    note("action, but a human click on the icon is still the only thing that proves the button.")
     return 0
 
 

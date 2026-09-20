@@ -259,6 +259,31 @@ All notable changes to this project are documented here. The format follows
   because downloading job logs requires repo admin rights and a red X on a public repo was otherwise
   undiagnosable. Also bumped to `actions/checkout@v7` / `actions/setup-python@v7`.
 
+### Changed
+
+- **The extension check invokes the extension instead of patching it, so the `activeTab` grant is
+  tested rather than assumed.** `scripts/extension_check.py` used to run its table comparison against
+  a throwaway copy of the extension carrying one added `host_permissions`, because a popup opened by
+  navigating a tab to `popup.html` has no access to the page and the grant was believed to need a
+  toolbar click no automation could produce. It does not: `Extensions.triggerAction` runs the
+  extension's default action at the browser level, which is the same action the toolbar button runs,
+  and it grants `activeTab`. The comparison now runs against the manifest that ships, with
+  `activeTab`, `scripting` and `storage` and no host permissions — 20 checks rather than 18. The copy
+  survives only as a fallback for a Chrome too old to have the command, and it says so in its output,
+  so a run that lost the coverage cannot look like one that had it.
+
+  Worth recording why the obvious answer was wrong: `chrome.action.openPopup()` opens the popup and
+  the popup still cannot read the page. Measured, not assumed — Chrome deliberately does not treat a
+  programmatic popup open as a gesture. `Popup` now has two documented ways in for the same reason:
+  navigating a target is what the refusal path needs, and adopting the browser-opened popup is what
+  the happy path needs.
+
+- `tests/test_extension.py` guards that decision behaviourally rather than by grepping the script for
+  a command name — a stub drives `invoke_action` and asserts the first call is the invocation, with
+  the tab as its target, and that only an unavailable command falls back. The grep version of this
+  test passed while the invocation had been disabled, which is exactly the kind of guard that is
+  worse than none.
+
 ## [0.1.5] — 2026-09-20
 
 The release that makes the registry entry submittable. `0.1.4` could not be: the registry proves
