@@ -19,8 +19,12 @@ So this ships the server's own parts instead.
 | --- | --- |
 | `lib/observer.js` | A byte-identical copy of `jev_ultrafast_mcp/js/observer.js`. `tests/test_extension.py` fails if the two ever differ. |
 | `lib/render.js` | A port of `observe.py` — `ROLE_CODE`, `_short`, `Element.render`, `Observation.render`. |
+| `lib/macro.js` | A port of `macros.py` — `_norm`, `_tokens`, `_score`, `_substitute`, `resolve`. The other half of a replay. |
 | `test/fixtures.json` | 16 cases whose expected output was produced by the **real Python renderer**. |
 | `test/render-parity.mjs` | Renders each fixture with the port and compares character for character. |
+| `test/macro-fixtures.json` | 46 cases whose expected output was produced by the **real Python resolver** — refusals included. |
+| `test/live-observation.json` | Two raw observer payloads taken off a live page, so the resolver is held to the wire format as it actually arrives. |
+| `test/macro-parity.mjs` | Resolves each case with the port and compares, refusing for refusing. |
 
 The port is Python-shaped in two places on purpose, because matching the server matters more than
 matching JavaScript: lengths are counted in code points rather than UTF-16 units, so a label ending
@@ -37,6 +41,42 @@ that the Python model never reads:
 
 Neither was visible from inside the repo. Both showed up as parity failures between the port and
 Python, which is the argument for having a port and a parity harness at all.
+
+## Replay, and the second half of the port
+
+A macro is a recorded path stored as semantics — `{role, name, context}`, never a ref and never a
+selector — so it survives a reload, a redesign that keeps the labels, and a different browser
+instance. Replaying one means scoring every element on the page in front of you against those
+descriptors and acting only when one wins clearly. Two buttons that both score 1.0 are exactly the
+silent misclick this design exists to prevent, so the resolver refuses and leaves the page untouched.
+
+That refusal is why `lib/macro.js` is a port rather than a fresh implementation. A replayer needs a
+resolver, the server already has one, and a second one that agrees "most of the time" would be worse
+than none: the disagreement would surface as a click on the wrong row, silently, with no model in the
+loop to notice. So the port carries the same scoring rules, the same three thresholds and the same
+refusal sentences, and `test/macro-parity.mjs` holds it to fixtures the real `macros.resolve` wrote.
+
+Four of those fixtures are not written by hand. They come from `test/live-observation.json` — two
+reads off a live page through the real observer, one before a hover and one after — because the wire
+format has shape an action list does not capture: `context` is emitted *only* on labels that repeat,
+`hoverable` only on the trigger, and menu items enter the list wherever they entered the DOM, so
+`e8` and `e9` sort between `e1` and `e2`. The descriptors are the ones `macros.describe` produced
+from those same reads, which is the path a recording takes.
+
+Two limits are pinned as fixtures rather than described in prose, because a port that quietly
+improved on the original would be a second resolver again:
+
+- **A CJK label has no tokens.** `_tokens` splits on `[^a-z0-9]+`, which matches every CJK character
+  outright, so a Chinese context contributes nothing to the score and a repeated Chinese label
+  cannot be disambiguated. The step refuses, which is the right outcome of a wrong situation.
+- **The context bonus is all-or-nothing.** It is added when the overlap clears 0.4 and not
+  otherwise, so two contexts that differ by one word both clear it and the tie survives. This is not
+  about CJK: `Post C Check in` against `Post D Check in` overlaps by three words out of five and
+  fails the same way. `帖子 A 打卡` against `帖子 B 打卡` succeeds, because `{a}` and `{b}` share
+  nothing — one Latin character is the whole difference.
+
+Both are limits of the scoring rules rather than of the port, so fixing either means changing
+`macros.py` and the port in the same commit. The fixtures will say so if they are changed apart.
 
 ## Install it
 
@@ -76,11 +116,19 @@ have to trust; this one can only see the page you point it at, which is one you 
 
 # Compare the port against those fixtures.
 node chrome-extension/test/render-parity.mjs
+
+# Regenerate the macro fixtures after changing the resolver on either side.
+.venv/bin/python chrome-extension/test/make_macro_fixtures.py
+
+# Compare the resolver port against those fixtures.
+node chrome-extension/test/macro-parity.mjs
 ```
 
-`tests/test_extension.py` runs all of the above as assertions, plus the manifest checks: that every
+`tests/test_extension.py` runs the first two as assertions, plus the manifest checks: that every
 icon exists at the size the manifest claims, that the permission list is exactly the three above,
-and that `popup.js` has not started formatting rows itself.
+and that `popup.js` has not started formatting rows itself. `tests/test_macro_port.py` runs the
+second pair, and additionally fails if the committed fixtures are not what their generator produces
+— a check that earned its place by catching exactly that, during development.
 
 The parity test needs Node. It is not a dependency of the Python package, so the pytest case skips
 with a message rather than passing silently when Node is missing. Point `JEVMCP_NODE` at a binary if

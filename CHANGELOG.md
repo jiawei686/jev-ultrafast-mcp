@@ -8,6 +8,31 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **The macro resolver the extension replays with — ported, and held to Python.** A replay needs a
+  resolver and the server already has one, so `chrome-extension/lib/macro.js` is a port of
+  `macros.py` rather than a second opinion about it: the same scoring rules, the same three
+  thresholds, the same two refusal sentences. The alternative is the failure this project keeps
+  running into — two implementations that agree until the day they do not, with no model in the loop
+  to notice, because the whole point of a replay is that nothing is watching.
+  `test/macro-parity.mjs` compares the port against 46 fixtures produced by the real
+  `macros.resolve`, and a refusal counts as a result: raising is what leaves the page untouched, so
+  "did it raise, and with what sentence" is part of the contract. Four of the fixtures come off a
+  live page — `test/live-observation.json`, two reads through the real observer, one either side of
+  a hover — because the wire format has shape a hand-written action list does not: `context` appears
+  only on labels that repeat, `hoverable` only on the trigger, and menu items sort into the middle
+  of the list, where they entered the DOM (`e8`, `e9`, then `e2`). Building it also settled what the
+  scoring rules *cannot* do, and the fixtures now say it rather than a comment: a CJK label
+  tokenises to nothing, because `_tokens` splits on `[^a-z0-9]+`, so a repeated Chinese label cannot
+  be disambiguated at all; and the context bonus is all-or-nothing at 0.4, so `Post C Check in`
+  against `Post D Check in` fails for the same reason `甲帖 签到` against `乙帖 签到` does — only a
+  context whose tokens do not overlap at all (帖子 A 打卡 against 帖子 B 打卡) breaks the tie. Both
+  are limits of `macros.py` rather than of the port, so fixing either means changing both in one
+  commit, and the fixtures fail if they are changed apart. 182 tests, 6 of them here. The port was
+  checked by mutation rather than by the fixtures passing — 30 mutations, all 30 caught, plus one
+  deliberate survivor documenting that `toFixed(3)` and Python's `round` cannot disagree on any
+  input this scorer produces — which matters because the fixtures were green long before they were
+  worth anything: the first mutation run passed against a fixture file that had not been
+  regenerated.
 - **Both READMEs now say how to make the handoff actually arrive.** Pointing a client at the server
   is half of it; an agent that never hears the rule drives the page itself, one call per click. The
   new section under *Connecting an agent* names the measured failure (WorkBuddy ships a server's

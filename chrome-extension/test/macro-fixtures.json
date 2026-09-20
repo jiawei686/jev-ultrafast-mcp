@@ -1,0 +1,4719 @@
+{
+  "generator": "chrome-extension/test/make_macro_fixtures.py",
+  "note": "Every `expected` block is produced by the real Python resolver (macros.resolve) -- either `{ops, report}` or `{error}`, the latter being the exact sentence MacroError carried. Both are compared in full by chrome-extension/test/macro-parity.mjs, because a refusal is part of the contract: replay that raises has not touched the page.",
+  "limits": {
+    "threshold": 0.7,
+    "ambiguity_margin": 0.06,
+    "context_weight": 0.15
+  },
+  "cases": [
+    {
+      "name": "exact-match",
+      "why": "role and name both equal: the base 0.6 plus 0.4, which is the .0 the report has to print as 1.0 rather than 1",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "Check in",
+            "context": "",
+            "label": "Check in"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e1"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "click",
+            "ref": "e1",
+            "name": "Check in",
+            "score": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "near-role-family",
+      "why": "a macro recorded against a menuitem resolving against a button: 0.55 + 0.4. The family exists because the same control is announced differently by different markup",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "menuitem",
+            "name": "Check in",
+            "context": "",
+            "label": "Check in"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e1"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "click",
+            "ref": "e1",
+            "name": "Check in",
+            "score": 0.95
+          }
+        ]
+      }
+    },
+    {
+      "name": "a-role-outside-the-family-is-not-a-candidate",
+      "why": "a checkbox is not a button however it is labelled: score 0, so there is nothing to compare and the run stops before touching the page",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "Check in",
+            "context": "",
+            "label": "Check in"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "checkbox",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "error": "step 1 (click on button 'Check in') did not match anything above 0.7: best=none"
+      }
+    },
+    {
+      "name": "case-and-collapsed-space",
+      "why": "`_norm` lowercases and collapses runs of space, so a macro recorded off a label that was re-flowed still matches",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "  Check   IN ",
+            "context": "",
+            "label": "  Check   IN "
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "check in",
+            "label": "check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e1"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "click",
+            "ref": "e1",
+            "name": "check in",
+            "score": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "a-zero-width-no-break-space-is-not-a-space-to-python",
+      "why": "U+FEFF is whitespace to JavaScript's `\\s` and not to Python's `str.split()`. Folding it would make two different labels equal and score 1.0 where Python scores 0.8 -- a replay confident about the wrong element",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "Check﻿in",
+            "context": "",
+            "label": "Check﻿in"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e1"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "click",
+            "ref": "e1",
+            "name": "Check in",
+            "score": 0.8
+          }
+        ]
+      }
+    },
+    {
+      "name": "a-next-line-character-is-a-space-to-python",
+      "why": "U+0085 is whitespace to Python and not to JavaScript's `\\s`, so the port has to call it one: the two sides agree on 1.0 only if the class is spelled out",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "Checkin",
+            "context": "",
+            "label": "Checkin"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e1"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "click",
+            "ref": "e1",
+            "name": "Check in",
+            "score": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "substring-either-way",
+      "why": "either direction of containment earns 0.2: a shortened label on the page and a lengthened one both land",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "Check in",
+            "context": "",
+            "label": "Check in"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 2,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "name": "Check in now",
+            "label": "Check in now",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e1"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "click",
+            "ref": "e1",
+            "name": "Check in",
+            "score": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "token-overlap-carries-a-reordered-name",
+      "why": "same words, different order, neither containing the other: the token overlap is 1.0 and the score is 0.6 + 0.2",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "check in daily",
+            "context": "",
+            "label": "check in daily"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "daily check in",
+            "label": "daily check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e1"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "click",
+            "ref": "e1",
+            "name": "daily check in",
+            "score": 0.8
+          }
+        ]
+      }
+    },
+    {
+      "name": "token-overlap-below-half-is-not-a-match",
+      "why": "a third of the words in common is not the same control, so the score is 0 and the step refuses rather than picking the nearest thing",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "daily check in",
+            "context": "",
+            "label": "daily check in"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "daily quiz result",
+            "label": "daily quiz result",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "error": "step 1 (click on button 'daily check in') did not match anything above 0.7: best=none"
+      }
+    },
+    {
+      "name": "a-nameless-target-still-matches",
+      "why": "a macro step with no name falls back to the role alone: 0.6 + 0.1, which is exactly the threshold and therefore passes. `>=` and `>` are the difference between a usable macro and a broken one",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "",
+            "context": ""
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Anything at all",
+            "label": "Anything at all",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e1"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "click",
+            "ref": "e1",
+            "name": "Anything at all",
+            "score": 0.7
+          }
+        ]
+      }
+    },
+    {
+      "name": "the-threshold-is-what-refuses-a-weak-match",
+      "why": "a nameless target in a near-role family: 0.55 + 0.1 = 0.65, under 0.7, so it refuses. This is the only reachable score the default threshold rejects, and it is why the threshold is worth having",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "menuitem",
+            "name": "",
+            "context": ""
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "error": "step 1 (click on menuitem '') did not match anything above 0.7: best=[{'ref': 'e1', 'name': 'Check in', 'role': 'button', 'score': 0.65}]"
+      }
+    },
+    {
+      "name": "the-refusal-lists-what-it-considered",
+      "why": "when nothing clears the threshold the error names the top five in page order, so a human can see whether the macro is wrong or the page is. Order comes from a stable sort over equal scores",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "menuitem",
+            "name": "",
+            "context": ""
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 6,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "First",
+            "label": "First",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "name": "Second",
+            "label": "Second",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e3",
+            "role": "button",
+            "name": "Third",
+            "label": "Third",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e4",
+            "role": "button",
+            "name": "Fourth",
+            "label": "Fourth",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e5",
+            "role": "button",
+            "name": "Fifth",
+            "label": "Fifth",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e6",
+            "role": "button",
+            "name": "Sixth",
+            "label": "Sixth",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "error": "step 1 (click on menuitem '') did not match anything above 0.7: best=[{'ref': 'e1', 'name': 'First', 'role': 'button', 'score': 0.65}, {'ref': 'e2', 'name': 'Second', 'role': 'button', 'score': 0.65}, {'ref': 'e3', 'name': 'Third', 'role': 'button', 'score': 0.65}, {'ref': 'e4', 'name': 'Fourth', 'role': 'button', 'score': 0.65}, {'ref': 'e5', 'name': 'Fifth', 'role': 'button', 'score': 0.65}]"
+      }
+    },
+    {
+      "name": "context-breaks-a-tie",
+      "why": "two identically-named buttons on different rows: context is worth 0.15, which clears the 0.06 margin, so the macro recorded on the right row wins instead of refusing",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "Book",
+            "context": "Outbound",
+            "label": "Book"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 2,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Book",
+            "label": "Book",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "Outbound",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "name": "Book",
+            "label": "Book",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "Return",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e1"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "click",
+            "ref": "e1",
+            "name": "Book",
+            "score": 1.15
+          }
+        ]
+      }
+    },
+    {
+      "name": "a-tie-without-context-refuses",
+      "why": "the same two buttons with a macro that has no context: a perfect match on both sides is the silent misclick this design exists to prevent, so it raises instead of picking the first",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "Book",
+            "context": "",
+            "label": "Book"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 2,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Book",
+            "label": "Book",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "Outbound",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "name": "Book",
+            "label": "Book",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "Return",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "error": "step 1 is ambiguous between e1 'Book' and e2 'Book'. Add distinguishing context to the macro or run the step manually."
+      }
+    },
+    {
+      "name": "a-tie-inside-the-margin-refuses",
+      "why": "1.0 against 0.95 -- a button and a link with the same label, which is what a styled anchor next to a real button looks like. 0.05 apart is inside the 0.06 margin, so the best match being perfect does not save it",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "Submit",
+            "context": "",
+            "label": "Submit"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 2,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Submit",
+            "label": "Submit",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "link",
+            "name": "Submit",
+            "label": "Submit",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "error": "step 1 is ambiguous between e1 'Submit' and e2 'Submit'. Add distinguishing context to the macro or run the step manually."
+      }
+    },
+    {
+      "name": "a-tie-from-two-token-scores-refuses",
+      "why": "0.733 against 0.7, both from the 0.2 * overlap term: the margin is compared after `round(score, 3)`, so the rounding is part of the decision and not cosmetic",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "daily check streak",
+            "context": "",
+            "label": "daily check streak"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 2,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "streak daily",
+            "label": "streak daily",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "name": "daily check bonus",
+            "label": "daily check bonus",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "error": "step 1 is ambiguous between e1 'streak daily' and e2 'daily check bonus'. Add distinguishing context to the macro or run the step manually."
+      }
+    },
+    {
+      "name": "context-below-its-overlap-floor-is-ignored",
+      "why": "context only counts at 0.4 token overlap, so a context that shares one word out of four adds nothing and the tie stands",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "Book",
+            "context": "Outbound flights one way",
+            "label": "Book"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 2,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Book",
+            "label": "Book",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "Outbound",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "name": "Book",
+            "label": "Book",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "Outbound",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "error": "step 1 is ambiguous between e1 'Book' and e2 'Book'. Add distinguishing context to the macro or run the step manually."
+      }
+    },
+    {
+      "name": "context-at-its-overlap-floor-counts",
+      "why": "0.4 is the floor for a context to count and it is reached exactly here -- two of five words in common, one above a context that shares too little. The comparison is inclusive, and inclusive is what makes the tie breakable at all",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "Book",
+            "context": "outbound flights one",
+            "label": "Book"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 2,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Book",
+            "label": "Book",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "outbound flights bonus extra",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "button",
+            "name": "Book",
+            "label": "Book",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "Return",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e1"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "click",
+            "ref": "e1",
+            "name": "Book",
+            "score": 1.15
+          }
+        ]
+      }
+    },
+    {
+      "name": "the-threshold-can-be-lowered",
+      "why": "the same 0.65 that the default rejects resolves at 0.6. Replay decides how sure it has to be; the resolver only measures",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "menuitem",
+            "name": "",
+            "context": ""
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.6,
+      "expected": {
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e1"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "click",
+            "ref": "e1",
+            "name": "Check in",
+            "score": 0.65
+          }
+        ]
+      }
+    },
+    {
+      "name": "cjk-exact-match-is-fine",
+      "why": "an exact CJK label never reaches the token branch -- equality is checked first -- so the ordinary case on a Chinese site resolves at 1.0",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "menuitem",
+            "name": "签到领奖",
+            "context": "",
+            "label": "签到领奖"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "menuitem",
+            "name": "签到领奖",
+            "label": "签到领奖",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e1"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "click",
+            "ref": "e1",
+            "name": "签到领奖",
+            "score": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "cjk-substring-still-works",
+      "why": "containment is string-level, not token-level, so a label that only grew a suffix still resolves",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "签到",
+            "context": "",
+            "label": "签到"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "menuitem",
+            "name": "签到领奖",
+            "label": "签到领奖",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e1"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "click",
+            "ref": "e1",
+            "name": "签到领奖",
+            "score": 0.75
+          }
+        ]
+      }
+    },
+    {
+      "name": "cjk-reordered-name-cannot-be-matched",
+      "why": "the same four characters in a different order: neither contains the other, and the token branch returns 0 because a CJK label has no tokens at all. Any reworded Chinese label is invisible to this resolver -- a real limit, reproduced here on purpose so the port does not paper over it",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "签到领奖",
+            "context": "",
+            "label": "签到领奖"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "menuitem",
+            "name": "领奖签到",
+            "label": "领奖签到",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "error": "step 1 (click on button '签到领奖') did not match anything above 0.7: best=none"
+      }
+    },
+    {
+      "name": "cjk-context-cannot-break-a-tie",
+      "why": "two Chinese buttons with the same label and different context: the context bonus needs tokens on both sides, gets none, and the tie refuses. On a Chinese site every context in a macro is inert, so a repeated label is unresolvable however carefully it was recorded",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "menuitem",
+            "name": "签到",
+            "context": "今日任务",
+            "label": "签到"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 2,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "menuitem",
+            "name": "签到",
+            "label": "签到",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "今日任务",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "menuitem",
+            "name": "签到",
+            "label": "签到",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "每日答题",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "error": "step 1 is ambiguous between e1 '签到' and e2 '签到'. Add distinguishing context to the macro or run the step manually."
+      }
+    },
+    {
+      "name": "the-same-tie-in-english-resolves",
+      "why": "the control for the case above: identical markup, English labels, and the context bonus does its job. The difference between these two cases is the whole bug",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "menuitem",
+            "name": "Check in",
+            "context": "Daily tasks",
+            "label": "Check in"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 2,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "menuitem",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "Daily tasks",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "menuitem",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "Daily quiz",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e1"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "click",
+            "ref": "e1",
+            "name": "Check in",
+            "score": 1.15
+          }
+        ]
+      }
+    },
+    {
+      "name": "a-template-becomes-its-parameter",
+      "why": "the recorded DuckDuckGo macro, with the query filled in. One macro file, any search",
+      "steps": [
+        {
+          "op": "type",
+          "target": {
+            "role": "combobox",
+            "name": "Search with DuckDuckGo",
+            "context": "",
+            "label": "Search with DuckDuckGo"
+          },
+          "text": "{{query}}"
+        },
+        {
+          "op": "keys",
+          "key": "Enter"
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "combobox",
+            "name": "Search with DuckDuckGo",
+            "label": "Search with DuckDuckGo",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {
+        "query": "knee mri"
+      },
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "type",
+            "ref": "e1",
+            "text": "knee mri"
+          },
+          {
+            "op": "keys",
+            "key": "Enter"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "type",
+            "ref": "e1",
+            "name": "Search with DuckDuckGo",
+            "score": 1.0
+          },
+          {
+            "step": 2,
+            "op": "keys"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a-missing-parameter-is-left-alone",
+      "why": "no value supplied means the target keeps the literal `{{query}}` rather than becoming an empty search. A macro that silently sends nothing is worse than one that sends the wrong thing visibly",
+      "steps": [
+        {
+          "op": "type",
+          "target": {
+            "role": "combobox",
+            "name": "Search with DuckDuckGo",
+            "context": "",
+            "label": "Search with DuckDuckGo"
+          },
+          "text": "{{query}}"
+        },
+        {
+          "op": "keys",
+          "key": "Enter"
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "combobox",
+            "name": "Search with DuckDuckGo",
+            "label": "Search with DuckDuckGo",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "type",
+            "ref": "e1",
+            "text": "{{query}}"
+          },
+          {
+            "op": "keys",
+            "key": "Enter"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "type",
+            "ref": "e1",
+            "name": "Search with DuckDuckGo",
+            "score": 1.0
+          },
+          {
+            "step": 2,
+            "op": "keys"
+          }
+        ]
+      }
+    },
+    {
+      "name": "parameters-are-stringified-the-way-python-does-it",
+      "why": "a number, a boolean, a dotted name and a placeholder padded with spaces: Python's `str()` gives `42`, `True` and the raw text, and a port that reaches for JavaScript's `String()` gets two of those wrong",
+      "steps": [
+        {
+          "op": "type",
+          "target": {
+            "role": "textbox",
+            "name": "Amount"
+          },
+          "text": "{{amount}}"
+        },
+        {
+          "op": "type",
+          "target": {
+            "role": "textbox",
+            "name": "Recurring"
+          },
+          "text": "{{recurring}}"
+        },
+        {
+          "op": "type",
+          "target": {
+            "role": "textbox",
+            "name": "Name"
+          },
+          "text": "{{user.name}}"
+        },
+        {
+          "op": "type",
+          "target": {
+            "role": "textbox",
+            "name": "Padded"
+          },
+          "text": "{{  padded  }}"
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 4,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "textbox",
+            "name": "Amount",
+            "label": "Amount",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "textbox",
+            "name": "Recurring",
+            "label": "Recurring",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e3",
+            "role": "textbox",
+            "name": "Name",
+            "label": "Name",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e4",
+            "role": "textbox",
+            "name": "Padded",
+            "label": "Padded",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {
+        "amount": 42,
+        "recurring": false,
+        "user.name": "wei",
+        "padded": " spaced "
+      },
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "type",
+            "ref": "e1",
+            "text": "42"
+          },
+          {
+            "op": "type",
+            "ref": "e2",
+            "text": "False"
+          },
+          {
+            "op": "type",
+            "ref": "e3",
+            "text": "wei"
+          },
+          {
+            "op": "type",
+            "ref": "e4",
+            "text": " spaced "
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "type",
+            "ref": "e1",
+            "name": "Amount",
+            "score": 1.0
+          },
+          {
+            "step": 2,
+            "op": "type",
+            "ref": "e2",
+            "name": "Recurring",
+            "score": 1.0
+          },
+          {
+            "step": 3,
+            "op": "type",
+            "ref": "e3",
+            "name": "Name",
+            "score": 1.0
+          },
+          {
+            "step": 4,
+            "op": "type",
+            "ref": "e4",
+            "name": "Padded",
+            "score": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "only-the-fields-the-macro-has-reach-the-op",
+      "why": "a `type` with no `submit` must not grow one, or a replay would press Enter on a form the recording never submitted",
+      "steps": [
+        {
+          "op": "type",
+          "target": {
+            "role": "textbox",
+            "name": "Amount"
+          },
+          "text": "10"
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "textbox",
+            "name": "Amount",
+            "label": "Amount",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "type",
+            "ref": "e1",
+            "text": "10"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "type",
+            "ref": "e1",
+            "name": "Amount",
+            "score": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "every-op-field-survives-resolution",
+      "why": "one step per field the resolver carries: text, value, key, state, dir, amount, ms, paths. A field dropped here is a replay that types the wrong thing",
+      "steps": [
+        {
+          "op": "type",
+          "target": {
+            "role": "textbox",
+            "name": "Query"
+          },
+          "text": "knee",
+          "submit": true
+        },
+        {
+          "op": "select",
+          "target": {
+            "role": "combobox",
+            "name": "Cabin"
+          },
+          "value": "business"
+        },
+        {
+          "op": "keys",
+          "key": "Escape"
+        },
+        {
+          "op": "toggle",
+          "target": {
+            "role": "checkbox",
+            "name": "Nonstop"
+          },
+          "state": false
+        },
+        {
+          "op": "scroll",
+          "target": {
+            "role": "button",
+            "name": "Results"
+          },
+          "dir": "up",
+          "amount": 300
+        },
+        {
+          "op": "wait",
+          "ms": 750
+        },
+        {
+          "op": "wait_for_text",
+          "text": "Booked"
+        },
+        {
+          "op": "hover",
+          "target": {
+            "role": "button",
+            "name": "今日任务"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 5,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "textbox",
+            "name": "Query",
+            "label": "Query",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "combobox",
+            "name": "Cabin",
+            "label": "Cabin",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e3",
+            "role": "checkbox",
+            "name": "Nonstop",
+            "label": "Nonstop",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e4",
+            "role": "button",
+            "name": "Results",
+            "label": "Results",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e5",
+            "role": "button",
+            "name": "今日任务",
+            "label": "今日任务",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "type",
+            "ref": "e1",
+            "text": "knee",
+            "submit": true
+          },
+          {
+            "op": "select",
+            "ref": "e2",
+            "value": "business"
+          },
+          {
+            "op": "keys",
+            "key": "Escape"
+          },
+          {
+            "op": "toggle",
+            "ref": "e3",
+            "state": false
+          },
+          {
+            "op": "scroll",
+            "ref": "e4",
+            "dir": "up",
+            "amount": 300
+          },
+          {
+            "op": "wait",
+            "ms": 750
+          },
+          {
+            "op": "wait_for_text",
+            "text": "Booked"
+          },
+          {
+            "op": "hover",
+            "ref": "e5"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "type",
+            "ref": "e1",
+            "name": "Query",
+            "score": 1.0
+          },
+          {
+            "step": 2,
+            "op": "select",
+            "ref": "e2",
+            "name": "Cabin",
+            "score": 1.0
+          },
+          {
+            "step": 3,
+            "op": "keys"
+          },
+          {
+            "step": 4,
+            "op": "toggle",
+            "ref": "e3",
+            "name": "Nonstop",
+            "score": 1.0
+          },
+          {
+            "step": 5,
+            "op": "scroll",
+            "ref": "e4",
+            "name": "Results",
+            "score": 1.0
+          },
+          {
+            "step": 6,
+            "op": "wait"
+          },
+          {
+            "step": 7,
+            "op": "wait_for_text"
+          },
+          {
+            "step": 8,
+            "op": "hover",
+            "ref": "e5",
+            "name": "今日任务",
+            "score": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "an-empty-string-is-still-a-field-the-macro-set",
+      "why": "clearing a field is an operation, not an omission: Python writes `text: ''` because the key is present, while a port that tests truthiness drops the step's whole point and leaves the old value in the box",
+      "steps": [
+        {
+          "op": "type",
+          "target": {
+            "role": "textbox",
+            "name": "Query"
+          },
+          "text": ""
+        },
+        {
+          "op": "select",
+          "target": {
+            "role": "combobox",
+            "name": "Cabin"
+          },
+          "value": ""
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 2,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "textbox",
+            "name": "Query",
+            "label": "Query",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e2",
+            "role": "combobox",
+            "name": "Cabin",
+            "label": "Cabin",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "type",
+            "ref": "e1",
+            "text": ""
+          },
+          {
+            "op": "select",
+            "ref": "e2",
+            "value": ""
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "type",
+            "ref": "e1",
+            "name": "Query",
+            "score": 1.0
+          },
+          {
+            "step": 2,
+            "op": "select",
+            "ref": "e2",
+            "name": "Cabin",
+            "score": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "an-empty-path-list-is-not-a-path-list",
+      "why": "`[]` is falsy in Python and truthy in JavaScript. An upload step with no paths has nothing to attach, and the two languages only agree here if the length is checked -- `if (step.paths)` would hand the executor an empty list to open",
+      "steps": [
+        {
+          "op": "upload",
+          "target": {
+            "role": "file",
+            "name": "CV"
+          },
+          "paths": []
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "file",
+            "name": "CV",
+            "label": "CV",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "upload",
+            "ref": "e1"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "upload",
+            "ref": "e1",
+            "name": "CV",
+            "score": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "an-empty-scroll-direction-is-not-a-direction",
+      "why": "the same falsy-empty trap on `dir`: with no direction there is no amount either, so the executor supplies both. Writing `dir: ''` and a default 600 would turn a step the recording never really made into a full-screen scroll",
+      "steps": [
+        {
+          "op": "scroll",
+          "target": {
+            "role": "button",
+            "name": "Results"
+          },
+          "dir": ""
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Results",
+            "label": "Results",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "scroll",
+            "ref": "e1"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "scroll",
+            "ref": "e1",
+            "name": "Results",
+            "score": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "a-zero-millisecond-wait-is-not-a-wait",
+      "why": "the third falsy field, after `dir` and `paths`: `ms: 0` is skipped in Python because a wait of no time is not a wait, and the executor's own default is what applies. A port that tests presence schedules a zero-length timer the recording never had",
+      "steps": [
+        {
+          "op": "wait",
+          "ms": 0
+        },
+        {
+          "op": "wait",
+          "ms": 500
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "wait"
+          },
+          {
+            "op": "wait",
+            "ms": 500
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "wait"
+          },
+          {
+            "step": 2,
+            "op": "wait"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a-name-overlap-just-below-half-is-still-nothing",
+      "why": "0.4 in common is under the 0.5 floor, so the element is not a candidate at all and the refusal says `best=none`. That floor is a decision about what counts as the same control, and moving it by a tenth turns this refusal into a 0.68 near-miss -- a different sentence in the report, which is how the fixtures notice",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "daily check streak goal",
+            "context": "",
+            "label": "daily check streak goal"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "daily check bonus",
+            "label": "daily check bonus",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "error": "step 1 (click on button 'daily check streak goal') did not match anything above 0.7: best=none"
+      }
+    },
+    {
+      "name": "an-explicit-zero-amount-is-not-the-default",
+      "why": "`amount: 0` is a real value and `600` is only the fallback for a missing key. Python's `dict.get(key, default)` tests presence, and `|| 600` in a port would silently turn a no-op scroll into a full screen",
+      "steps": [
+        {
+          "op": "scroll",
+          "target": {
+            "role": "button",
+            "name": "Results"
+          },
+          "dir": "down",
+          "amount": 0
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Results",
+            "label": "Results",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "scroll",
+            "ref": "e1",
+            "dir": "down",
+            "amount": 0
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "scroll",
+            "ref": "e1",
+            "name": "Results",
+            "score": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "a-scroll-without-a-direction-takes-both-defaults",
+      "why": "no `dir` means neither field is written at all -- the executor supplies them",
+      "steps": [
+        {
+          "op": "scroll",
+          "target": {
+            "role": "button",
+            "name": "Results"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Results",
+            "label": "Results",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "scroll",
+            "ref": "e1"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "scroll",
+            "ref": "e1",
+            "name": "Results",
+            "score": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "upload-paths-are-substituted-one-by-one",
+      "why": "a path list is the one field where the template runs per item rather than once over the whole value",
+      "steps": [
+        {
+          "op": "upload",
+          "target": {
+            "role": "file",
+            "name": "CV"
+          },
+          "paths": [
+            "/tmp/{{name}}-cv.pdf",
+            "/tmp/{{name}}-cover.pdf"
+          ]
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "file",
+            "name": "CV",
+            "label": "CV",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {
+        "name": "wei"
+      },
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "upload",
+            "ref": "e1",
+            "paths": [
+              "/tmp/wei-cv.pdf",
+              "/tmp/wei-cover.pdf"
+            ]
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "upload",
+            "ref": "e1",
+            "name": "CV",
+            "score": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "ops-without-a-target-pass-straight-through",
+      "why": "a key press and a wait have nothing to resolve against, so they reach the executor untouched. Not every step is about an element",
+      "steps": [
+        {
+          "op": "keys",
+          "key": "Enter"
+        },
+        {
+          "op": "wait",
+          "ms": 500
+        },
+        {
+          "op": "wait_for_text",
+          "text": "Done"
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "keys",
+            "key": "Enter"
+          },
+          {
+            "op": "wait",
+            "ms": 500
+          },
+          {
+            "op": "wait_for_text",
+            "text": "Done"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "keys"
+          },
+          {
+            "step": 2,
+            "op": "wait"
+          },
+          {
+            "step": 3,
+            "op": "wait_for_text"
+          }
+        ]
+      }
+    },
+    {
+      "name": "an-empty-target-is-treated-as-no-target",
+      "why": "`{}` is a falsy dict in Python and a truthy object in JavaScript. The distinction is invisible until a macro carries a bare empty target, at which point the two languages disagree about whether there is anything to match",
+      "steps": [
+        {
+          "op": "wait",
+          "ms": 100,
+          "target": {}
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "wait",
+            "ms": 100
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "wait"
+          }
+        ]
+      }
+    },
+    {
+      "name": "steps-without-an-op-are-skipped-without-renumbering",
+      "why": "a step that is not an operation is dropped, but the numbers the rest are reported under still come from the file, so a report line matches the macro a human opens",
+      "steps": [
+        {},
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "Check in"
+          }
+        },
+        {}
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 1,
+        "actions": [
+          {
+            "ref": "e1",
+            "role": "button",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e1"
+          }
+        ],
+        "report": [
+          {
+            "step": 2,
+            "op": "click",
+            "ref": "e1",
+            "name": "Check in",
+            "score": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "a-recorded-failure-replays-predictably",
+      "why": "`tmp-1p3a-scratch.json`: twelve identical clicks recorded while the HOVER gap made the real target unreachable. Every step resolves to the same element at 1.0 and the replay would do exactly what the recording did. Predictable is not the same as correct, which is why replay ends in a `verify`",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "今日任务",
+            "context": "",
+            "label": "今日任务"
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "今日任务",
+            "context": "",
+            "label": "今日任务"
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "今日任务",
+            "context": "",
+            "label": "今日任务"
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "今日任务",
+            "context": "",
+            "label": "今日任务"
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "今日任务",
+            "context": "",
+            "label": "今日任务"
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "今日任务",
+            "context": "",
+            "label": "今日任务"
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "今日任务",
+            "context": "",
+            "label": "今日任务"
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "今日任务",
+            "context": "",
+            "label": "今日任务"
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "今日任务",
+            "context": "",
+            "label": "今日任务"
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "今日任务",
+            "context": "",
+            "label": "今日任务"
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "今日任务",
+            "context": "",
+            "label": "今日任务"
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "今日任务",
+            "context": "",
+            "label": "今日任务"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 2,
+        "actions": [
+          {
+            "ref": "e8",
+            "role": "button",
+            "name": "今日任务",
+            "label": "今日任务",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          },
+          {
+            "ref": "e9",
+            "role": "button",
+            "name": "最新回复",
+            "label": "最新回复",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e8"
+          },
+          {
+            "op": "click",
+            "ref": "e8"
+          },
+          {
+            "op": "click",
+            "ref": "e8"
+          },
+          {
+            "op": "click",
+            "ref": "e8"
+          },
+          {
+            "op": "click",
+            "ref": "e8"
+          },
+          {
+            "op": "click",
+            "ref": "e8"
+          },
+          {
+            "op": "click",
+            "ref": "e8"
+          },
+          {
+            "op": "click",
+            "ref": "e8"
+          },
+          {
+            "op": "click",
+            "ref": "e8"
+          },
+          {
+            "op": "click",
+            "ref": "e8"
+          },
+          {
+            "op": "click",
+            "ref": "e8"
+          },
+          {
+            "op": "click",
+            "ref": "e8"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "click",
+            "ref": "e8",
+            "name": "今日任务",
+            "score": 1.0
+          },
+          {
+            "step": 2,
+            "op": "click",
+            "ref": "e8",
+            "name": "今日任务",
+            "score": 1.0
+          },
+          {
+            "step": 3,
+            "op": "click",
+            "ref": "e8",
+            "name": "今日任务",
+            "score": 1.0
+          },
+          {
+            "step": 4,
+            "op": "click",
+            "ref": "e8",
+            "name": "今日任务",
+            "score": 1.0
+          },
+          {
+            "step": 5,
+            "op": "click",
+            "ref": "e8",
+            "name": "今日任务",
+            "score": 1.0
+          },
+          {
+            "step": 6,
+            "op": "click",
+            "ref": "e8",
+            "name": "今日任务",
+            "score": 1.0
+          },
+          {
+            "step": 7,
+            "op": "click",
+            "ref": "e8",
+            "name": "今日任务",
+            "score": 1.0
+          },
+          {
+            "step": 8,
+            "op": "click",
+            "ref": "e8",
+            "name": "今日任务",
+            "score": 1.0
+          },
+          {
+            "step": 9,
+            "op": "click",
+            "ref": "e8",
+            "name": "今日任务",
+            "score": 1.0
+          },
+          {
+            "step": 10,
+            "op": "click",
+            "ref": "e8",
+            "name": "今日任务",
+            "score": 1.0
+          },
+          {
+            "step": 11,
+            "op": "click",
+            "ref": "e8",
+            "name": "今日任务",
+            "score": 1.0
+          },
+          {
+            "step": 12,
+            "op": "click",
+            "ref": "e8",
+            "name": "今日任务",
+            "score": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "the-fossil-after-the-gap-was-closed",
+      "why": "the same trigger once the menu it hides is in the table: the hover step is what reaches it, and this is the macro that should have been recorded",
+      "steps": [
+        {
+          "op": "hover",
+          "target": {
+            "role": "button",
+            "name": "今日任务",
+            "context": ""
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "role": "menuitem",
+            "name": "签到领奖",
+            "context": "今日任务"
+          }
+        }
+      ],
+      "raw": {
+        "url": "https://example.com/flights",
+        "title": "Flights",
+        "text": "",
+        "scroll": {
+          "y": 0,
+          "height": 1240
+        },
+        "reachable": 2,
+        "actions": [
+          {
+            "ref": "e8",
+            "role": "button",
+            "name": "今日任务",
+            "label": "今日任务",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "",
+            "accept": null,
+            "multiple": false,
+            "hoverable": true
+          },
+          {
+            "ref": "e645",
+            "role": "menuitem",
+            "name": "签到领奖",
+            "label": "签到领奖",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "今日任务",
+            "accept": null,
+            "multiple": false
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "d",
+        "page_key": "k"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "hover",
+            "ref": "e8"
+          },
+          {
+            "op": "click",
+            "ref": "e645"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "hover",
+            "ref": "e8",
+            "name": "今日任务",
+            "score": 1.0
+          },
+          {
+            "step": 2,
+            "op": "click",
+            "ref": "e645",
+            "name": "签到领奖",
+            "score": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "a-live-page-and-the-menu-behind-its-trigger",
+      "why": "the path that matters: a hover step onto the trigger, then a click on the menu item that only exists afterwards. Both resolve at 1.0 against a payload the real observer produced, which is the whole premise of replaying this task",
+      "steps": [
+        {
+          "op": "hover",
+          "target": {
+            "role": "button",
+            "name": "今日任务",
+            "context": "",
+            "label": "今日任务"
+          }
+        },
+        {
+          "op": "click",
+          "target": {
+            "role": "menuitem",
+            "name": "签到领奖",
+            "context": "",
+            "label": "签到领奖"
+          }
+        }
+      ],
+      "raw": {
+        "url": "http://127.0.0.1:55089/checkin.html",
+        "title": "每日签到",
+        "w": 1280,
+        "h": 860,
+        "text": "今日任务\n签到领奖\n每日答题\n甲帖\n签到\n乙帖\n签到\n帖子 A\n打卡\n帖子 B\n打卡\nPost C\nCheck in\nPost D\nCheck in",
+        "scroll": {
+          "y": 0,
+          "height": 860
+        },
+        "reachable": 9,
+        "actions": [
+          {
+            "node": 1,
+            "ref": "e1",
+            "role": "button",
+            "name": "今日任务",
+            "label": "今日任务",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": true,
+            "order": 0,
+            "checked": null,
+            "expanded": "true",
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "index": 1
+          },
+          {
+            "node": 8,
+            "ref": "e8",
+            "role": "menuitem",
+            "name": "签到领奖",
+            "label": "签到领奖",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 1,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "index": 2
+          },
+          {
+            "node": 9,
+            "ref": "e9",
+            "role": "menuitem",
+            "name": "每日答题",
+            "label": "每日答题",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 2,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "index": 3
+          },
+          {
+            "node": 2,
+            "ref": "e2",
+            "role": "button",
+            "name": "签到",
+            "label": "签到",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 3,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "甲帖 签到",
+            "index": 4
+          },
+          {
+            "node": 3,
+            "ref": "e3",
+            "role": "button",
+            "name": "签到",
+            "label": "签到",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 4,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "乙帖 签到",
+            "index": 5
+          },
+          {
+            "node": 4,
+            "ref": "e4",
+            "role": "button",
+            "name": "打卡",
+            "label": "打卡",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 5,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "帖子 A 打卡",
+            "index": 6
+          },
+          {
+            "node": 5,
+            "ref": "e5",
+            "role": "button",
+            "name": "打卡",
+            "label": "打卡",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 6,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "帖子 B 打卡",
+            "index": 7
+          },
+          {
+            "node": 6,
+            "ref": "e6",
+            "role": "button",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 7,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "Post C Check in",
+            "index": 8
+          },
+          {
+            "node": 7,
+            "ref": "e7",
+            "role": "button",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 8,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "Post D Check in",
+            "index": 9
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "button|今日任务||||true|false|false\u0001menuitem|签到领奖|||||false|false\u0001menuitem|每日答题|||||false|false\u0001button|签到|||||false|false\u0001button|签到|||||false|false\u0001button|打卡|||||false|false\u0001button|打卡|||||false|false\u0001button|Check in|||||false|false\u0001button|Check in|||||false|false",
+        "page_key": "[1789887158113.3,\"http://127.0.0.1:55089/checkin.html\",1280,860,[]]"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "hover",
+            "ref": "e1"
+          },
+          {
+            "op": "click",
+            "ref": "e8"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "hover",
+            "ref": "e1",
+            "name": "今日任务",
+            "score": 1.0
+          },
+          {
+            "step": 2,
+            "op": "click",
+            "ref": "e8",
+            "name": "签到领奖",
+            "score": 1.0
+          }
+        ]
+      }
+    },
+    {
+      "name": "a-live-page-with-a-repeated-chinese-label",
+      "why": "two rows, both buttons labelled 签到, contexts 甲帖 签到 and 乙帖 签到. Neither context has a single token, so neither scores, so the tie stands and the step refuses. This is the CJK limitation happening on a live page rather than in a synthetic case -- and refusing is the right outcome of a wrong situation",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "签到",
+            "context": "甲帖 签到",
+            "label": "签到"
+          }
+        }
+      ],
+      "raw": {
+        "url": "http://127.0.0.1:55089/checkin.html",
+        "title": "每日签到",
+        "w": 1280,
+        "h": 860,
+        "text": "今日任务\n甲帖\n签到\n乙帖\n签到\n帖子 A\n打卡\n帖子 B\n打卡\nPost C\nCheck in\nPost D\nCheck in",
+        "scroll": {
+          "y": 0,
+          "height": 860
+        },
+        "reachable": 7,
+        "actions": [
+          {
+            "node": 1,
+            "ref": "e1",
+            "role": "button",
+            "name": "今日任务",
+            "label": "今日任务",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": true,
+            "order": 0,
+            "checked": null,
+            "expanded": "false",
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "index": 1
+          },
+          {
+            "node": 2,
+            "ref": "e2",
+            "role": "button",
+            "name": "签到",
+            "label": "签到",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 1,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "甲帖 签到",
+            "index": 2
+          },
+          {
+            "node": 3,
+            "ref": "e3",
+            "role": "button",
+            "name": "签到",
+            "label": "签到",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 2,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "乙帖 签到",
+            "index": 3
+          },
+          {
+            "node": 4,
+            "ref": "e4",
+            "role": "button",
+            "name": "打卡",
+            "label": "打卡",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 3,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "帖子 A 打卡",
+            "index": 4
+          },
+          {
+            "node": 5,
+            "ref": "e5",
+            "role": "button",
+            "name": "打卡",
+            "label": "打卡",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 4,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "帖子 B 打卡",
+            "index": 5
+          },
+          {
+            "node": 6,
+            "ref": "e6",
+            "role": "button",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 5,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "Post C Check in",
+            "index": 6
+          },
+          {
+            "node": 7,
+            "ref": "e7",
+            "role": "button",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 6,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "Post D Check in",
+            "index": 7
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "button|今日任务||||false|false|false\u0001button|签到|||||false|false\u0001button|签到|||||false|false\u0001button|打卡|||||false|false\u0001button|打卡|||||false|false\u0001button|Check in|||||false|false\u0001button|Check in|||||false|false",
+        "page_key": "[1789887158113.3,\"http://127.0.0.1:55089/checkin.html\",1280,860,[]]"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "error": "step 1 is ambiguous between e2 '签到' and e3 '签到'. Add distinguishing context to the macro or run the step manually."
+      }
+    },
+    {
+      "name": "a-live-page-with-a-repeated-english-label",
+      "why": "the same shape in English, and the interesting part is that it fails too: 'Post C Check in' against 'Post D Check in' overlaps by three words out of five, which clears the 0.4 floor for *both* candidates. The context bonus is all-or-nothing, so a context that differs by one word cannot break the tie it was recorded to break -- a limit that has nothing to do with CJK",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "Check in",
+            "context": "Post C Check in",
+            "label": "Check in"
+          }
+        }
+      ],
+      "raw": {
+        "url": "http://127.0.0.1:55089/checkin.html",
+        "title": "每日签到",
+        "w": 1280,
+        "h": 860,
+        "text": "今日任务\n甲帖\n签到\n乙帖\n签到\n帖子 A\n打卡\n帖子 B\n打卡\nPost C\nCheck in\nPost D\nCheck in",
+        "scroll": {
+          "y": 0,
+          "height": 860
+        },
+        "reachable": 7,
+        "actions": [
+          {
+            "node": 1,
+            "ref": "e1",
+            "role": "button",
+            "name": "今日任务",
+            "label": "今日任务",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": true,
+            "order": 0,
+            "checked": null,
+            "expanded": "false",
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "index": 1
+          },
+          {
+            "node": 2,
+            "ref": "e2",
+            "role": "button",
+            "name": "签到",
+            "label": "签到",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 1,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "甲帖 签到",
+            "index": 2
+          },
+          {
+            "node": 3,
+            "ref": "e3",
+            "role": "button",
+            "name": "签到",
+            "label": "签到",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 2,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "乙帖 签到",
+            "index": 3
+          },
+          {
+            "node": 4,
+            "ref": "e4",
+            "role": "button",
+            "name": "打卡",
+            "label": "打卡",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 3,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "帖子 A 打卡",
+            "index": 4
+          },
+          {
+            "node": 5,
+            "ref": "e5",
+            "role": "button",
+            "name": "打卡",
+            "label": "打卡",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 4,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "帖子 B 打卡",
+            "index": 5
+          },
+          {
+            "node": 6,
+            "ref": "e6",
+            "role": "button",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 5,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "Post C Check in",
+            "index": 6
+          },
+          {
+            "node": 7,
+            "ref": "e7",
+            "role": "button",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 6,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "Post D Check in",
+            "index": 7
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "button|今日任务||||false|false|false\u0001button|签到|||||false|false\u0001button|签到|||||false|false\u0001button|打卡|||||false|false\u0001button|打卡|||||false|false\u0001button|Check in|||||false|false\u0001button|Check in|||||false|false",
+        "page_key": "[1789887158113.3,\"http://127.0.0.1:55089/checkin.html\",1280,860,[]]"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "error": "step 1 is ambiguous between e6 'Check in' and e7 'Check in'. Add distinguishing context to the macro or run the step manually."
+      }
+    },
+    {
+      "name": "a-live-page-with-a-latin-letter-in-the-context",
+      "why": "the control for the case above, and the reason it is worth having: the same two rows with 帖子 A and 帖子 B behind them resolve, because {a} and {b} share no tokens. One Latin character is the entire difference between a replayable step and an unplayable one",
+      "steps": [
+        {
+          "op": "click",
+          "target": {
+            "role": "button",
+            "name": "打卡",
+            "context": "帖子 A 打卡",
+            "label": "打卡"
+          }
+        }
+      ],
+      "raw": {
+        "url": "http://127.0.0.1:55089/checkin.html",
+        "title": "每日签到",
+        "w": 1280,
+        "h": 860,
+        "text": "今日任务\n甲帖\n签到\n乙帖\n签到\n帖子 A\n打卡\n帖子 B\n打卡\nPost C\nCheck in\nPost D\nCheck in",
+        "scroll": {
+          "y": 0,
+          "height": 860
+        },
+        "reachable": 7,
+        "actions": [
+          {
+            "node": 1,
+            "ref": "e1",
+            "role": "button",
+            "name": "今日任务",
+            "label": "今日任务",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": true,
+            "order": 0,
+            "checked": null,
+            "expanded": "false",
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "index": 1
+          },
+          {
+            "node": 2,
+            "ref": "e2",
+            "role": "button",
+            "name": "签到",
+            "label": "签到",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 1,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "甲帖 签到",
+            "index": 2
+          },
+          {
+            "node": 3,
+            "ref": "e3",
+            "role": "button",
+            "name": "签到",
+            "label": "签到",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 2,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "乙帖 签到",
+            "index": 3
+          },
+          {
+            "node": 4,
+            "ref": "e4",
+            "role": "button",
+            "name": "打卡",
+            "label": "打卡",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 3,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "帖子 A 打卡",
+            "index": 4
+          },
+          {
+            "node": 5,
+            "ref": "e5",
+            "role": "button",
+            "name": "打卡",
+            "label": "打卡",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 4,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "帖子 B 打卡",
+            "index": 5
+          },
+          {
+            "node": 6,
+            "ref": "e6",
+            "role": "button",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 5,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "Post C Check in",
+            "index": 6
+          },
+          {
+            "node": 7,
+            "ref": "e7",
+            "role": "button",
+            "name": "Check in",
+            "label": "Check in",
+            "value": "",
+            "editable": false,
+            "occluded": false,
+            "inViewport": true,
+            "hoverable": false,
+            "order": 6,
+            "checked": null,
+            "expanded": null,
+            "current": null,
+            "multiple": false,
+            "accept": null,
+            "options": [],
+            "opts_total": 0,
+            "secret": false,
+            "context": "Post D Check in",
+            "index": 7
+          }
+        ],
+        "omitted": 0,
+        "offscreen": 0,
+        "overlays": [],
+        "cross_frames": 0,
+        "cross_frame_srcs": [],
+        "digest": "button|今日任务||||false|false|false\u0001button|签到|||||false|false\u0001button|签到|||||false|false\u0001button|打卡|||||false|false\u0001button|打卡|||||false|false\u0001button|Check in|||||false|false\u0001button|Check in|||||false|false",
+        "page_key": "[1789887158113.3,\"http://127.0.0.1:55089/checkin.html\",1280,860,[]]"
+      },
+      "params": {},
+      "threshold": 0.7,
+      "expected": {
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e4"
+          }
+        ],
+        "report": [
+          {
+            "step": 1,
+            "op": "click",
+            "ref": "e4",
+            "name": "打卡",
+            "score": 1.15
+          }
+        ]
+      }
+    }
+  ]
+}
