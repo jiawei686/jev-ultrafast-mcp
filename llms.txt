@@ -18,8 +18,9 @@ Cline, Windsurf, Gemini CLI). MIT licensed. Requires Python ≥ 3.10 and any Chr
 - [docs/DESIGN.md](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/docs/DESIGN.md): the
   seven differentiators and the trade-offs behind them, measured against `browser-use/jev-ultrafast`
 - [chrome-extension/README.md](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/chrome-extension/README.md):
-  a Chrome extension that shows the element table for the page you are looking at, rendered by the
-  server's own observer and a port of its renderer
+  a Chrome extension that shows the element table for the page you are looking at — rendered by the
+  server's own observer and a port of its renderer — and replays a recorded macro with no model in
+  the loop, through ports of the server's resolver, op dispatcher and report writer
 - [CHANGELOG.md](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/CHANGELOG.md)
 - [CONTRIBUTING.md](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/CONTRIBUTING.md): the
   seven checks — `ruff`, `pytest`, `smoke.py`, `mcp_check.py`, `live_check.py`, `turbo_check.py`,

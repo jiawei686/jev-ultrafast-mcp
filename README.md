@@ -461,9 +461,17 @@ drawn by the same observer and a port of the same renderer, so a `ref` in the po
 means in a session. The second read of a page renders as a delta, which is how you watch a page
 change.
 
-It asks for three permissions and no host access at all: `activeTab` (the tab you clicked it on, and
-nothing else), `scripting`, and `storage`. Nothing in it acts on the page; it is a way to read, not a
-second way to drive.
+It also **runs a macro with no model in the loop** — the resolver, the dispatcher and the report
+writer are all ports of the server's own code, so a replay there is the replay here.
+
+Both halves are why it asks for four permissions and no host access at all: `activeTab` (the tab you
+clicked it on, and nothing else), `scripting`, `storage`, and `debugger`. The last one is the cost of
+the replay, and it is not a shortcut: `element.click()` produces `isTrusted: false` events a site is
+entitled to ignore, so a replayed click that is to be believed has to come through the DevTools
+protocol. The extension's own
+[README](https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/chrome-extension/README.md) says
+what that buys, what it costs, and which four ops it declines to do rather than reach outside the tab
+you pointed it at.
 
 ---
 
@@ -850,11 +858,16 @@ scripts/
   mcp_check.py     drives the server over real stdio MCP
   live_check.py    the same, against real websites (needs the network)
   turbo_check.py   lets the decision model drive a real browser (needs a key)
-  extension_check.py  loads the Chrome extension and compares its table with the server's
+  extension_check.py  the extension in a real Chrome: its table, and a macro it replayed
   checkin.py       a real check-in: learn once with the model, then replay for free
 chrome-extension/
   lib/observer.js  a byte-identical copy of jev_ultrafast_mcp/js/observer.js
   lib/render.js    a port of observe.py, held to the real renderer by generated fixtures
+  lib/macro.js     a port of macros.py, held to the real resolver by generated fixtures
+  lib/session.js   a port of browser.py's op dispatcher, held to the real one by generated fixtures
+  lib/report.js    a port of server.py's report writers, so a report reads the same anywhere
+  lib/store.js     macros in chrome.storage.local, under the server's own {{placeholder}} rules
+  background.js    the service worker, and the only file that calls the debugger API
 examples/
   checkin.html     the daily-button page checkin.py drives
 assets/

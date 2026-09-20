@@ -36,6 +36,12 @@ export const CONTEXT_WEIGHT = 0.15;
 
 const TEMPLATE = /\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g;
 
+/* The pattern without its `g` flag, which is the problem with sharing a global regex: `lastIndex`
+ * survives between calls, so the second user silently starts matching from the middle. `store.js`
+ * needs it to list the placeholders a macro wants filled in, and a second copy of the pattern here
+ * would be a second definition of what a placeholder is. */
+export const TEMPLATE_SOURCE = TEMPLATE.source;
+
 /* Roles that behave the same way to a click, so a macro recorded against one
  * still resolves against the other -- at a lower base score, which keeps an
  * exact role match winning when both are on the page. */
@@ -114,6 +120,27 @@ export function pythonStr(value) {
   if (value === true) return 'True';
   if (value === false) return 'False';
   return String(value);
+}
+
+/** Python's `str()` for a number the other side holds as a float.
+ *
+ * `pythonStr` cannot do this one, and that is the whole reason this exists. A
+ * score comes back from `round(score, 3)`, which is a float in Python however
+ * integral it looks, so the server's `f"({score})"` writes `1.0`. JSON keeps no
+ * trace of that: it hands this side the number `1`, and `String(1)` is `"1"`.
+ * The caller knows the field is a float, so the `.0` is read off the contract
+ * rather than guessed from the value.
+ *
+ * `pythonRepr` would coincide here -- `repr` and `str` agree on every float --
+ * but it would not say *why* the `.0` is owed, and the next reader would have
+ * to re-derive that the field is a float at all. `test/act-parity.mjs` holds
+ * this to Python's own `str(round(v, 3))` over the scores `_score` can return,
+ * the integral one included: it was a live replay of a perfect match that first
+ * printed `(1)` where the server printed `(1.0)`.
+ */
+export function pythonFloat(value) {
+  if (typeof value !== 'number') return pythonStr(value);
+  return Number.isInteger(value) ? `${value}.0` : String(value);
 }
 
 /** Python's `repr`, for the one place output must match character for
@@ -199,7 +226,7 @@ export function scoreTarget(target, element) {
 export function substitute(value, params) {
   if (typeof value !== 'string') return value;
   return value.replace(
-    new RegExp(TEMPLATE.source, 'g'),
+    new RegExp(TEMPLATE_SOURCE, 'g'),
     (whole, name) => (Object.prototype.hasOwnProperty.call(params, name)
       ? pythonStr(params[name])
       : whole),

@@ -33,6 +33,53 @@ All notable changes to this project are documented here. The format follows
   input this scorer produces — which matters because the fixtures were green long before they were
   worth anything: the first mutation run passed against a fixture file that had not been
   regenerated.
+- **The extension can now replay a macro, with no model in the loop.** The other half of a replay is
+  the half that clicks, and `chrome-extension/lib/session.js` is a port of `browser.py`'s `Session`:
+  the same op dispatcher, the same three refusal rules, the same tables that turn `ctrl+shift+k` into
+  a virtual key code. `lib/report.js` ports `server.py`'s `_render_act` and the replay header so a
+  report reads the same wherever it was produced, `lib/store.js` keeps macros in
+  `chrome.storage.local` under the server's own `{{placeholder}}` rules, and `background.js` is the
+  service worker — the only file in the extension that calls the debugger API. The popup gained a
+  Replay panel: pick a macro, fill in the placeholders it asks for, press Run, and the table above
+  refreshes as a delta against where you started.
+  It takes the `debugger` permission, and that is the point rather than a shortcut: `element.click()`
+  and `dispatchEvent(new MouseEvent(...))` produce `isTrusted: false` events a site is entitled to
+  ignore, and the observer hands back *coordinates* precisely because the intended consumer
+  dispatches input at them. `Input.dispatchMouseEvent` is the only in-extension way to produce
+  trusted input. It is held for the length of a run and released in a `finally`, including on
+  failure, so Chrome's banner is bounded by the replay rather than by how long the popup is open —
+  and `tests/test_extension.py` fails if a second file starts *calling* the API, which is deliberately
+  not the same test as one that greps for the word: `lib/session.js` opens with a paragraph naming it,
+  and a substring search read that explanation as a second holder.
+  Four ops behave differently from the server, pinned as fixtures rather than left for a reader to
+  notice: `scroll` scrolls the viewport centre of the user's tab instead of one sized by a config
+  file, and `upload`, `tab` and `eval` are refused outright, because an extension cannot read a path
+  off the disk, has no business reaching a tab it was not pointed at, and cannot hold a page
+  evaluated by a script it cannot inspect. The three rules that keep an unattended replay away from
+  password fields and "Buy now" are *not* divergences and are compared in full, refusal sentence
+  included — a port that got one of those subtly wrong would not report a problem, it would click and
+  look exactly like success. `test/act-parity.mjs` runs 31 operations through both dispatchers and
+  compares the step report *and* the CDP commands each side issued, because a dispatcher that ignores
+  an argument still reports `ok`; 211 checks, and the port was mutated rather than merely observed —
+  19 mutations, the 3 that escaped were all real gaps and are now closed, one of them a host match
+  that let `notexample.com` pass an `example.com` allow list.
+  `scripts/extension_check.py` gained a sixth section for the two things fixtures cannot reach: it
+  records a macro with the server's own recorder, replays it in a real Chrome, calls the real
+  `browser_macro` tool on the same macro, and compares the two replies character for character —
+  masking only the per-step stopwatch, because the two replays are two runs. That section found a
+  genuine bug on its first green-adjacent run: the extension printed a resolve score as `(1)` where the
+  tool prints `(1.0)`. A score is a float in Python however integral it looks, JSON keeps no trace of
+  that, and nothing in the repo could see it — every score the fixtures happened to carry was
+  non-integral, where the two agree — so it surfaced only because a real replay of a macro that matched
+  *perfectly* printed both. Fixed with a `pythonFloat` primitive, and pinned twice: a `float` fixture
+  family holding it to Python's own `str(round(v, 3))` over every score the matcher can return, and an
+  assertion that the header reaches for it. 195 tests, 13 of them here — two new ones in
+  `tests/test_extension.py` for who may call the debugger, and `tests/test_act_port.py` for the
+  execution layer, which also pins two genuine `browser.py` oddities rather than quietly improving on
+  them: `scroll` documents a `ref` it never reads, because `scroll` is not in the set that reads one,
+  so a `scroll` at a ref scrolls the viewport centre instead and reports `ok`; and the two report
+  writers disagree on their default `max_text` — `Observation.render` defaults to 4000 while
+  `readState` passes 6000 — so the port has to carry both numbers.
 - **Both READMEs now say how to make the handoff actually arrive.** Pointing a client at the server
   is half of it; an agent that never hears the rule drives the page itself, one call per click. The
   new section under *Connecting an agent* names the measured failure (WorkBuddy ships a server's

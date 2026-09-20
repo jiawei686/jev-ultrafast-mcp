@@ -25,6 +25,35 @@
 
   <footer id="stats" class="stats"></footer>
 
+  <section class="macros">
+    <h2>Replay</h2>
+
+    <div class="row">
+      <select id="macro-select" aria-label="Macro to replay"></select>
+      <button id="macro-run" class="primary" type="button" disabled>Run</button>
+      <button id="macro-stop" type="button" disabled>Stop</button>
+      <button id="macro-forget" type="button" disabled>Forget</button>
+    </div>
+
+    <div class="row">
+      <input id="macro-params" type="text" spellcheck="false"
+             placeholder='parameters as JSON, e.g. {"query":"shoes"}'>
+    </div>
+
+    <details id="macro-paste">
+      <summary>Paste a macro recorded by the server</summary>
+      <textarea id="macro-text" rows="4" spellcheck="false"
+                placeholder='the JSON browser_macro action="inspect" prints'></textarea>
+      <div class="row">
+        <input id="macro-name" type="text" placeholder="name (optional)">
+        <button id="macro-save" type="button">Save</button>
+      </div>
+    </details>
+
+    <p id="macro-note" class="note" hidden></p>
+    <pre id="macro-report" class="report">No macro has run here yet.</pre>
+  </section>
+
   <script type="module" src="popup.js"></script>
 </body>
 </html>

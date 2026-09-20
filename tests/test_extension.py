@@ -40,6 +40,12 @@ TEST = EXT / "test"
 MANIFEST = EXT / "manifest.json"
 OBSERVER_SOURCE = ROOT / "jev_ultrafast_mcp" / "js" / "observer.js"
 
+# A *call* on the debugger API -- `chrome.debugger.attach(`, `chrome.debugger.sendCommand(` -- as
+# opposed to a mention of it. The distinction is the whole point: prose about the API cannot match
+# this, so `lib/session.js` is free to explain in its header why the driver it is handed happens to
+# be the debugger, while a second thing that can actually attach still fails the test below.
+DEBUGGER_CALL = re.compile(r"chrome\.debugger\.\w+\s*\(")
+
 
 # --- the extension is made of the server's parts --------------------------------------------
 
@@ -146,17 +152,25 @@ def test_the_manifest_is_a_loadable_mv3_extension():
 
 
 def test_the_manifest_asks_for_no_more_than_it_uses():
-    """Three permissions, each one doing a job, and no host permissions at all.
+    """Four permissions, each one doing a job, and no host permissions at all.
 
     `activeTab` is the interesting one: it grants access to the tab you clicked the extension on and
     nothing else, which is why the extension can read a page without being able to read your
     browsing history. Requesting `<all_urls>` or `tabs` would be the easy way to build this and
     would make the extension something a reader has to trust rather than something they can check.
+
+    `debugger` is the fourth and it was added on purpose, when replay became a thing this does. It is
+    the one permission here that asks for something rather than limiting it: it is what buys real
+    `Input.dispatchMouseEvent` instead of `isTrusted: false` synthetic events, and the price is the
+    banner Chrome shows on the tab while a run is in progress. That is a trade worth making and
+    worth saying out loud, which is why it is asserted here rather than left to the diff — this list
+    is where a permission gets decided, so a change to it has to fail here first.
     """
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     source = (EXT / "popup.js").read_text(encoding="utf-8")
+    worker = (EXT / "background.js").read_text(encoding="utf-8")
 
-    assert set(manifest["permissions"]) == {"activeTab", "scripting", "storage"}
+    assert set(manifest["permissions"]) == {"activeTab", "scripting", "storage", "debugger"}
     assert "host_permissions" not in manifest, (
         "the extension works on the clicked tab via activeTab and needs no host permissions")
 
@@ -165,6 +179,40 @@ def test_the_manifest_asks_for_no_more_than_it_uses():
     assert "chrome.storage.local" in source, "storage permission is unused"
     assert "chrome.tabs.query" in source, (
         "activeTab is what makes the active tab readable; the popup should be reading it")
+    assert "chrome.debugger" in worker, "debugger permission is unused"
+
+
+def test_the_debugger_is_held_in_exactly_one_place():
+    """The service worker owns it, and nothing else calls it.
+
+    Two holders of one attachment is how a run ends up detaching a debugger another run is using.
+    It is also what keeps the browser surface small enough to audit: `lib/session.js` talks to an
+    injected driver and never calls the API, which is what lets it be exercised without a browser at
+    all.
+
+    Naming it is not the same as calling it, and this test has to tell those apart rather than ban
+    the word. `lib/session.js` opened with a paragraph explaining that the debugger is the only
+    in-extension source of trusted input, and a substring search read that explanation as a second
+    holder -- the kind of test that gets deleted rather than fixed. So it searches for the call.
+    """
+    callers = sorted(
+        path.relative_to(EXT).as_posix()
+        for path in list(EXT.glob("*.js")) + list(LIB.glob("*.js"))
+        if DEBUGGER_CALL.search(path.read_text(encoding="utf-8")))
+
+    assert callers == ["background.js"], (
+        f"the debugger API is called from {callers}; it belongs only in background.js")
+
+
+def test_the_worker_that_owns_the_debugger_is_the_one_the_manifest_loads():
+    """A service worker the manifest does not point at is a file, not a component."""
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    background = manifest["background"]
+
+    assert background["type"] == "module", (
+        "background.js uses import, so the worker has to be declared as a module")
+    assert (EXT / background["service_worker"]).exists(), (
+        f"{background['service_worker']} is the worker the manifest points at and it is not there")
 
 
 def test_the_extension_documents_itself_where_the_manifests_points():

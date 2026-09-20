@@ -1,0 +1,1658 @@
+{
+  "generator": "chrome-extension/test/make_act_fixtures.py",
+  "note": "Every `expected` block is produced by the real Python code the extension's lib/session.js ports: browser.py for the op tables, the op dispatcher and _resolve_ref, safety.py for the two refusal rules, config.py for the patterns themselves, and server.py for the two report writers. The refusals are compared in full, including the sentence, because that sentence is what a person reads to fix the macro.",
+  "helpers": {
+    "confirm": [
+      {
+        "name": "Where from?",
+        "role": "textbox",
+        "confirm": null,
+        "secret": false
+      },
+      {
+        "name": "Passengers",
+        "role": "listbox",
+        "confirm": null,
+        "secret": false
+      },
+      {
+        "name": "Search",
+        "role": "button",
+        "confirm": null,
+        "secret": false
+      },
+      {
+        "name": "Sign in",
+        "role": "button",
+        "confirm": null,
+        "secret": false
+      },
+      {
+        "name": "Password",
+        "role": "textbox",
+        "confirm": null,
+        "secret": true
+      },
+      {
+        "name": "password",
+        "role": "textbox",
+        "confirm": null,
+        "secret": true
+      },
+      {
+        "name": "Card number",
+        "role": "textbox",
+        "confirm": null,
+        "secret": true
+      },
+      {
+        "name": "CVV",
+        "role": "textbox",
+        "confirm": null,
+        "secret": true
+      },
+      {
+        "name": "OTP",
+        "role": "textbox",
+        "confirm": null,
+        "secret": true
+      },
+      {
+        "name": "Verification code",
+        "role": "textbox",
+        "confirm": null,
+        "secret": true
+      },
+      {
+        "name": "API key",
+        "role": "textbox",
+        "confirm": null,
+        "secret": true
+      },
+      {
+        "name": "Passenger",
+        "role": "textbox",
+        "confirm": null,
+        "secret": false
+      },
+      {
+        "name": "Passcode again",
+        "role": "textbox",
+        "confirm": null,
+        "secret": true
+      },
+      {
+        "name": "Delete account",
+        "role": "button",
+        "confirm": "matches confirmation rule '\\\\bdelete\\\\s+(account|workspace|repository|project)\\\\b'",
+        "secret": false
+      },
+      {
+        "name": "Buy now",
+        "role": "button",
+        "confirm": "matches confirmation rule '\\\\bbuy\\\\s+now\\\\b'",
+        "secret": false
+      },
+      {
+        "name": "Place order",
+        "role": "button",
+        "confirm": "matches confirmation rule '\\\\bplace\\\\s+order\\\\b'",
+        "secret": false
+      },
+      {
+        "name": "Unsubscribe from newsletter",
+        "role": "link",
+        "confirm": "matches confirmation rule '\\\\bunsubscribe\\\\b'",
+        "secret": false
+      },
+      {
+        "name": "Withdraw funds",
+        "role": "menuitem",
+        "confirm": "matches confirmation rule '\\\\bwithdraw\\\\b'",
+        "secret": false
+      },
+      {
+        "name": "Cancel order",
+        "role": "tab",
+        "confirm": "matches confirmation rule '\\\\bcancel\\\\s+(order|subscription|booking)\\\\b'",
+        "secret": false
+      },
+      {
+        "name": "Send money",
+        "role": "button",
+        "confirm": "matches confirmation rule '\\\\bsend\\\\s+(money|payment)\\\\b'",
+        "secret": false
+      },
+      {
+        "name": "Buy now",
+        "role": "textbox",
+        "confirm": null,
+        "secret": false
+      },
+      {
+        "name": "Delete account",
+        "role": "checkbox",
+        "confirm": null,
+        "secret": false
+      },
+      {
+        "name": "Buy now",
+        "role": "",
+        "confirm": "matches confirmation rule '\\\\bbuy\\\\s+now\\\\b'",
+        "secret": false
+      }
+    ],
+    "url": [
+      {
+        "url": "http://127.0.0.1:8000/fixture.html",
+        "allow": [],
+        "deny": [],
+        "ok": true
+      },
+      {
+        "url": "https://example.com/a?b=c",
+        "allow": [],
+        "deny": [],
+        "ok": true
+      },
+      {
+        "url": "https://sub.example.com/a",
+        "allow": [
+          "example.com"
+        ],
+        "deny": [],
+        "ok": true
+      },
+      {
+        "url": "https://example.com/a",
+        "allow": [
+          "*.example.com"
+        ],
+        "deny": [],
+        "ok": true
+      },
+      {
+        "url": "https://example.com/a",
+        "allow": [
+          "other.com"
+        ],
+        "deny": [],
+        "error": "Domain 'example.com' is outside JEVMCP_ALLOW_DOMAINS (other.com). That list is a setting, not a default — browser_doctor reports the whole envelope."
+      },
+      {
+        "url": "https://example.com/a",
+        "allow": [],
+        "deny": [
+          "example.com"
+        ],
+        "error": "Domain 'example.com' is on JEVMCP_DENY_DOMAINS."
+      },
+      {
+        "url": "https://sub.example.com/a",
+        "allow": [],
+        "deny": [
+          "*.example.com"
+        ],
+        "error": "Domain 'sub.example.com' is on JEVMCP_DENY_DOMAINS."
+      },
+      {
+        "url": "https://example.com.evil.net/a",
+        "allow": [
+          "example.com"
+        ],
+        "deny": [],
+        "error": "Domain 'example.com.evil.net' is outside JEVMCP_ALLOW_DOMAINS (example.com). That list is a setting, not a default — browser_doctor reports the whole envelope."
+      },
+      {
+        "url": "https://notexample.com/a",
+        "allow": [
+          "example.com"
+        ],
+        "deny": [],
+        "error": "Domain 'notexample.com' is outside JEVMCP_ALLOW_DOMAINS (example.com). That list is a setting, not a default — browser_doctor reports the whole envelope."
+      },
+      {
+        "url": "https://notexample.com/a",
+        "allow": [],
+        "deny": [
+          "example.com"
+        ],
+        "ok": true
+      },
+      {
+        "url": "https://sub.example.com/a",
+        "allow": [
+          "example.com"
+        ],
+        "deny": [],
+        "ok": true
+      },
+      {
+        "url": "about:blank",
+        "allow": [],
+        "deny": [
+          "example.com"
+        ],
+        "ok": true
+      },
+      {
+        "url": "data:text/html,hi",
+        "allow": [],
+        "deny": [],
+        "ok": true
+      },
+      {
+        "url": "not a url at all",
+        "allow": [],
+        "deny": [],
+        "error": "Refusing to navigate to an unparseable URL: 'not a url at all'"
+      }
+    ],
+    "int": [
+      {
+        "value": 600,
+        "int": 600
+      },
+      {
+        "value": 0,
+        "int": 0
+      },
+      {
+        "value": "600",
+        "int": 600
+      },
+      {
+        "value": "-25",
+        "int": -25
+      },
+      {
+        "value": 6.9,
+        "int": 6
+      },
+      {
+        "value": true,
+        "int": 1
+      },
+      {
+        "value": false,
+        "int": 0
+      },
+      {
+        "value": "",
+        "error": "invalid literal for int() with base 10: ''"
+      },
+      {
+        "value": "6.5",
+        "error": "invalid literal for int() with base 10: '6.5'"
+      },
+      {
+        "value": "abc",
+        "error": "invalid literal for int() with base 10: 'abc'"
+      },
+      {
+        "value": null,
+        "error": "int() argument must be a string, a bytes-like object or a real number, not 'NoneType'"
+      },
+      {
+        "value": 15000.4,
+        "int": 15000
+      }
+    ],
+    "ref": [
+      {
+        "ref": "e12",
+        "element": "e12",
+        "option": null
+      },
+      {
+        "ref": "12",
+        "element": "e12",
+        "option": null
+      },
+      {
+        "ref": "e12:3",
+        "element": "e12",
+        "option": "3"
+      },
+      {
+        "ref": "12:3",
+        "element": "e12",
+        "option": "3"
+      },
+      {
+        "ref": "bogus",
+        "element": "ebogus",
+        "option": null
+      },
+      {
+        "ref": "e0",
+        "element": "e0",
+        "option": null
+      },
+      {
+        "ref": "e7:x",
+        "element": "e7",
+        "option": "x"
+      }
+    ],
+    "float": [
+      {
+        "value": 1.0,
+        "expected": "1.0"
+      },
+      {
+        "value": 0.55,
+        "expected": "0.55"
+      },
+      {
+        "value": 0.6,
+        "expected": "0.6"
+      },
+      {
+        "value": 0.65,
+        "expected": "0.65"
+      },
+      {
+        "value": 0.7,
+        "expected": "0.7"
+      },
+      {
+        "value": 0.75,
+        "expected": "0.75"
+      },
+      {
+        "value": 0.8,
+        "expected": "0.8"
+      },
+      {
+        "value": 0.95,
+        "expected": "0.95"
+      },
+      {
+        "value": 0.9,
+        "expected": "0.9"
+      },
+      {
+        "value": 1.05,
+        "expected": "1.05"
+      },
+      {
+        "value": 1.15,
+        "expected": "1.15"
+      },
+      {
+        "value": 0.925,
+        "expected": "0.925"
+      },
+      {
+        "value": 0.6999999999,
+        "expected": "0.7"
+      },
+      {
+        "value": 0.8500000000000001,
+        "expected": "0.85"
+      }
+    ]
+  },
+  "scenarios": [
+    {
+      "why": "a plain click",
+      "op": {
+        "op": "click",
+        "ref": "e5"
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "click",
+          "ok": true,
+          "ref": "e5",
+          "target": "Search"
+        },
+        "calls": [
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mouseMoved"
+            }
+          },
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mousePressed",
+              "button": "left",
+              "clickCount": 1
+            }
+          },
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mouseReleased",
+              "button": "left",
+              "clickCount": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "why": "a click on a confirmation rule",
+      "op": {
+        "op": "click",
+        "ref": "e5"
+      },
+      "dry_run": false,
+      "script": {
+        "label": "Buy now"
+      },
+      "expected": {
+        "step": {
+          "op": "click",
+          "ok": false,
+          "ref": "e5",
+          "target": "Buy now",
+          "error": "needs_confirmation",
+          "detail": "matches confirmation rule '\\\\bbuy\\\\s+now\\\\b'; re-send with \"confirm\": true to proceed"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "the same click, confirmed",
+      "op": {
+        "op": "click",
+        "ref": "e5",
+        "confirm": true
+      },
+      "dry_run": false,
+      "script": {
+        "label": "Buy now"
+      },
+      "expected": {
+        "step": {
+          "op": "click",
+          "ok": true,
+          "ref": "e5",
+          "target": "Buy now"
+        },
+        "calls": [
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mouseMoved"
+            }
+          },
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mousePressed",
+              "button": "left",
+              "clickCount": 1
+            }
+          },
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mouseReleased",
+              "button": "left",
+              "clickCount": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "why": "a click with no ref",
+      "op": {
+        "op": "click"
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "click",
+          "ok": false,
+          "error": "invalid_request",
+          "detail": "op 'click' needs a ref"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "a click on a ref the page has moved on from",
+      "op": {
+        "op": "click",
+        "ref": "e5"
+      },
+      "dry_run": false,
+      "script": {
+        "guard": {
+          "ok": false,
+          "reason": "detached"
+        }
+      },
+      "expected": {
+        "step": {
+          "op": "click",
+          "ok": false,
+          "ref": "e5",
+          "error": "detached",
+          "detail": "detached"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "typing into an ordinary field",
+      "op": {
+        "op": "type",
+        "ref": "e5",
+        "text": "Zurich"
+      },
+      "dry_run": false,
+      "script": {
+        "label": "Where from?"
+      },
+      "expected": {
+        "step": {
+          "op": "type",
+          "ok": true,
+          "ref": "e5",
+          "target": "Where from?"
+        },
+        "calls": [
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mousePressed",
+              "button": "left",
+              "clickCount": 1
+            }
+          },
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mouseReleased",
+              "button": "left",
+              "clickCount": 1
+            }
+          },
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "keyDown",
+              "key": "a",
+              "code": "KeyA",
+              "windowsVirtualKeyCode": 65,
+              "modifiers": 4,
+              "commands": [
+                "selectAll"
+              ]
+            }
+          },
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "keyUp",
+              "key": "a",
+              "code": "KeyA",
+              "windowsVirtualKeyCode": 65,
+              "modifiers": 4
+            }
+          },
+          {
+            "method": "Input.insertText",
+            "params": {
+              "text": "Zurich"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "why": "typing into a password field",
+      "op": {
+        "op": "type",
+        "ref": "e5",
+        "text": "hunter2"
+      },
+      "dry_run": false,
+      "script": {
+        "label": "Password"
+      },
+      "expected": {
+        "step": {
+          "op": "type",
+          "ok": false,
+          "ref": "e5",
+          "target": "Password",
+          "error": "needs_confirmation",
+          "detail": "field looks sensitive; re-send with \"confirm\": true"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "typing without clearing first, one key at a time",
+      "op": {
+        "op": "type",
+        "ref": "e5",
+        "text": "ab",
+        "clear": false,
+        "slow": true
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "type",
+          "ok": true,
+          "ref": "e5",
+          "target": "Search"
+        },
+        "calls": [
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mousePressed",
+              "button": "left",
+              "clickCount": 1
+            }
+          },
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mouseReleased",
+              "button": "left",
+              "clickCount": 1
+            }
+          },
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "keyDown",
+              "text": "a"
+            }
+          },
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "keyUp"
+            }
+          },
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "keyDown",
+              "text": "b"
+            }
+          },
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "keyUp"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "why": "typing and submitting",
+      "op": {
+        "op": "type",
+        "ref": "e5",
+        "text": "ab",
+        "submit": true
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "type",
+          "ok": true,
+          "ref": "e5",
+          "target": "Search"
+        },
+        "calls": [
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mousePressed",
+              "button": "left",
+              "clickCount": 1
+            }
+          },
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mouseReleased",
+              "button": "left",
+              "clickCount": 1
+            }
+          },
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "keyDown",
+              "key": "a",
+              "code": "KeyA",
+              "windowsVirtualKeyCode": 65,
+              "modifiers": 4,
+              "commands": [
+                "selectAll"
+              ]
+            }
+          },
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "keyUp",
+              "key": "a",
+              "code": "KeyA",
+              "windowsVirtualKeyCode": 65,
+              "modifiers": 4
+            }
+          },
+          {
+            "method": "Input.insertText",
+            "params": {
+              "text": "ab"
+            }
+          },
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "rawKeyDown",
+              "key": "Enter",
+              "code": "Enter",
+              "windowsVirtualKeyCode": 13,
+              "nativeVirtualKeyCode": 13,
+              "modifiers": 0
+            }
+          },
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "keyUp",
+              "key": "Enter",
+              "code": "Enter",
+              "windowsVirtualKeyCode": 13,
+              "nativeVirtualKeyCode": 13,
+              "modifiers": 0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "why": "selecting by value",
+      "op": {
+        "op": "select",
+        "ref": "e5",
+        "value": "3"
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "select",
+          "ok": true,
+          "ref": "e5",
+          "target": "3"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "selecting by label",
+      "op": {
+        "op": "select",
+        "ref": "e5",
+        "label": "3 adults"
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "select",
+          "ok": true,
+          "ref": "e5",
+          "target": "3 adults"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "a select with nothing to select",
+      "op": {
+        "op": "select",
+        "ref": "e5"
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "select",
+          "ok": false,
+          "ref": "e5",
+          "error": "invalid_request",
+          "detail": "select needs 'value' or 'label'"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "selecting the empty string",
+      "op": {
+        "op": "select",
+        "ref": "e5",
+        "value": ""
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "select",
+          "ok": true,
+          "ref": "e5",
+          "target": ""
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "selecting zero",
+      "op": {
+        "op": "select",
+        "ref": "e5",
+        "value": 0
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "select",
+          "ok": true,
+          "ref": "e5",
+          "target": "0"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "a select the page cannot honour",
+      "op": {
+        "op": "select",
+        "ref": "e5",
+        "value": "9"
+      },
+      "dry_run": false,
+      "script": {
+        "select": {
+          "ok": false,
+          "reason": "no_such_option"
+        }
+      },
+      "expected": {
+        "step": {
+          "op": "select",
+          "ok": false,
+          "ref": "e5",
+          "error": "invalid_request",
+          "detail": "could not select '9': no_such_option"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "toggling on",
+      "op": {
+        "op": "toggle",
+        "ref": "e5",
+        "state": true
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "toggle",
+          "ok": true,
+          "ref": "e5"
+        },
+        "calls": [
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mouseMoved"
+            }
+          },
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mousePressed",
+              "button": "left",
+              "clickCount": 1
+            }
+          },
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mouseReleased",
+              "button": "left",
+              "clickCount": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "why": "a toggle already in the requested state",
+      "op": {
+        "op": "toggle",
+        "ref": "e5",
+        "state": false
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "toggle",
+          "ok": true,
+          "ref": "e5",
+          "detail": "already in requested state"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "hovering",
+      "op": {
+        "op": "hover",
+        "ref": "e5"
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "hover",
+          "ok": true,
+          "ref": "e5"
+        },
+        "calls": [
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mouseMoved"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "why": "a key combination",
+      "op": {
+        "op": "keys",
+        "keys": "ctrl+shift+k"
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "keys",
+          "ok": true,
+          "target": "ctrl+shift+k"
+        },
+        "calls": [
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "rawKeyDown",
+              "key": "k",
+              "code": "KeyK",
+              "windowsVirtualKeyCode": 75,
+              "nativeVirtualKeyCode": 75,
+              "modifiers": 10
+            }
+          },
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "keyUp",
+              "key": "k",
+              "code": "KeyK",
+              "windowsVirtualKeyCode": 75,
+              "nativeVirtualKeyCode": 75,
+              "modifiers": 10
+            }
+          }
+        ]
+      }
+    },
+    {
+      "why": "a named key",
+      "op": {
+        "op": "keys",
+        "key": "Enter"
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "keys",
+          "ok": true,
+          "target": "Enter"
+        },
+        "calls": [
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "rawKeyDown",
+              "key": "Enter",
+              "code": "Enter",
+              "windowsVirtualKeyCode": 13,
+              "nativeVirtualKeyCode": 13,
+              "modifiers": 0
+            }
+          },
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "keyUp",
+              "key": "Enter",
+              "code": "Enter",
+              "windowsVirtualKeyCode": 13,
+              "nativeVirtualKeyCode": 13,
+              "modifiers": 0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "why": "keys with nothing to press",
+      "op": {
+        "op": "keys"
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "keys",
+          "ok": false,
+          "error": "invalid_request",
+          "detail": "keys needs 'key' or 'keys'"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "scrolling with a ref it will not read",
+      "op": {
+        "op": "scroll",
+        "ref": "e5",
+        "amount": 100
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "scroll",
+          "ok": true,
+          "target": "down"
+        },
+        "calls": [
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mouseWheel",
+              "deltaX": 0,
+              "deltaY": 100
+            }
+          }
+        ]
+      }
+    },
+    {
+      "why": "scrolling up",
+      "op": {
+        "op": "scroll",
+        "dir": "up",
+        "amount": 250
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "scroll",
+          "ok": true,
+          "target": "up"
+        },
+        "calls": [
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mouseWheel",
+              "deltaX": 0,
+              "deltaY": -250
+            }
+          }
+        ]
+      }
+    },
+    {
+      "why": "a wait of zero ms",
+      "op": {
+        "op": "wait",
+        "ms": 0
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "wait",
+          "ok": true,
+          "target": "500ms"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "a wait with no argument",
+      "op": {
+        "op": "wait"
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "wait",
+          "ok": true,
+          "target": "500ms"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "waiting for text that is already there",
+      "op": {
+        "op": "wait_for_text",
+        "text": "body"
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "wait_for_text",
+          "ok": true
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "a dry run",
+      "op": {
+        "op": "click",
+        "ref": "e5"
+      },
+      "dry_run": true,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "click",
+          "ok": true,
+          "ref": "e5",
+          "target": "Search",
+          "detail": "dry run"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "nav outside the envelope",
+      "op": {
+        "op": "nav",
+        "url": "javascript:alert(1)"
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "nav",
+          "ok": false,
+          "error": "blocked_by_policy",
+          "detail": "Refusing to navigate to an unparseable URL: 'javascript:alert(1)'"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "nav with no url",
+      "op": {
+        "op": "nav"
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "nav",
+          "ok": false,
+          "error": "invalid_request",
+          "detail": "nav needs 'url'"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "an op nobody knows",
+      "op": {
+        "op": "broadcast"
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "broadcast",
+          "ok": false,
+          "error": "invalid_request",
+          "detail": "unknown op 'broadcast'"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "an op that is not an object",
+      "op": "not an op",
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "?",
+          "ok": false,
+          "error": "bad_op",
+          "detail": "each op must be an object"
+        },
+        "calls": []
+      }
+    }
+  ],
+  "renders": [
+    {
+      "why": "two steps that worked",
+      "payload": {
+        "ok": true,
+        "steps": 2,
+        "ops": [
+          {
+            "op": "type",
+            "ref": "e5",
+            "target": "Where from?",
+            "ok": true,
+            "ms": 312
+          },
+          {
+            "op": "click",
+            "ref": "e11",
+            "target": "Search",
+            "ok": true,
+            "ms": 580
+          }
+        ]
+      },
+      "expected": "2/2 ops ok\n  + type e5 → Where from?  312ms\n  + click e11 → Search  580ms"
+    },
+    {
+      "why": "a step that failed and stopped the run",
+      "payload": {
+        "ok": false,
+        "steps": 2,
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e11",
+            "target": "Buy now",
+            "ok": false,
+            "error": "needs_confirmation",
+            "detail": "matches confirmation rule '\\bbuy\\s+now\\b'; re-send with \"confirm\": true to proceed",
+            "ms": 4
+          }
+        ]
+      },
+      "expected": "0/1 ops ok  (stopped early)\n  x click e11 → Buy now  needs_confirmation: matches confirmation rule '\\bbuy\\s+now\\b'; re-send with \"confirm\": true to proceed"
+    },
+    {
+      "why": "an op with no ref, no target and no detail",
+      "payload": {
+        "ok": true,
+        "steps": 1,
+        "ops": [
+          {
+            "op": "wait",
+            "ok": true,
+            "ms": 500
+          }
+        ]
+      },
+      "expected": "1/1 ops ok\n  + wait  500ms"
+    },
+    {
+      "why": "a step whose ms the report never got",
+      "payload": {
+        "ok": true,
+        "steps": 1,
+        "ops": [
+          {
+            "op": "reload",
+            "ok": true
+          }
+        ]
+      },
+      "expected": "1/1 ops ok\n  + reload  0ms"
+    },
+    {
+      "why": "a step whose detail the report is showing",
+      "payload": {
+        "ok": true,
+        "steps": 1,
+        "ops": [
+          {
+            "op": "toggle",
+            "ref": "e3",
+            "ok": true,
+            "detail": "already in requested state"
+          }
+        ]
+      },
+      "expected": "1/1 ops ok\n  + toggle e3  0ms  [already in requested state]"
+    },
+    {
+      "why": "an op that failed with no detail to give",
+      "payload": {
+        "ok": false,
+        "steps": 1,
+        "ops": [
+          {
+            "op": "select",
+            "ref": "e7",
+            "ok": false,
+            "error": "invalid_request"
+          }
+        ]
+      },
+      "expected": "0/1 ops ok  (stopped early)\n  x select e7  invalid_request: "
+    },
+    {
+      "why": "a run that got stuck",
+      "payload": {
+        "ok": true,
+        "steps": 3,
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e1",
+            "ok": true
+          }
+        ],
+        "stuck": "Three consecutive actions changed nothing."
+      },
+      "expected": "1/1 ops ok\n  + click e1  0ms\n! Three consecutive actions changed nothing."
+    },
+    {
+      "why": "a delta view under the steps",
+      "payload": {
+        "ok": true,
+        "steps": 1,
+        "ops": [
+          {
+            "op": "click",
+            "ref": "e9",
+            "ok": true
+          }
+        ],
+        "page_changed": true,
+        "view": "[delta#2] http://x/fixture.html  \"T\"\n  + e10  button  \"Close\""
+      },
+      "expected": "1/1 ops ok\n  + click e9  0ms\n\n[delta#2] http://x/fixture.html  \"T\"\n  + e10  button  \"Close\""
+    },
+    {
+      "why": "nothing to report at all",
+      "payload": {
+        "ok": false,
+        "steps": 0,
+        "ops": []
+      },
+      "expected": "0/0 ops ok  (stopped early)"
+    }
+  ],
+  "divergences": [
+    {
+      "op": {
+        "op": "scroll",
+        "ref": "e5",
+        "amount": 100
+      },
+      "field": "the wheel coordinates",
+      "python": "the configured window, 1280x860, so 640,430",
+      "extension": "the tab's own viewport, so 400,300",
+      "why": "the server drives a tab it owns and can size; the extension drives the tab the user is looking at, and resizing somebody's window to take a reading of it is not a trade a tool gets to make silently"
+    },
+    {
+      "op": {
+        "op": "upload",
+        "ref": "e5",
+        "paths": [
+          "/tmp/does-not-exist.pdf"
+        ]
+      },
+      "field": "what it says",
+      "python": "invalid_request, \"file not found: /tmp/does-not-exist.pdf\"",
+      "extension": "invalid_request, \"upload needs a path on disk, which an extension cannot read\"",
+      "why": "DOM.setFileInputFiles takes absolute paths and an extension cannot read one, so the extension refuses in words instead of reporting a missing file it never looked for"
+    },
+    {
+      "op": {
+        "op": "tab",
+        "action": "list"
+      },
+      "field": "whether it runs at all",
+      "python": "ok, \"list tab current\"",
+      "extension": "invalid_request, tab actions are not available",
+      "why": "the extension drives the one tab it was pointed at and cannot see the others, which is the same activeTab grant that keeps it from reading the rest of your browsing"
+    },
+    {
+      "op": {
+        "op": "eval",
+        "js": "1"
+      },
+      "field": "what it says",
+      "python": "invalid_request, \"eval is disabled; set JEVMCP_ALLOW_JS=1 to enable it\"",
+      "extension": "invalid_request, \"eval is disabled in the extension; it has no setting\"",
+      "why": "the server has a switch to turn eval on and the extension deliberately has none, so the sentence points somewhere different rather than pretending otherwise"
+    }
+  ],
+  "tables": {
+    "helper_version": 6,
+    "threshold": 0.7,
+    "modifiers": {
+      "alt": 1,
+      "option": 1,
+      "ctrl": 2,
+      "control": 2,
+      "meta": 4,
+      "cmd": 4,
+      "command": 4,
+      "super": 4,
+      "shift": 8
+    },
+    "keys": {
+      "enter": [
+        "Enter",
+        "Enter",
+        13
+      ],
+      "return": [
+        "Enter",
+        "Enter",
+        13
+      ],
+      "tab": [
+        "Tab",
+        "Tab",
+        9
+      ],
+      "escape": [
+        "Escape",
+        "Escape",
+        27
+      ],
+      "esc": [
+        "Escape",
+        "Escape",
+        27
+      ],
+      "backspace": [
+        "Backspace",
+        "Backspace",
+        8
+      ],
+      "delete": [
+        "Delete",
+        "Delete",
+        46
+      ],
+      "arrowup": [
+        "ArrowUp",
+        "ArrowUp",
+        38
+      ],
+      "arrowdown": [
+        "ArrowDown",
+        "ArrowDown",
+        40
+      ],
+      "arrowleft": [
+        "ArrowLeft",
+        "ArrowLeft",
+        37
+      ],
+      "arrowright": [
+        "ArrowRight",
+        "ArrowRight",
+        39
+      ],
+      "up": [
+        "ArrowUp",
+        "ArrowUp",
+        38
+      ],
+      "down": [
+        "ArrowDown",
+        "ArrowDown",
+        40
+      ],
+      "left": [
+        "ArrowLeft",
+        "ArrowLeft",
+        37
+      ],
+      "right": [
+        "ArrowRight",
+        "ArrowRight",
+        39
+      ],
+      "home": [
+        "Home",
+        "Home",
+        36
+      ],
+      "end": [
+        "End",
+        "End",
+        35
+      ],
+      "pageup": [
+        "PageUp",
+        "PageUp",
+        33
+      ],
+      "pagedown": [
+        "PageDown",
+        "PageDown",
+        34
+      ],
+      "space": [
+        " ",
+        "Space",
+        32
+      ]
+    },
+    "clickable_kinds": [
+      "click",
+      "hover",
+      "select",
+      "toggle",
+      "type",
+      "upload"
+    ],
+    "nav_kinds": [
+      "back",
+      "close_tab",
+      "forward",
+      "nav",
+      "new_tab",
+      "reload",
+      "switch_tab"
+    ],
+    "requires_ref": [
+      "click",
+      "hover",
+      "scroll_to",
+      "select",
+      "toggle",
+      "type",
+      "upload",
+      "wait_for_ref"
+    ],
+    "scrollable_reasons": [
+      "frame_hidden",
+      "frame_occluded",
+      "frame_out_of_viewport",
+      "occluded",
+      "out_of_viewport"
+    ],
+    "confirm_patterns": [
+      "\\bdelete\\s+(account|workspace|repository|project)\\b",
+      "\\bpay\\s+now\\b",
+      "\\bplace\\s+order\\b",
+      "\\bcomplete\\s+purchase\\b",
+      "\\bbuy\\s+now\\b",
+      "\\bcancel\\s+(order|subscription|booking)\\b",
+      "\\bunsubscribe\\b",
+      "\\b(close|delete)\\s+permanently\\b",
+      "\\bconfirm\\s+(payment|order|transfer)\\b",
+      "\\bsend\\s+(money|payment)\\b",
+      "\\bwithdraw\\b",
+      "\\btransfer\\s+funds\\b"
+    ],
+    "secret_patterns": [
+      "\\bpass(word|wd|code|phrase)\\b",
+      "\\bpassphrase\\b",
+      "\\botp\\b",
+      "\\bone[- ]?time\\b",
+      "\\bverification code\\b",
+      "\\bsecurity code\\b",
+      "\\bcvv\\b",
+      "\\bcvc\\b",
+      "\\bcard\\s*number\\b",
+      "\\bsecret\\b",
+      "\\bapi\\s*key\\b",
+      "\\baccess\\s*token\\b",
+      "\\bssn\\b",
+      "\\bsocial security\\b",
+      "\\biban\\b",
+      "\\brouting\\s*number\\b",
+      "\\bsecurity\\s*answer\\b",
+      "\\bpin\\b"
+    ]
+  }
+}

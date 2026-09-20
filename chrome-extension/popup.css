@@ -33,7 +33,10 @@
 
 body {
   width: 760px;
+  /* 600 is the tallest a Chrome popup gets, so the panel scrolls rather than clipping the replay
+   * rows off the bottom on a short window. */
   max-height: 600px;
+  overflow-y: auto;
   margin: 0;
   padding: 12px 14px 10px;
   display: flex;
@@ -115,7 +118,8 @@ button.primary {
 
 .table {
   flex: 1 1 auto;
-  min-height: 160px;
+  min-height: 120px;
+  max-height: 300px;
   margin: 0;
   padding: 10px 12px;
   overflow: auto;
@@ -135,3 +139,76 @@ button.primary {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* --- replay ---------------------------------------------------------------------------------
+ * The panel is the second job of the popup: a recorded path, run in the page in front of you. It
+ * is laid out as plain rows rather than a settings page, because the whole thing is one select and
+ * one button on the days it is being used. */
+
+.macros {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding-top: 9px;
+  border-top: 1px solid var(--edge);
+}
+
+.macros h2 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.macros .row { display: flex; align-items: center; gap: 7px; }
+
+select,
+input[type=text],
+textarea {
+  padding: 4px 8px;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+}
+
+select { flex: 0 1 240px; }
+input[type=text] { flex: 1 1 auto; min-width: 0; }
+
+textarea {
+  width: 100%;
+  margin: 6px 0 0;
+  resize: vertical;
+  font: 11.5px/1.5 "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+
+select:focus,
+input[type=text]:focus,
+textarea:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+
+details summary {
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.report {
+  margin: 0;
+  max-height: 190px;
+  padding: 9px 11px;
+  overflow: auto;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--fg);
+  font: 11.5px/1.55 "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  white-space: pre;
+  tab-size: 2;
+}
+
+.note.ok { border-color: var(--accent); color: var(--accent); }

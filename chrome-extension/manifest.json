@@ -2,12 +2,16 @@
   "manifest_version": 3,
   "name": "jev-ultrafast-mcp — element table",
   "version": "0.1.5",
-  "description": "See the element table jev-ultrafast-mcp hands a model: the same observer, the same renderer, the same refs.",
+  "description": "See the element table jev-ultrafast-mcp hands a model, and replay a recorded macro in the page — the same observer, the same renderer, the same refs, no server in the loop.",
   "homepage_url": "https://github.com/jiawei686/jev-ultrafast-mcp",
   "minimum_chrome_version": "95",
-  "permissions": ["activeTab", "scripting", "storage"],
+  "permissions": ["activeTab", "scripting", "storage", "debugger"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
   "action": {
-    "default_title": "Observe this page",
+    "default_title": "Observe this page, or replay a macro",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",

@@ -18,7 +18,17 @@ What it does:
      of the toolbar click, and the gesture `activeTab` is granted by -- and compares the popup the
      browser opened against the server's table, character for character;
   5. does that again after opening the fixture's modal, which exercises the delta path, the overlay
-     warning and the occlusion flags.
+     warning and the occlusion flags;
+  6. records a three-step macro with the server's own recorder, hands it to the popup, replays it,
+     and compares the extension's report with the reply the real `browser_macro` tool gives for the
+     same macro -- the one comparison no fixture can make, because the replay header is an f-string
+     inside the tool rather than a function.
+
+The last section is the one that has already paid: it caught the extension printing a resolve score
+as `(1)` where the tool prints `(1.0)`, because a score is a float in Python however integral it
+looks and JSON keeps no trace of that. Nothing in the repo could see it -- every score the fixtures
+carried was non-integral, where the two agree -- and it took a real replay of a macro that matched
+*perfectly* for the two replies to be printed side by side.
 
 Two things are deliberate and worth knowing before reading a failure:
 
@@ -65,6 +75,14 @@ FIXTURE = "fixture.html"
 # compared with the number removed. Everything after it has to match exactly.
 SEQUENCE = re.compile(r"\[(?:obs|delta)#\d+\]")
 
+# `_render_act` closes every step that succeeded with a stopwatch reading: `  + click e5  30ms`. In
+# section 6 the extension and the tool each run the macro themselves, so the two readings are two
+# different measurements of the same three steps and can never be equal — the same reason the parity
+# fixtures drop `ms`. Masking is anchored to that one position on an `  + ` line, so a number anywhere
+# else in the reply still has to match, and `section_six` separately asserts both sides carry the
+# same number of readings: a mask that quietly ate more than it should would otherwise read as a pass.
+STOPWATCH = re.compile(r"^(  \+ .+?)  \d+ms(  \[.*\])?$")
+
 # What the popup says when it cannot read the page. Asserted rather than paraphrased, because the
 # point of the check is that a refusal is reported in words rather than as a stack trace.
 REFUSAL = "does not allow extensions to read it"
@@ -100,6 +118,20 @@ def wait_until(pred, timeout: float = 20.0, interval: float = 0.15):
 
 def normalise(table: str) -> str:
     return SEQUENCE.sub("[obs#]", table)
+
+
+def mask_stopwatches(report: str) -> str:
+    """Replace each step's stopwatch reading with a placeholder, leaving everything else alone.
+
+    Returns the report with `  30ms` at the end of each `  + ` line rewritten to `  [ms]`. Anything
+    that is not in that exact position — a number in a label, a count in the header, a reading in a
+    refusal sentence — is left as it was and still has to match the other side.
+    """
+    out = []
+    for line in report.splitlines():
+        match = STOPWATCH.match(line)
+        out.append(f"{match.group(1)}  [ms]{match.group(2) or ''}" if match else line)
+    return "\n".join(out)
 
 
 # ------------------------------------------------------------------ fixture server
@@ -245,6 +277,18 @@ class Popup:
             returnByValue=True, awaitPromise=False,
         )["result"].get("value")
 
+    def run(self, expression: str, *, await_promise: bool = False):
+        """Evaluate and, when asked, wait for the promise. `chrome.*` APIs all return one."""
+        return self.cdp.call(
+            "Runtime.evaluate", session_id=self.session, expression=expression,
+            returnByValue=True, awaitPromise=await_promise,
+        )["result"].get("value")
+
+    def text(self, element_id: str) -> str:
+        """The text of one element, which is how the replay's report is read back."""
+        return self.read(
+            f"((document.getElementById({element_id!r})||{{}}).textContent||'').trim()") or ""
+
     def table(self) -> str | None:
         """The rendered table, or None while the popup is still working."""
         try:
@@ -389,11 +433,169 @@ def run(base: str, headed: bool, screenshot: Path | None) -> int:
         size = popup.screenshot(screenshot)
         note(f"screenshot: {screenshot} ({size // 1024} KB)")
 
+    section("6. A macro the server recorded, replayed by the extension")
+
+    # Named `extension-check` and left on disk, so a failure can be looked at rather than guessed at.
+    macro_name = "extension-check"
+    params = {"from": "Zurich"}
+
+    session.navigate(f"{base}/{FIXTURE}")
+    staged = session.observe()
+    refs = {name: _ref_named(staged, name)
+            for name in ("Where from?", "Passengers", "Search")}
+    if not check("the fixture has the three controls the macro needs",
+                 all(refs.values()), ", ".join(f"{k}={v}" for k, v in refs.items())):
+        return 1
+
+    session.start_recording()
+    session.act([
+        {"op": "type", "ref": refs["Where from?"], "text": "Zurich"},
+        {"op": "select", "ref": refs["Passengers"], "value": "3"},
+        {"op": "click", "ref": refs["Search"]},
+    ])
+    saved = session.stop_recording(macro_name)
+    check("the server recorded the path as three steps", saved["steps"] == 3,
+          f"{saved['steps']} steps -> {saved['path']}")
+
+    macro_path = Path(saved["path"])
+    macro = json.loads(macro_path.read_text(encoding="utf-8"))
+    # A recording stores the literal text that was typed, which makes it a transcript. Rewriting the
+    # one step to ask for a placeholder is what turns it into a macro, and both sides are then given
+    # the same value — so the `{{...}}` path is exercised rather than assumed.
+    for step in macro["steps"]:
+        if step["op"] == "type":
+            step["text"] = "{{from}}"
+    macro_path.write_text(json.dumps(macro, indent=2, ensure_ascii=False), encoding="utf-8")
+    check("the recorded macro asks for a value rather than carrying one",
+          macro["steps"][0]["text"] == "{{from}}", macro["steps"][0]["text"])
+
+    # The popup has to be looking at the fresh page before the replay, or its delta is against
+    # whatever section 4 left on screen and the two reports are answers to different questions.
+    session.navigate(f"{base}/{FIXTURE}")
+    popup.observe(popup.table())
+
+    storage = json.dumps({"jevMacros": {macro_name: macro}}, ensure_ascii=False)
+    popup.run(f"chrome.storage.local.set({storage})", await_promise=True)
+    listed = wait_until(lambda: macro_name in (popup.run(_OPTIONS_JS) or ""), timeout=15)
+    check("the popup listed the macro it was handed", bool(listed),
+          popup.run(_OPTIONS_JS) or "(no options)")
+
+    popup.run("(() => { const s = document.getElementById('macro-select'); "
+              f"s.value = {json.dumps(macro_name)}; s.dispatchEvent(new Event('change')); "
+              "return s.value; })()")
+    popup.run("(() => { document.getElementById('macro-params').value = "
+              f"{json.dumps(json.dumps(params))}; return true; }})()")
+
+    # `chrome.debugger.getTargets()` counts targets *the browser* considers debugged, and this check
+    # has its own CDP sessions on the fixture and on the popup, so the number is never zero. What it
+    # can answer is whether the count came back to where it started — and the extension having taken
+    # the debugger at all is already established by the run having worked, since real input is the
+    # only thing this dispatches.
+    attached_before = popup.run(_ATTACHED_JS, await_promise=True)
+    popup.run("document.getElementById('macro-run').click(), true")
+
+    report = wait_until(
+        lambda: (lambda text: text if "replayed" in text else None)(popup.text("macro-report")),
+        timeout=120)
+    if not check("the extension replayed the macro and reported it", bool(report),
+                 popup.text("macro-note") or "(no report after 120s)"):
+        return 1
+
+    # The page the extension acted on, read by the server before the server replays anything. This is
+    # what makes the placeholder assertion real: the macro's step says `{{from}}` and nothing else
+    # knows the word "Zurich", so finding it on the page means the substitution happened in the
+    # extension rather than in the report.
+    after = session.observe()
+    rendered = after.render(None, mode="auto", include_text=True, max_text=cfg.max_text)
+    check("the placeholder became the value the run was given", "Zurich" in rendered,
+          ", ".join(element.name for element in after.elements[:6]))
+    check("the replay reached the results the recorded path produced",
+          any(element.name == "Select" for element in after.elements),
+          f"{len(after.elements)} elements after the replay")
+
+    # The debugger is what buys real input, and the banner Chrome shows while it is attached is a
+    # cost. So letting go of it at the end is part of the feature, not housekeeping. Two views: what
+    # the worker says it still holds, and whether the browser's own count came back down.
+    held = popup.run(
+        "chrome.runtime.sendMessage({type: 'ping'}).then(reply => "
+        "(reply.attached || []).length)", await_promise=True)
+    check("the worker holds no attachment after the run", held == 0, f"{held} held")
+    attached_after = popup.run(_ATTACHED_JS, await_promise=True)
+    check("the browser's debugged-target count came back down",
+          attached_after == attached_before,
+          f"{attached_before} before the run, {attached_after} after")
+
+    # The strongest assertion in this file: the extension's report has to be the reply the *real*
+    # `browser_macro` tool produces for the same macro. Not "similar" — the same string, down to the
+    # arrow and the position of every field. The tool is handed the browser *and* the state directory
+    # this check is already using, because a second Config would read the developer's own macros and
+    # answer about a different file.
+    #
+    # Two things are masked and nothing else: the observation number, which each side counts from its
+    # own session, and the per-step stopwatch, because the two replays are two runs. Everything a
+    # reader could act on — the `3/3 ops ok` line, each op and its target, the arrow, the refusal
+    # sentences, the delta view — is compared raw.
+    server_module = _load_server()
+    server_module.MANAGER = manager
+    server_module.CONFIG = cfg
+    tool_reply = server_module.browser_macro(
+        action="run", session="extension", name=macro_name, params=params)
+
+    masked_report = mask_stopwatches(normalise(report).strip())
+    masked_reply = mask_stopwatches(normalise(tool_reply).strip())
+
+    # Both sides have to carry the same readings, or the mask above would be doing more than it says:
+    # a report that dropped a step's stopwatch would compare equal to one that kept it.
+    check("both reports stop the clock on the same steps",
+          masked_report.count("[ms]") == masked_reply.count("[ms]") > 0,
+          f"{masked_report.count('[ms]')} in the popup, {masked_reply.count('[ms]')} in the tool reply")
+
+    if masked_report == masked_reply:
+        check("the extension's report is the MCP tool's reply, character for character", True)
+    else:
+        check("the extension's report is the MCP tool's reply, character for character", False)
+        _print_diff(masked_reply, masked_report)
+
+    check("the report is a replay rather than a refusal", "3/3 ops ok" in report,
+          report.splitlines()[0][:110] if report else "(empty)")
+
+    session.navigate(f"{base}/{FIXTURE}")
+    check("and the same macro replays again from a fresh page",
+          "3/3 ops ok" in (server_module.browser_macro(
+              action="run", session="extension", name=macro_name, params=params) or ""))
+    session.navigate(f"{base}/{FIXTURE}")
+
+    note("section 6 recorded with the server's recorder, replayed in the extension, and compared the")
+    note("extension's report with the reply the real `browser_macro` tool gives for the same macro.")
     note("section 3 invoked the action itself, so the `activeTab` grant is exercised: the shipped")
-    note("manifest reads the page with `activeTab`, `scripting` and `storage` and nothing else.")
+    note("manifest reads the page with `activeTab`, `scripting` and `storage`, and takes `debugger`")
+    note("only for the length of a replay -- which is what section 6's release checks are about.")
     note("What no automation reaches is the toolbar button: `Extensions.triggerAction` runs the same")
     note("action, but a human click on the icon is still the only thing that proves the button.")
     return 0
+
+
+# The macros the popup has stored, as option values, which is how the check knows the list arrived.
+_OPTIONS_JS = ("Array.from(document.getElementById('macro-select').options)"
+               ".map(option => option.value).join(',')")
+
+# How many targets the browser currently considers debugged. Never zero during a run of this check,
+# because the check's own CDP sessions count — see where it is used.
+_ATTACHED_JS = "chrome.debugger.getTargets().then(list => list.filter(item => item.attached).length)"
+
+
+def _ref_named(observation, name: str) -> str | None:
+    """The ref of the element with this exact accessible name."""
+    for element in observation.elements:
+        if element.name.strip() == name:
+            return element.ref
+    return None
+
+
+def _load_server():
+    """`jev_ultrafast_mcp.server`, so the check can call the real tool rather than its own copy."""
+    import importlib
+    return importlib.import_module("jev_ultrafast_mcp.server")
 
 
 def _target_for(cdp, url: str) -> str:
