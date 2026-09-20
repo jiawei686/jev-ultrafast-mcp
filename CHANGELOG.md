@@ -164,6 +164,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **A screenshot check that could pass without a screenshot.** `scripts/smoke.py` built the path from
+  the op's `target` with `Path(target or "")`, and the empty path resolves to the current directory —
+  which exists, and on Linux is 4096 bytes. A screenshot op that failed therefore read as
+  "4096B, exists" and satisfied `shot.exists() and shot.stat().st_size > 1000`. It stayed hidden
+  because the failure is intermittent and the passing branch is silent: in one CI run the JPEG op
+  reported no file and the check still went green, and in the next the PNG op did the same and the
+  check failed — on its `.png` suffix test, reporting the directory's own size as the file's. The
+  path is now `None` rather than the empty path, both halves are asserted, and the op's own
+  `error`/`detail` is printed, because a missing file and a check that never looked are otherwise
+  indistinguishable. The failure underneath — `Page.captureScreenshot` reporting no target, on CI
+  only, on one of the two ops, never once across five consecutive local runs — is still open.
 - **A goal that had stopped making progress kept spending steps until `max_steps`.** `Session.act` has
   counted consecutive no-change actions for as long as it has existed, and reports them as `stuck`;
   the goal loop never read it, so the only bound on a stalled goal was the caller's step budget.

@@ -143,6 +143,38 @@ def op_error(payload: dict, index: int = 0) -> str:
     return (ops[index].get("error") or "") if ops else "no ops"
 
 
+def _shot_path(payload: dict) -> Path | None:
+    """The file a screenshot op wrote, or None when it reported none.
+
+    `None` rather than `Path("")` on purpose: the empty path resolves to the
+    current directory, which exists and on Linux is 4096 bytes. A screenshot
+    that was never taken therefore read as "4096B, exists", so the check passed
+    or failed depending on the size of a directory inode -- which is how a real
+    failure reached CI as a passing line and, one run later, as a failing one.
+    """
+    target = (payload.get("ops") or [{}])[0].get("target")
+    return Path(target) if target else None
+
+
+def _shot_is_real(path: Path | None) -> bool:
+    return path is not None and path.is_file() and path.stat().st_size > 1000
+
+
+def _shot_detail(payload: dict, path: Path | None) -> str:
+    """What was written, or why nothing was.
+
+    A failed op reports no `target` and carries its reason in `error`/`detail`;
+    without printing that, the only visible symptom is a missing file, which is
+    indistinguishable from a check that never looked.
+    """
+    if path is None or not path.is_file():
+        ops = payload.get("ops") or [{}]
+        reason = ops[0].get("error") or ops[0].get("detail") or "the op reported no error"
+        where = "reported no file" if path is None else f"{path.name} is missing"
+        return f"{where} — {reason}"
+    return f"{path.name} {path.stat().st_size}B"
+
+
 # ---------------------------------------------------------------------- flow
 
 
@@ -470,16 +502,15 @@ def _run(base: str, cfg: Config, manager: BrowserManager, workdir: Path) -> int:
     # --------------------------------------------------------- 13. screenshot
     section("13. Screenshot goes to disk, never into the context")
     payload = act(session, [{"op": "screenshot"}])
-    shot = Path((payload["ops"][0].get("target") or ""))
-    check("screenshot written to a file", shot.exists() and shot.stat().st_size > 1000,
-          f"{shot.name} {shot.stat().st_size if shot.exists() else 0}B")
+    shot = _shot_path(payload)
+    check("screenshot written to a file", _shot_is_real(shot), _shot_detail(payload, shot))
     # `quality` is JPEG-only and CDP rejects an explicit null, so asking for
     # PNG used to fail while the default JPEG path worked.
     png_payload = act(session, [{"op": "screenshot", "format": "png"}])
-    png = Path((png_payload["ops"][0].get("target") or ""))
+    png = _shot_path(png_payload)
     check("png screenshots work as well as jpeg",
-          png.suffix == ".png" and png.exists() and png.stat().st_size > 1000,
-          f"{png.name} {png.stat().st_size if png.exists() else 0}B")
+          png is not None and png.suffix == ".png" and _shot_is_real(png),
+          _shot_detail(png_payload, png))
 
     # ------------------------------------------- 14. client-rendered pages
     section("14. Client-rendered pages — waits for evidence, not for a timer")
