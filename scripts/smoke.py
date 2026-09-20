@@ -163,13 +163,16 @@ def _shot_is_real(path: Path | None) -> bool:
 def _shot_detail(payload: dict, path: Path | None) -> str:
     """What was written, or why nothing was.
 
-    A failed op reports no `target` and carries its reason in `error`/`detail`;
-    without printing that, the only visible symptom is a missing file, which is
-    indistinguishable from a check that never looked.
+    A failed op reports no `target` and carries its reason in `error` (a short
+    code) and `detail` (the exception's own words). Both are printed: the code
+    alone says `browser_error`, which is where the trail stopped the first time
+    this was chased.
     """
     if path is None or not path.is_file():
         ops = payload.get("ops") or [{}]
-        reason = ops[0].get("error") or ops[0].get("detail") or "the op reported no error"
+        reason = " / ".join(
+            part for part in (ops[0].get("error"), ops[0].get("detail")) if part
+        ) or "the op reported no error"
         where = "reported no file" if path is None else f"{path.name} is missing"
         return f"{where} — {reason}"
     return f"{path.name} {path.stat().st_size}B"
