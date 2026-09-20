@@ -8,6 +8,13 @@ name: MCP registry
 # how a re-submission is made after a registry-side data reset, which the registry warns about
 # while it is in preview.
 #
+# What a hand dispatch cannot do, and the failure does not say so plainly: a version already in the
+# registry cannot be re-published to edit a field. Measure it and you get
+# `400 invalid version: cannot publish duplicate version`. So a `server.json` edit -- the
+# `description` above all, since that string is what the directory sites display -- only reaches the
+# registry by way of a version bump. Dispatch is for a first submission, or for a re-submission
+# after the registry resets; it is not an edit button.
+#
 # `publish.yml` calls it with `needs: publish`, because the registry resolves the `pypi` identifier
 # in `server.json` and rejects an entry whose package it cannot find.
 on:
