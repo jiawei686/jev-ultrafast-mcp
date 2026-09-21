@@ -164,6 +164,36 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **A navigation counted as finished while the page was still fetching its bundle, so the model was
+  handed a shell.** `_first_read` settled as soon as two reads agreed on the ref set, which sounds
+  like "the page stopped growing" and is not: an app that has not fetched its bundle yet renders a
+  shell, and a shell holds perfectly still. Measured on cloudstudio.net's user centre, three elements
+  across every poll, `BLOCKED` at step 0 twice on the same page, with the rendered version a second
+  away — a goal that looked impossible and was in fact one wait away from working. Nothing in the DOM
+  separates "the shell is up because the app has nothing to show" from "the shell is up because the
+  bundle is still downloading", so the rule's second half now asks the network: `Session.page_is_idle`
+  counts requests in flight from the `Network` domain's events and settles only when that count is
+  zero. Counted rather than read from the browser's `networkIdle` lifecycle state, because that state
+  is *defined* as half a second of quiet and would charge every navigation half a second even for a
+  page that finished loading long ago; zero in flight is the same answer immediately. The budget runs
+  from the navigation rather than from each read, so a page that polls forever — or one whose events
+  never arrive — costs one `JEVMCP_SETTLE_TIMEOUT` and then falls back to the old rule, and a session
+  handed a page it did not open has nothing to wait for at all. Six tests, and all six were checked by
+  mutation: dropping the idle clause, tallying requests instead of subtracting the finished ones,
+  ignoring `loadingFailed`, counting another tab's traffic, removing the budget, and not enabling the
+  domain each fail a test that names them. Two of those mutations passed on the first run, which is
+  the part worth recording: the "never navigated" test was green for the wrong reason, because an
+  expired budget answers the same way, so it was rewritten to hold the deadline open and pin the guard
+  it claims to.
+  The unit tests feed the network events in by hand, so they cannot say whether a real browser
+  delivers them — and if it did not, the rule would fall back to the DOM and every one of those tests
+  would still pass. `smoke.py` therefore gained a fixture that fails if it does: `late-shell.html` is
+  a shell *with controls on it*, so the observer has something to report and answers at once, and its
+  real control appears only after `slow.json`, which the fixture server holds open for 1.5s. Against
+  real Chrome, section 15 reads `4 elements, Claim reward -> e4`; with the idle clause removed it
+  reads `3 elements, Claim reward -> absent` — the same shape as the live failure — and with
+  `Network.enable` removed it fails too, which is what proves the events are what carry it rather
+  than a rule that happens to work for another reason.
 - **The debugged-target check compared a count that is not stable, and its first repair did not
   hold.** The check read `chrome.debugger.getTargets()` once before a replay and once after, and
   failed when the two numbers differed. Both halves of that were wrong. The number is not a fixed

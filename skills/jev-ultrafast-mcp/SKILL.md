@@ -162,6 +162,14 @@ Two signatures that look like engine bugs but are not:
   position, in both `observer.js` and `policy.reachable_first`), so a repeated
   `blocked` at step 0 is a statement about your goal or your `verify`, not about
   the clock.
+  The clock is no longer a candidate at all: after opening a `url` the server
+  waits for the page to **stop fetching** as well as for its element table to
+  stop changing before it asks the model anything (`JEVMCP_SETTLE_TIMEOUT`, 4s
+  by default). An app that has not fetched its bundle yet is a shell, and a shell
+  holds perfectly still — so "the table stopped changing" alone used to settle on
+  a page with no controls on it and hand back `blocked` at step 0 twice on a page
+  that rendered a second later. If a `blocked` at step 0 still survives that,
+  raise `JEVMCP_SETTLE_TIMEOUT` before you rewrite the goal.
 - **`status: stopped: no progress`.** The page stopped changing for the limit
   `browser.py` defines, so the run ended rather than spending the rest of
   `max_steps` on `WAIT`s. This is the usual shape of a goal that has *already

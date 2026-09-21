@@ -117,6 +117,11 @@ class Session:
     # page on and a full-state match would reject the batch's own work.
     _fresh: bool = False
     _strict: bool = True
+    # True between issuing a navigation and the page it landed on going quiet.
+    # Set by `navigate`, answered by `page_is_idle`, which explains why the
+    # question cannot be asked of the DOM.
+    _awaiting_idle: bool = False
+    _idle_deadline: float = 0.0
 
     # ------------------------------------------------------------- life cycle
 
@@ -148,6 +153,11 @@ class Session:
         block means the next per-session setting added here cannot be forgotten
         there.
 
+        `Network.enable` is here for the same reason rather than because it
+        shares the scoping question: it is what makes `page_is_idle` able to
+        see that a page is still fetching, and a session that skipped it would
+        quietly go back to settling on a shell.
+
         `Target.activateTarget` is deliberately *not* part of it. Bringing a
         window to the front is a decision about the user's desktop, not about
         the session, so it stays in `_attach_page`, where `background` governs
@@ -155,6 +165,7 @@ class Session:
         """
         self.cdp.call("Page.enable", session_id=self.page_session)
         self.cdp.call("Runtime.enable", session_id=self.page_session)
+        self.cdp.call("Network.enable", session_id=self.page_session)
         width, height = self.cfg.window
         self.cdp.call("Emulation.setDeviceMetricsOverride", session_id=self.page_session,
                       width=width, height=height, deviceScaleFactor=1, mobile=False)
@@ -236,6 +247,11 @@ class Session:
         check_url(self.cfg, url)
         self.cdp.events.clear()
         self._call("Page.navigate", url=url)
+        # The budget for waiting on this navigation runs from here, not from
+        # each read of the page, so a site that polls forever costs one
+        # `settle_timeout` rather than one per read.
+        self._awaiting_idle = True
+        self._idle_deadline = time.monotonic() + self.cfg.settle_timeout
         self._wait_loaded(timeout)
 
     def _wait_loaded(self, timeout: float | None = None) -> bool:
@@ -252,6 +268,67 @@ class Session:
             time.sleep(0.02)
         self._ensure_helper()
         return self._safe_eval("document.readyState") == "complete"
+
+    # --------------------------------------------------- has it stopped fetching
+
+    def _drain_events(self) -> None:
+        """Move whatever the browser has queued into `self.cdp.events`.
+
+        The client only collects events while a command is in flight, so
+        anything the page did while we were asleep is still sitting in the
+        socket. A no-op evaluate is the cheapest command that makes it read
+        them.
+        """
+        self._safe_eval("1", timeout=2)
+
+    def page_is_idle(self) -> bool:
+        """Whether the page we navigated to has stopped fetching.
+
+        `load` fires when the HTML and its synchronous subresources are in. A
+        client-rendered app then goes on to fetch its bundle and its data, and
+        *that* is the half an element table is waiting for. Nothing in the DOM
+        separates "the shell is up because the app has nothing to show" from
+        "the shell is up because the bundle is still downloading" -- the DOM is
+        equally still in both cases -- so a settle rule that watches only the
+        DOM settles on the shell and hands the model a page with no controls
+        on it. Network activity is the difference, so network activity is what
+        this asks about.
+
+        Counted from the `Network` domain's own events rather than from the
+        browser's `networkIdle` lifecycle state. That state is defined as half
+        a second of quiet, so it would charge every navigation half a second
+        even for a page that finished loading long ago; zero requests in flight
+        is the same answer immediately.
+
+        True means "there is nothing to wait for", which covers the two cases
+        where waiting would be wrong: every request we saw has finished, and we
+        never navigated at all -- a session handed a page it did not open has
+        no load of ours to wait for. It also goes true once the budget expires,
+        because a page that polls forever must cost a bounded wait rather than
+        hang the goal. So this answers "may I stop?", not "is it ready".
+        """
+        if not self._awaiting_idle:
+            return True
+        if time.monotonic() >= self._idle_deadline:
+            self._awaiting_idle = False
+            return True
+        self._drain_events()
+        sent: set[str] = set()
+        done: set[str] = set()
+        for message in self.cdp.events:
+            if message.get("sessionId") != self.page_session:
+                continue
+            method = message.get("method")
+            if method not in ("Network.requestWillBeSent", "Network.loadingFinished",
+                              "Network.loadingFailed"):
+                continue
+            request_id = (message.get("params") or {}).get("requestId")
+            if request_id:
+                (sent if method == "Network.requestWillBeSent" else done).add(request_id)
+        if sent - done:
+            return False
+        self._awaiting_idle = False
+        return True
 
     def _history(self, delta: int) -> None:
         entries = self._call("Page.getNavigationHistory")

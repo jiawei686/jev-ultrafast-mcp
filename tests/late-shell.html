@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Shell Fixture</title></head>
+<!--
+  This page is a *shell with controls on it*, which is the shape that used to be
+  mistaken for a finished page.
+
+  It arrives with a few controls already in place, so the observer has something
+  to report and answers immediately instead of running its own settle pass. The
+  control the page is really about -- the one a goal would be looking for -- only
+  appears after a request that is still in flight, and the DOM is completely
+  still in the meantime.
+
+  That stillness is the whole point. "The element table stopped changing" cannot
+  tell this page apart from a page that has genuinely finished, because the table
+  is identical either way. Measured on cloudstudio.net's user centre, three
+  elements held across every poll while the bundle was still arriving, and the
+  goal answered BLOCKED twice on a page that rendered a second later.
+
+  `slow.json` is served by the smoke suite's fixture server with a deliberate
+  delay, so the request is in flight across the render below. A real site would
+  be downloading a bundle or waiting on a session lookup; the shape is the same.
+-->
+<body style="font:15px system-ui;padding:24px">
+  <nav>
+    <a href="/fixture.html">Home</a>
+    <a href="/csr.html">Courses</a>
+    <button id="account" type="button">Account</button>
+  </nav>
+  <div id="tasks">Loading tasks…</div>
+  <script>
+    // In flight for longer than the render below: this is the part the DOM
+    // cannot show.
+    fetch('/slow.json');
+    setTimeout(function render() {
+      document.getElementById('tasks').innerHTML =
+        '<button id="claim" type="button">Claim reward</button>';
+      document.getElementById('claim').addEventListener('click', function () {
+        document.getElementById('tasks').textContent = 'claimed';
+      });
+    }, 700);
+  </script>
+</body>
+</html>

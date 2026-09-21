@@ -589,7 +589,7 @@ OpenRouter 的 decisions 路由。给了 `verify` 检查时返回 `verified: PAS
 | `JEVMCP_ALLOW_UPLOADS` | `1` | 控制 `upload` op |
 | `JEVMCP_MAX_ACTIONS` | `250` | 元素表条数上限，按有用程度裁剪 |
 | `JEVMCP_MAX_TEXT` | `6000` | 单次观测的可见文本上限 |
-| `JEVMCP_SETTLE_TIMEOUT` | `4.0` | 页面渲染慢时，最多等多久让控件出现 |
+| `JEVMCP_SETTLE_TIMEOUT` | `4.0` | 打开网址后最多等多久：等页面停止发请求、且元素表不再变化 |
 | `JEVMCP_SETTLE_POLL_MS` | `120` | 等待期间多久重读一次 |
 | `JEVMCP_STATE_DIR` | `~/.jev-ultrafast-mcp` | profile、宏、截图的存放位置 |
 | `TYPESAFE_API_KEY` | — | 可选；开启 `browser_goal`，直连 TypeSafe |
@@ -656,8 +656,10 @@ HTTP 发现接口，所以 404 是**官方预期行为**而不是配置坏了（
 位置，用 `JEVMCP_ATTACH_PROFILE_DIR` 指过去。
 
 **什么动静都没有，页面看着是空的？**
-用 JavaScript 渲染的页面会短暂「看起来是空的」。服务端会等控件出现（上限 `JEVMCP_SETTLE_TIMEOUT`），
-但如果站点卡在 cookie 墙或同意弹窗后面，元素表里会体现出来 —— 注意观测头里的遮挡警告。
+用 JavaScript 渲染的页面会短暂「看起来是空的」。打开网址后，服务端会同时等两件事：页面**停止发请求**、
+元素表**不再变化**（上限 `JEVMCP_SETTLE_TIMEOUT`），然后才把页面交给模型。只等「不再变化」是不够的 ——
+还没拉到 bundle 的应用就是一个空壳，而空壳是完全静止的。如果站点卡在 cookie 墙或同意弹窗后面，
+元素表里会体现出来 —— 注意观测头里的遮挡警告。
 
 **有验证码，它能过吗？**
 不能，而且这是刻意的 —— 它不看像素。这种场景请换"截图 + 视觉"的 agent。

@@ -641,7 +641,7 @@ All optional; the defaults are the point.
 | `JEVMCP_ALLOW_UPLOADS` | `1` | gates the `upload` op |
 | `JEVMCP_MAX_ACTIONS` | `250` | element-table cap, applied by usefulness |
 | `JEVMCP_MAX_TEXT` | `6000` | visible-text cap per observation |
-| `JEVMCP_SETTLE_TIMEOUT` | `4.0` | how long to wait for a late-rendering page to show controls |
+| `JEVMCP_SETTLE_TIMEOUT` | `4.0` | after opening a URL, how long to wait for the page to stop fetching and its element table to stop changing |
 | `JEVMCP_SETTLE_POLL_MS` | `120` | how often to re-read while waiting |
 | `JEVMCP_STATE_DIR` | `~/.jev-ultrafast-mcp` | profile, macros and screenshots |
 | `TYPESAFE_API_KEY` | — | optional; enables `browser_goal` against TypeSafe directly |
@@ -721,9 +721,12 @@ the browser WebSocket path out of Chrome's `DevToolsActivePort` file. If your br
 directory somewhere unusual, point `JEVMCP_ATTACH_PROFILE_DIR` at it.
 
 **Nothing is happening and the page looks empty.**
-A page that renders from JavaScript can briefly look empty. The server waits for controls to appear
-(up to `JEVMCP_SETTLE_TIMEOUT`), but if a site is stuck behind a cookie wall or a consent dialog, the
-element table will show it — look for the overlay warning in the observation header.
+A page that renders from JavaScript can briefly look empty. After it opens a URL the server waits for
+the page to stop fetching *and* for its element table to stop changing (up to `JEVMCP_SETTLE_TIMEOUT`)
+before it hands the page to the model — waiting on stillness alone is not enough, because an app that
+has not fetched its bundle yet is a shell, and a shell is perfectly still. If a site is stuck behind a
+cookie wall or a consent dialog, the element table will show it — look for the overlay warning in the
+observation header.
 
 **There is a captcha. Can it solve it?**
 No, and that is deliberate — it never looks at pixels. Use a screenshot-and-vision agent for that.

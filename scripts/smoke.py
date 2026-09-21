@@ -27,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from jev_ultrafast_mcp import macros as macros_mod  # noqa: E402
+from jev_ultrafast_mcp import server as server_mod  # noqa: E402
 from jev_ultrafast_mcp.browser import BrowserManager, Session  # noqa: E402
 from jev_ultrafast_mcp.config import Config  # noqa: E402
 
@@ -34,6 +35,11 @@ RESULTS: list[tuple[str, bool, str]] = []
 LIVE_MANAGERS: list = []
 METRICS: dict[str, object] = {"observes": 0, "acts": 0, "ops": 0, "view_bytes": 0,
                               "full_bytes": 0, "delta_bytes": 0, "wall_ms": 0}
+
+# How long `/slow.json` is held open. It has to outlast the render in
+# `late-shell.html` (700ms), or the request has landed before the control
+# appears and the fixture stops testing anything.
+SLOW_REQUEST_SECONDS = 1.5
 
 
 def check(name: str, ok: bool, detail: str = "") -> bool:
@@ -84,6 +90,18 @@ class _QuietHandler(http.server.SimpleHTTPRequestHandler):
 
     def log_message(self, *args, **kwargs):  # noqa: ARG002
         return
+
+    def do_GET(self):  # noqa: N802 - the name is `http.server`'s to choose
+        """Hold `/slow.json` open, so that a page can be *fetching* on purpose.
+
+        `late-shell.html` is about the gap between "the DOM stopped moving" and
+        "the page stopped fetching", and a file answered from disk closes that
+        gap in microseconds -- the fixture would pass whatever the reader did.
+        One path is delayed; everything else is served normally.
+        """
+        if self.path.startswith("/slow.json"):
+            time.sleep(SLOW_REQUEST_SECONDS)
+        super().do_GET()
 
 
 def serve(directory: Path, port: int = 0) -> tuple[http.server.ThreadingHTTPServer, str]:
@@ -567,6 +585,30 @@ def _run(base: str, cfg: Config, manager: BrowserManager, workdir: Path) -> int:
     blank_ms = time.monotonic() - blank_started
     check("an empty document is not waited on", blank_ms < 1.5 and not blank.elements,
           f"{blank_ms:.2f}s, {len(blank.elements)} elements")
+
+    # ------------------------------------------------- 15. still is not finished
+    section("15. A shell that is still fetching — still is not the same as finished")
+    # One step harder than csr.html, and the shape that actually bit: the shell
+    # arrives *with* controls on it, so the observer has something to report and
+    # answers at once, and what the page is really about only appears after a
+    # request that is still in flight. The element table is identical in the
+    # meantime, so a reader watching only the DOM has nothing to go on.
+    session.navigate(f"{base}/late-shell.html")
+    fetching = session.page_is_idle()
+    check("a request in flight is not mistaken for a finished page", fetching is False,
+          f"page_is_idle() -> {fetching}")
+    settled = server_mod._first_read(session)
+    claim = ref_of(settled, "Claim reward", "button")
+    check("the read waits for the page to stop fetching, not just for the DOM",
+          claim is not None,
+          f"{len(settled.elements)} elements, Claim reward -> {claim or 'absent'}")
+    if claim:
+        payload = act(session, [{"op": "click", "ref": claim}])
+        check("the control that arrived with the response is clickable", op_ok(payload),
+              payload["ops"][0].get("error") or "clicked")
+    else:
+        check("the control that arrived with the response is clickable", False,
+              "no 'Claim reward' button observed")
 
     elapsed = int((time.monotonic() - started) * 1000)
     METRICS["wall_ms"] = elapsed

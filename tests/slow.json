@@ -1,0 +1,4 @@
+{
+  "note": "Held open by the smoke suite's fixture server (SLOW_REQUEST_SECONDS in scripts/smoke.py) so that late-shell.html is still fetching while its DOM has already stopped moving. Nothing reads the body; the point is that the request is pending.",
+  "tasks": ["claim reward"]
+}

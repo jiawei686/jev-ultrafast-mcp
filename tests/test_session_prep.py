@@ -17,7 +17,7 @@ re-attach inherits them.
 
 So these tests do not guard a bug that exists. They guard the shape of the code
 that would hide one: the two routes share `_prepare_page`, and the day somebody
-adds a fourth setting to it, this file is what says the sharing is deliberate
+adds a fifth setting to it, this file is what says the sharing is deliberate
 rather than incidental. The property asserted is therefore about the commands
 issued, not about pixels -- pixels already agree, which is exactly why a
 regression here would be silent.
@@ -38,6 +38,7 @@ from jev_ultrafast_mcp.config import Config
 SETUP_METHODS = {
     "Page.enable",
     "Runtime.enable",
+    "Network.enable",
     "Emulation.setDeviceMetricsOverride",
     "Emulation.setFocusEmulationEnabled",
     "Page.addScriptToEvaluateOnNewDocument",
@@ -112,6 +113,22 @@ def test_a_switched_to_tab_is_prepared_exactly_like_a_new_one():
     assert attached, "the attach path issued no setup commands; the fixture is wrong"
     assert _retargeted(switched) == _retargeted(attached)
     assert {params["session_id"] for _, params in switched} == {session.page_session}
+
+
+def test_the_setup_asks_the_browser_to_report_network_activity():
+    """`page_is_idle` reads Network events, so the domain has to be on.
+
+    Nothing else in the suite would notice its absence: a session that never
+    enabled the domain simply sees no requests and reports "idle", which is
+    exactly the answer that settles a page on its shell. The settle rule would
+    be back to watching the DOM, and every test of it would still pass because
+    they feed the events in by hand.
+    """
+    session, driver = _session()
+    session.start()
+
+    assert [m for m, _ in driver.calls if m == "Network.enable"], (
+        "the session never enabled the domain its settle rule reads")
 
 
 def test_the_setup_is_applied_at_the_configured_window_size():

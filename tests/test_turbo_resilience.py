@@ -134,6 +134,10 @@ class _FakeSession:
         # Order matters for the handoff: a goal that navigates has to do it
         # before it reads the page, or it plans against the page it just left.
         self.events: list[str] = []
+        # Scripted answers to "has the page stopped fetching?". Empty means
+        # "yes", which is what a session that did not navigate reports.
+        self.idle: list[bool] = []
+        self.idle_questions = 0
 
     def navigate(self, url: str) -> None:
         self.events.append(f"navigate {url}")
@@ -141,6 +145,10 @@ class _FakeSession:
     def reset_progress(self) -> None:
         self.resets += 1
         self._streak = 0
+
+    def page_is_idle(self) -> bool:
+        self.idle_questions += 1
+        return self.idle.pop(0) if self.idle else True
 
     def observe(self, **_kwargs) -> Observation:
         self.events.append("observe")
@@ -468,6 +476,55 @@ def test_the_first_read_waits_for_the_page_to_stop_growing(monkeypatch):
 
     assert [element.ref for element in settled.elements] == ["e9"], (
         "the first read must be the settled page, not the one that answered first")
+
+
+def test_a_shell_that_is_still_fetching_is_not_settled_by_agreement(monkeypatch):
+    """Still is not the same as finished.
+
+    A client-rendered app's shell holds the same few elements for as long as its
+    bundle takes to arrive, so "two reads agreed" settles on a page with no
+    controls on it. Measured on cloudstudio.net's user centre: three elements
+    across every poll, `BLOCKED` twice on the same page, and the rendered
+    version one second away. Agreement is evidence only once the page has also
+    stopped fetching.
+    """
+    session = _FakeSession([])
+    reads = iter([_thin(), _thin(), _thin(), _thin(), _mounted(), _mounted()])
+    monkeypatch.setattr(session, "observe", lambda **_kwargs: next(reads, _mounted()))
+    session.idle = [False, False, False, True]
+
+    settled = server._first_read(session)
+
+    assert [element.ref for element in settled.elements] == ["e9"], (
+        "the shell was accepted because it was still, not because it was finished")
+    assert session.idle_questions == 4, (
+        f"the page was asked {session.idle_questions} times whether it had finished")
+
+
+def test_a_page_that_never_stops_fetching_costs_one_budget_and_no_more(monkeypatch):
+    """A page that never drains must not hold the goal open.
+
+    `page_is_idle` answers "may I stop?", so a site whose requests never finish
+    has to end in a read of whatever is on screen rather than in a wait that
+    outlives the budget.
+    """
+    monkeypatch.setattr(server.CONFIG, "settle_timeout", 0.3)
+    monkeypatch.setattr(server.CONFIG, "settle_poll_ms", 20)
+    session = _FakeSession([])
+    reads = 0
+
+    def counting(**_kwargs):
+        nonlocal reads
+        reads += 1
+        return _thin()
+
+    monkeypatch.setattr(session, "observe", counting)
+    session.idle = [False] * 500
+
+    settled = server._first_read(session)
+
+    assert settled.elements == []
+    assert reads <= 20, f"{reads} reads for one page that never went quiet"
 
 
 def test_a_blocked_first_answer_is_re_read_before_it_is_believed(monkeypatch):

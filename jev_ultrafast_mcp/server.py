@@ -114,7 +114,7 @@ def _brief(observation: Observation) -> str:
 
 
 def _first_read(tab) -> Observation:
-    """Read a freshly opened page until its element set stops changing.
+    """Read a freshly opened page until it has stopped growing.
 
     `load` fires long before a page's JavaScript has finished mounting. The
     observer's own settle pass only waits while there is *nothing* actionable at
@@ -125,10 +125,19 @@ def _first_read(tab) -> Observation:
     that first table can only answer BLOCKED, or click at something that is not
     there yet, which is what makes a working goal look impossible.
 
-    Stop as soon as two consecutive reads agree on the ref set, so a page that
-    is already rendered costs one extra read and nothing more. Bounded by
-    `JEVMCP_SETTLE_TIMEOUT`, which is the knob that already means "how long to
-    wait for a client-rendered page".
+    Two reads agreeing on the ref set is not on its own evidence that the page
+    has finished, which is the trap this used to fall into. An app that has not
+    fetched its bundle yet renders a shell, and a shell is perfectly still:
+    measured on cloudstudio.net's user centre, three elements held across every
+    poll until the bundle and the session lookup landed, so a first read that
+    trusted agreement handed the model a page with no controls on it — twice on
+    the same page, while the loaded version was a second away. Agreement
+    therefore settles the page only once the page has also stopped fetching;
+    see `Session.page_is_idle`.
+
+    Stop as soon as both hold, so a page that is already rendered costs one
+    extra read and nothing more. Bounded by `JEVMCP_SETTLE_TIMEOUT`, which is
+    the knob that already means "how long to wait for a client-rendered page".
     """
     observation = tab.observe()
     seen = {element.ref for element in observation.elements}
@@ -137,7 +146,7 @@ def _first_read(tab) -> Observation:
         time.sleep(CONFIG.settle_poll_ms / 1000.0)
         observation = tab.observe()
         refs = {element.ref for element in observation.elements}
-        if refs == seen:
+        if refs == seen and tab.page_is_idle():
             break
         seen = refs
     return observation
