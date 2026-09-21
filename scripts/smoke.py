@@ -207,7 +207,14 @@ def run(base: str, headed: bool, keep: bool = False) -> int:
     were still on disk with a browser attached to each.
 
     The profile is what a run leaves behind in bulk and nothing reads it after
-    the run. `metrics.json` beside it does get read, so the directory stays.
+    the run, so it goes. The directory itself stays, and the reason is narrower
+    than "something reads it": nothing does, not the code and not CI, which
+    only ever tees this script's stdout into `smoke.log`. `_run` prints the
+    path, and the files it points at -- `metrics.json`, and the shots section
+    13 leaves behind -- are for whoever is reading that log after a failure.
+    Measured after the profile removal: 104K per run, 92K of it those shots,
+    against the 50MB of profiles this used to leak. Left as it is because
+    $TMPDIR is cleared on its own schedule and the evidence is the point.
     """
     workdir = Path(tempfile.mkdtemp(prefix="jev-smoke-"))
     cfg = Config.from_env()
