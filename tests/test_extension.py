@@ -487,69 +487,110 @@ def test_the_fallback_announces_that_it_skips_the_grant():
 # --- what the run left attached ---------------------------------------------------------------
 
 
-def test_the_debugger_list_is_polled_rather_than_read_once():
-    """The browser's list is not stable at the moment the run ends.
-
-    It used to be compared as a *count*, read once. The count reads 2 or 3 depending on whether the
-    extension's service worker happens to be alive, so a single read measured the worker's lifecycle
-    and reported it as a leak. Polling is the repair, and comparing names is what makes a failure
-    actionable -- the earlier repair polled the count and the same failure came back reading
-    "2 before the run, 3 after", which is a number with no next step in it.
-    """
-    check = _load_script("extension_check")
-    reads = iter([{"a", "b", "c"}, {"a", "b", "c"}, {"a", "b"}])
-
-    assert check.wait_until_nothing_new(lambda: next(reads), {"a", "b"}, timeout=1.0) == {"a", "b"}
+# Chrome's own words when the tab is already held, measured on this build. It names the tab, which is
+# what makes a failure a diagnosis rather than a number -- and it is a sample, not a contract: the
+# probe treats *any* non-empty reply as a failure, so a Chrome that rewords this changes the message
+# and not the verdict.
+ALREADY_HELD = "Another debugger is already attached to the tab with id: 1108732325."
 
 
-def test_something_that_stays_attached_still_fails_and_can_be_named():
-    """The poll must not soften the assertion -- a genuine leak never clears.
+class _StubPopup:
+    """Records the expressions it was asked to run, and answers the attach with `reply`."""
 
-    This is the test that says waiting is safe: the timeout only decides how long to wait, and a
-    target still attached at the end is still a failure. The last value is returned rather than
-    `None` so the caller can name what was still there; `None` would read as a broken check rather
-    than as a leak.
-    """
-    check = _load_script("extension_check")
-    seen = []
-    leaked = {"a", "b", "page http://example.test/ EXTRA"}
+    def __init__(self, reply: str = ""):
+        self.reply = reply
+        self.ran: list[str] = []
 
-    def read():
-        seen.append(1)
-        return leaked
-
-    assert check.wait_until_nothing_new(read, {"a", "b"}, timeout=0.2, interval=0.01) == leaked
-    assert len(seen) > 1, "it gave up without looking a second time"
+    def run(self, expression, *, await_promise=False):  # noqa: ARG002 - matches the real signature
+        self.ran.append(expression)
+        return self.reply if "debugger.attach" in expression else ""
 
 
-def test_nothing_extra_is_not_a_reason_to_keep_polling():
-    """Why this cannot be `wait_until`: the value being waited for is the empty set.
+def test_the_release_is_asked_of_the_tab_the_replay_ran_on():
+    """The assertion has to name the tab, because the browser-wide view cannot see it.
 
-    `wait_until` returns the first *truthy* value, and `set()` is falsy -- so it would poll straight
-    past the one answer that means "this run attached nothing new", which is the answer the check
-    exists to see.
-    """
-    check = _load_script("extension_check")
-    calls = []
+    The check used to compare the browser's whole list of attached targets before and after the run.
+    Measured, the harness's own CDP session is on the *same* target the extension attaches to, so
+    that tab is attached in both reads and a leak on it is invisible -- while the only target the
+    comparison ever flagged was the extension's own service worker, which no session of the
+    extension's can mark.
 
-    def read():
-        calls.append(1)
-        return {"a"}
-
-    assert check.wait_until_nothing_new(read, {"a"}, timeout=1.0) == {"a"}
-    assert len(calls) == 1, "it kept polling past the answer it was waiting for"
-
-
-def test_a_target_going_away_is_not_a_failure():
-    """A subset test, not an equality test.
-
-    A target that disappears during the poll -- the worker going dormant, most likely -- is not this
-    check's business. Waiting for exact equality with the earlier list would time out and then fail
-    on something that is not a leak, which is how a check starts being ignored.
+    `popup.js` picks its tab with `chrome.tabs.query({active: true, currentWindow: true})`, so asking
+    the popup the same question names the tab the replay really drove.
     """
     check = _load_script("extension_check")
 
-    assert check.wait_until_nothing_new(lambda: {"a"}, {"a", "b"}, timeout=1.0) == {"a"}
+    assert "active: true" in check._DRIVEN_TAB_JS, (
+        "the probe must name the tab the popup would act on, not a tab chosen here")
+    assert "chrome.tabs.query" in check._DRIVEN_TAB_JS, (
+        "the driven tab comes from the extension's own way of choosing it")
+
+
+def test_the_browser_wide_target_list_is_no_longer_the_assertion():
+    """`attached` on a target the harness holds is not evidence about the extension.
+
+    Pinned as a removal because putting it back looks like an improvement: it is the obvious way to
+    ask "did anything stay attached", and it is the way that cannot answer it. The parts that would
+    have to come back are named rather than the API, because the comment above the probe explains
+    what was replaced and has to be allowed to say so.
+    """
+    source = (ROOT / "scripts" / "extension_check.py").read_text(encoding="utf-8")
+
+    assert "_attached_targets" not in source, (
+        "the browser-wide list is back; its `attached` flag is true for targets the harness itself "
+        "holds, so it cannot distinguish a leak from the harness's own sessions")
+    assert "the run left nothing attached that was not attached before" not in source, (
+        "the assertion that could not see the tab it named is back")
+    assert "_take_the_debugger" in source, (
+        "something has to ask the tab itself, or the release goes unchecked")
+
+
+def test_a_held_tab_is_reported_in_chromes_own_words():
+    """A failure has to be the diagnosis, and Chrome's message names the tab."""
+    check = _load_script("extension_check")
+    popup = _StubPopup(ALREADY_HELD)
+
+    assert check._take_the_debugger(popup, 7) == ALREADY_HELD
+    assert "already attached" in ALREADY_HELD, (
+        "the recorded message is the one Chrome sends when a tab is held")
+
+
+def test_a_free_debugger_is_the_only_thing_that_counts_as_released():
+    """Empty is success. Nothing matches on the wording, so a reworded Chrome cannot flip a verdict."""
+    check = _load_script("extension_check")
+
+    assert check._take_the_debugger(_StubPopup(""), 7) == ""
+    assert not check._take_the_debugger(_StubPopup(""), 7), "an empty reply must read as released"
+    assert check._take_the_debugger(_StubPopup("something new"), 7), (
+        "any non-empty reply is a failure, whatever Chrome decides to call it")
+
+
+def test_the_probe_lets_go_even_when_the_take_failed():
+    """Clean-up is unconditional, so a leaking run does not cascade.
+
+    If the extension had leaked, the popup's detach releases the same debuggee. The failure is
+    already recorded by then, and the rest of the section replays the macro again -- so leaving the
+    debugger held would turn one finding into a page of them.
+    """
+    check = _load_script("extension_check")
+    popup = _StubPopup(ALREADY_HELD)
+
+    check._take_the_debugger(popup, 7)
+
+    assert any("debugger.attach" in expression for expression in popup.ran)
+    assert any("debugger.detach" in expression for expression in popup.ran), (
+        "the probe must let go even when it could not take the debugger")
+    assert all("{tabId: 7}" in expression for expression in popup.ran), (
+        "both calls have to name the same tab")
+
+
+def test_a_tab_that_cannot_be_named_is_not_a_failure():
+    """A popup with no active tab is an environment problem, not a leak."""
+    check = _load_script("extension_check")
+    popup = _StubPopup()
+
+    assert "no active tab" in check._take_the_debugger(popup, 0)
+    assert popup.ran == [], "it tried to take the debugger on no tab at all"
 
 
 # --- helpers -----------------------------------------------------------------------------------

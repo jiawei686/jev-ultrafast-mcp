@@ -116,31 +116,6 @@ def wait_until(pred, timeout: float = 20.0, interval: float = 0.15):
         time.sleep(interval)
 
 
-def wait_until_nothing_new(read, known: set, timeout: float = 10.0,
-                           interval: float = 0.15) -> set:
-    """Poll `read` until it holds nothing outside `known`; return the last value seen.
-
-    A subset test rather than an equality test. The assertion is "this run left
-    nothing attached that was not attached before", and a target legitimately
-    going away during the poll is not a failure -- so the condition is `<=` and
-    exact equality would be the wrong one to wait for.
-
-    Deliberately not `wait_until`. The value being waited for is "nothing extra",
-    which is the empty set, and an empty set is falsy -- so that helper would poll
-    straight through the one answer that means success.
-
-    Returning the last value rather than `None` is the other half: the caller's
-    message has to name what was still attached. "3 after" is a number with no
-    next step in it, and this check spent three failures printing one.
-    """
-    deadline = time.monotonic() + timeout
-    value = read()
-    while not value <= known and time.monotonic() < deadline:
-        time.sleep(interval)
-        value = read()
-    return value
-
-
 def normalise(table: str) -> str:
     return SEQUENCE.sub("[obs#]", table)
 
@@ -530,12 +505,17 @@ def _run(base: str, screenshot: Path | None, cfg: Config, manager: BrowserManage
     popup.run("(() => { document.getElementById('macro-params').value = "
               f"{json.dumps(json.dumps(params))}; return true; }})()")
 
-    # `chrome.debugger.getTargets()` lists the targets *the browser* considers debugged, and this
-    # check has its own CDP sessions on the fixture and on the popup, so the list is never empty.
-    # What it can answer is whether the run left anything attached that was not attached before —
-    # and the extension having taken the debugger at all is already established by the run having
-    # worked, since real input is the only thing this dispatches.
-    known = _attached_targets(popup)
+    # The release checks below need the tab the replay is about to run on, and `popup.js` picks that
+    # tab with `chrome.tabs.query({active: true, currentWindow: true})` -- so asking the popup the
+    # same question names the tab the replay actually drives.
+    driven = popup.run(_DRIVEN_TAB_JS, await_promise=True)
+    # Probed before the run as well: a tab something else already holds cannot say anything about
+    # this run, and a note that says so is worth more than an assertion that fails for a reason this
+    # check cannot see. See the comment on the after-run probe for what this replaced.
+    free_before = _take_the_debugger(popup, driven)
+    if free_before:
+        note(f"the tab was already unavailable to the debugger before the run: {free_before}")
+        note("so the release check after the run is skipped -- it could not attribute anything here")
     popup.run("document.getElementById('macro-run').click(), true")
 
     report = wait_until(
@@ -559,29 +539,32 @@ def _run(base: str, screenshot: Path | None, cfg: Config, manager: BrowserManage
 
     # The debugger is what buys real input, and the banner Chrome shows while it is attached is a
     # cost. So letting go of it at the end is part of the feature, not housekeeping. Two views: what
-    # the worker says it still holds, and whether the browser's own count came back down.
+    # the worker says it still holds, and whether the tab can be taken again.
     held = popup.run(
         "chrome.runtime.sendMessage({type: 'ping'}).then(reply => "
         "(reply.attached || []).length)", await_promise=True)
     check("the worker holds no attachment after the run", held == 0, f"{held} held")
-    # This compared a *count*, read once, against the count before the run. Two things were wrong
-    # with that. The count is not stable -- the extension's service worker starts and stops as it is
-    # used, so the same quantity reads 2 or 3 depending on when it was sampled -- which makes a
-    # single read a measurement of the worker's lifecycle wearing a leak's clothes. And the first
-    # repair (poll the count for ten seconds) did not hold: the same failure came back reading "2
-    # before the run, 3 after", on two of three matrix jobs at once, after a commit that only touched
-    # a skill file. A one-beat detach lag cannot survive a ten-second poll, so the lag was not the
-    # explanation and this check had no way to find out what was.
+
+    # This used to compare the browser's whole list of attached targets before and after the run.
+    # Measured on this build, that comparison cannot answer the question it asks. The harness's own
+    # CDP session is on the *same* target the extension attaches to -- the popup's active tab and
+    # `session.target_id` are one id -- so the tab is attached in both reads and a leak on it is
+    # invisible. Its only observed failure was the extension's own service worker, and no session of
+    # the extension's can produce that: attaching from the popup marks the *tab's* page target and
+    # not the worker, and attaching from the worker itself marks neither. That flag moves in lockstep
+    # with a `devtools://` frontend being present in the browser (2 runs of 2), which is a property
+    # of the browser rather than of this extension -- so the check was red on runs where nothing had
+    # leaked, and green on runs where it could not have noticed.
     #
-    # It compares *names* now, which is the question that was always meant: did this run leave
-    # anything attached that was not attached before. A failure names the extra target, so the next
-    # red run is a diagnosis rather than a number.
-    attached = wait_until_nothing_new(lambda: _attached_targets(popup), known)
-    extra = sorted(attached - known)
-    check("the run left nothing attached that was not attached before",
-          not extra,
-          f"{len(known)} attached before, {len(attached)} after"
-          + (f"; still attached and new: {extra}" if extra else ""))
+    # What is asked instead is the question the feature is about, and it is asked of the tab the run
+    # drove: can the debugger be taken again? Chrome answers a second attach on a held tab with
+    # "Another debugger is already attached to the tab with id: N" (measured), so an empty reply is
+    # the only thing that counts as released and a reply is its own diagnosis.
+    if not free_before:
+        held_after = _take_the_debugger(popup, driven)
+        check("the extension can take the debugger back, so it let go of the tab it drove",
+              not held_after,
+              f"tab {driven}: {held_after or 'free'}")
 
     # The strongest assertion in this file: the extension's report has to be the reply the *real*
     # `browser_macro` tool produces for the same macro. Not "similar" — the same string, down to the
@@ -637,17 +620,22 @@ def _run(base: str, screenshot: Path | None, cfg: Config, manager: BrowserManage
 _OPTIONS_JS = ("Array.from(document.getElementById('macro-select').options)"
                ".map(option => option.value).join(',')")
 
-# The targets the browser currently considers debugged, named rather than counted. A count is what
-# this check used to compare, and it could not answer the only question a failure raises -- *which*
-# target is the extra one. It is the weaker question too: one target detaching while another attaches
-# in its place leaves a count unchanged. Names cost nothing and turn the next red run into a
-# diagnosis instead of a number.
-_ATTACHED_JS = (
-    "chrome.debugger.getTargets().then(list => JSON.stringify("
-    "list.filter(item => item.attached)"
-    ".map(item => (item.type || '?') + ' ' + (item.url || item.title || '') + ' ' + item.id)"
-    ".sort()))"
-)
+# The tab the popup would act on, asked exactly the way `popup.js` asks it. That is what makes the
+# release probe below name the tab the replay really drove rather than a tab chosen here.
+_DRIVEN_TAB_JS = ("chrome.tabs.query({active: true, currentWindow: true})"
+                  ".then(tabs => (tabs[0] && tabs[0].id) || 0)")
+
+# A failure is explained rather than thrown, so the promise never rejects and the reply is the
+# message. `chrome.debugger` is available on any extension page, which is why the popup can ask.
+#
+# Chrome answers a second attach on a held tab with "Another debugger is already attached to the tab
+# with id: N" -- measured -- and nothing here matches on that wording: any non-empty reply is a
+# failure, so a Chrome that rewords it costs a nicer message rather than a wrong verdict. The wording
+# is recorded where it is used, in `tests/test_extension.py`.
+_TAKE_JS = ("chrome.debugger.attach({{tabId: {tab}}}, '1.3')"
+            ".then(() => '', error => String(error))")
+_LET_GO_JS = ("chrome.debugger.detach({{tabId: {tab}}})"
+              ".then(() => '', error => String(error))")
 
 
 def _ref_named(observation, name: str) -> str | None:
@@ -658,9 +646,24 @@ def _ref_named(observation, name: str) -> str | None:
     return None
 
 
-def _attached_targets(popup) -> set[str]:
-    """The targets the browser currently considers debugged, as `type url id` strings."""
-    return set(json.loads(popup.run(_ATTACHED_JS, await_promise=True)))
+def _take_the_debugger(popup, tab_id: int) -> str:
+    """Take the debugger on `tab_id` and let go again. Empty means it was free.
+
+    "The extension released the debugger" and "the debugger is free again" are the same statement
+    seen from two sides, and this asks the second one because it is the one the browser answers
+    itself. It is asked of a real attach rather than of `chrome.debugger.getTargets()`, whose
+    `attached` flag on a target the *harness* is holding says nothing about the extension -- that
+    was the assertion this replaced, and it was blind to the only tab that matters.
+
+    The release is unconditional, including when the attach failed. If the extension had leaked, the
+    popup's detach releases the same debuggee -- and the failure has already been recorded, so
+    cleaning up keeps a leaking run from cascading into every later assertion.
+    """
+    if not tab_id:
+        return "no active tab to ask about"
+    held = popup.run(_TAKE_JS.format(tab=tab_id), await_promise=True) or ""
+    popup.run(_LET_GO_JS.format(tab=tab_id), await_promise=True)
+    return held
 
 
 def _load_server():

@@ -164,6 +164,26 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **The extension check's release assertion could not see the tab it named, and failed on runs where
+  nothing had leaked.** It compared the browser's whole list of attached targets before and after a
+  replay. Measured on this build, the harness's own CDP session is on the *same* target the extension
+  attaches to — the popup's active tab and `session.target_id` are one id — so that tab was attached
+  in both reads and a leak on it was invisible. Its only observed failure was the extension's own
+  service worker, and no session of the extension's can mark that: attaching from the popup marks the
+  tab's page target and not the worker, and attaching from the worker itself marks neither. That flag
+  moves in lockstep with a `devtools://` frontend being present in the browser (2 runs of 2), which
+  is a property of the browser rather than of the extension — so the check was red on runs where
+  nothing had leaked, on two of three matrix jobs at once, and green on runs where it could not have
+  noticed. The question is now asked of the tab the replay actually drove, and asked as the thing the
+  feature is about: can the debugger be taken again? Chrome answers a second attach on a held tab
+  with "Another debugger is already attached to the tab with id: N", so an empty reply is the only
+  thing that counts as released, and the reply is its own diagnosis. The same probe runs before the
+  run as a calibration: a tab something else already holds cannot say anything about this run, and a
+  note that says so is worth more than an assertion failing for a reason the check cannot see. Six
+  tests replace the four that pinned the deleted helper, and all four mutations were caught — always
+  reporting released, dropping the clean-up, asking for the wrong tab, and putting the removed helper
+  back. The probe was also shown to go red against a real browser with a deliberate leak:
+  `[FAIL] … tab 1850397610: Error: Another debugger is already attached to the tab with id: 1850397610.`
 - **A navigation counted as finished while the page was still fetching its bundle, so the model was
   handed a shell.** `_first_read` settled as soon as two reads agreed on the ref set, which sounds
   like "the page stopped growing" and is not: an app that has not fetched its bundle yet renders a
