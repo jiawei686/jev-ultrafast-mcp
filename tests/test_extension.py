@@ -150,9 +150,12 @@ def test_the_popup_renders_with_the_port_rather_than_its_own_formatter():
     assert "readState" in source
 
     # Checked in both spellings: a glyph written as `'\u00bb'` in JavaScript is the same glyph and
-    # would slip past a test that only looked for the character itself.
+    # would slip past a test that only looked for the character itself. `*` is left out on purpose --
+    # it is an ordinary character and would match prose.
     for glyph, escape, what in (("\u2298", "\\u2298", "occluded"),
                                 ("\u00bb", "\\u00bb", "off-screen"),
+                                ("\u2297", "\\u2297", "disabled"),
+                                ("\u22ee", "\\u22ee", "menu trigger"),
                                 ("\u25be", "\\u25be", "expanded"),
                                 ("\u2713", "\\u2713", "checked"),
                                 ("\u00b7", "\\u00b7", "unchecked")):
