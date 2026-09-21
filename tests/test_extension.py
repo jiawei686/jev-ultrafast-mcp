@@ -445,6 +445,55 @@ def test_the_fallback_announces_that_it_skips_the_grant():
     assert "invoke_action(" in script, "the primary path must go through the invocation"
 
 
+# --- the debugged-target count ---------------------------------------------------------------
+
+
+def test_the_debugger_count_is_polled_because_the_detach_lags():
+    """The browser's count trails the worker's own list, and reading it once measured that lag.
+
+    On run 35557546471 the count read "2 before the run, 3 after" while the check immediately above
+    it -- the worker reporting what it still holds -- passed. `chrome.debugger.detach` is
+    asynchronous and the report is written before the browser's own view has caught up, so the same
+    pair read 2/2 and 3/3 across the eleven other runs in the window and 2/3 in that one.
+    """
+    check = _load_script("extension_check")
+    reads = iter([3, 3, 2])
+
+    assert check.wait_for_count(lambda: next(reads), 2, timeout=1.0) == 2
+
+
+def test_a_count_that_never_settles_still_fails_and_names_the_number():
+    """The fix must not soften the assertion -- a genuine leak never returns to the baseline.
+
+    This is the test that says polling is safe: the timeout only decides how long to wait, and a
+    count that stays too high is still a failure. The last value is returned rather than `None`
+    because `None after` would read as a broken check instead of a count that stayed wrong.
+    """
+    check = _load_script("extension_check")
+    seen = []
+
+    def read():
+        seen.append(3)
+        return 3
+
+    assert check.wait_for_count(read, 2, timeout=0.2, interval=0.01) == 3
+    assert len(seen) > 1, "it gave up without looking a second time"
+
+
+def test_a_count_of_zero_is_not_a_reason_to_keep_polling():
+    """Why this cannot be `wait_until`: that helper returns the first *truthy* value, and zero is
+    falsy, so it would poll straight through the one answer a count of zero is entitled to give."""
+    check = _load_script("extension_check")
+    calls = []
+
+    def read():
+        calls.append(1)
+        return 0
+
+    assert check.wait_for_count(read, 0, timeout=1.0) == 0
+    assert len(calls) == 1, "it kept polling past the answer it was waiting for"
+
+
 # --- helpers -----------------------------------------------------------------------------------
 
 

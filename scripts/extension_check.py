@@ -116,6 +116,26 @@ def wait_until(pred, timeout: float = 20.0, interval: float = 0.15):
         time.sleep(interval)
 
 
+def wait_for_count(read, target: int, timeout: float = 10.0, interval: float = 0.15) -> int:
+    """Poll `read` until it equals `target`; return the last value seen either way.
+
+    Deliberately not `wait_until`, which returns the first *truthy* value: a count
+    of zero is falsy, so that helper would keep polling through the one answer a
+    count of zero is entitled to give. `read` is a callable rather than a value
+    because the whole point is to call it more than once.
+
+    Returning the last value rather than `None` on timeout is the other half. The
+    caller's failure message has to name the number it settled on -- `None after`
+    reads as a broken check rather than as a count that stayed too high.
+    """
+    deadline = time.monotonic() + timeout
+    value = read()
+    while value != target and time.monotonic() < deadline:
+        time.sleep(interval)
+        value = read()
+    return value
+
+
 def normalise(table: str) -> str:
     return SEQUENCE.sub("[obs#]", table)
 
@@ -539,7 +559,14 @@ def _run(base: str, screenshot: Path | None, cfg: Config, manager: BrowserManage
         "chrome.runtime.sendMessage({type: 'ping'}).then(reply => "
         "(reply.attached || []).length)", await_promise=True)
     check("the worker holds no attachment after the run", held == 0, f"{held} held")
-    attached_after = popup.run(_ATTACHED_JS, await_promise=True)
+    # Read once, this measured the detach's latency and called it a leak. The worker's own list is
+    # empty the moment its `finally` runs, but `chrome.debugger.getTargets()` is the browser's view
+    # and lags that by a beat: on run 35557546471 this reported "2 before the run, 3 after" while
+    # the check above passed, and the same pair read 2/2 and 3/3 across the eleven other runs in the
+    # window. Polling does not soften the assertion -- a genuine leak never returns to the baseline,
+    # so it still fails, ten seconds later and with the same numbers in the message.
+    attached_after = wait_for_count(
+        lambda: popup.run(_ATTACHED_JS, await_promise=True), attached_before)
     check("the browser's debugged-target count came back down",
           attached_after == attached_before,
           f"{attached_before} before the run, {attached_after} after")

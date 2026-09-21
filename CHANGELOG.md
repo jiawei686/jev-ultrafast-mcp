@@ -164,6 +164,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **The extension check read the browser's debugger count once and called the detach's latency a
+  leak.** `chrome.debugger.detach` is asynchronous: the worker's own list is empty the moment its
+  `finally` runs, but `chrome.debugger.getTargets()` is the browser's view and trails it. On run
+  35557546471 the check reported "2 before the run, 3 after" while the assertion immediately above it
+  — the worker reporting what it still holds — passed, and the same pair read 2/2 or 3/3 across the
+  eleven other runs in the window, so the reading was a race rather than a defect. It polls now, and
+  the timeout does not soften the assertion: a count that never returns to the baseline still fails,
+  ten seconds later and with the same numbers in the message. The helper is new rather than a reuse
+  of `wait_until`, which returns the first *truthy* value — a count of zero is falsy, so it would
+  poll straight through the one answer a count of zero is entitled to give. 228 tests, 3 of them
+  here, and the one that matters is the count that never settles: it is what says polling is a
+  narrowing of the race and not a way to stop noticing a real leak.
 - **An empty path is not a path, in two more places where `exists()` said it was.** `Path("")`
   resolves to the current directory, which exists, so the natural way to write "is this file there?"
   accepts an empty string — the same trap that let a screenshot check pass for a file that was never
