@@ -11,17 +11,29 @@ of the mitigation rather than a cause: exactly one retry, only for a timeout, an
 reported in the step rather than hidden. The last of those is the one that keeps
 this honest -- a retry nobody can see turns a real defect into a slow green build,
 and the day it starts firing every run is the day it needs to be visible.
+
+That reporting claim is a chain, not a single fact: `Step.detail` -> `to_dict` ->
+`payload["ops"]` -> the helper in `scripts/smoke.py` that prints it. Each link is
+asserted separately, because a break anywhere in it leaves the retry silent while
+the rest still passes -- the failure mode the reporting exists to rule out. The
+helper is loaded from the script rather than imported from the package, since
+`scripts/` is not importable; it has no import-time side effects.
 """
 
 from __future__ import annotations
 
 import base64
+import importlib.util
+import sys
+from pathlib import Path
 
 import pytest
 
 from jev_ultrafast_mcp.browser import Session
 from jev_ultrafast_mcp.cdp import CdpError
 from jev_ultrafast_mcp.config import Config
+
+ROOT = Path(__file__).resolve().parents[1]
 
 JPEG = base64.b64encode(b"\xff\xd8" + b"pixels" * 400).decode()
 TIMEOUT = "Page.captureScreenshot: timed out after 30.0s"
@@ -118,3 +130,55 @@ def test_the_step_carries_the_retry(tmp_path):
     assert step.ok, step.to_dict()
     assert _captures(driver) == 2
     assert "second attempt" in (step.detail or ""), step.to_dict()
+
+
+def test_the_retry_survives_into_the_payload_the_caller_reads(tmp_path):
+    """A `Step` holding the note is not the same as the caller seeing it.
+
+    The path is `Step` -> `to_dict` -> `payload["ops"]` -> the smoke helper that
+    prints it, and only the first link was tested. `to_dict` drops `None` values
+    and keeps the rest, so a note that arrived as `None`, or a key renamed on the
+    way through, would leave the retry completely silent while every assertion
+    above still passed -- which is the exact failure this reporting exists to
+    prevent.
+    """
+    session, driver = _session(tmp_path)
+    # `act` observes first when it has no observation, and there is no page here.
+    session.last = object()
+
+    payload = session.act([{"op": "screenshot"}], observe_after=False)
+
+    assert payload["ok"], payload
+    assert _captures(driver) == 2
+    assert "second attempt" in (payload["ops"][0].get("detail") or ""), payload["ops"]
+
+
+def _smoke():
+    spec = importlib.util.spec_from_file_location(
+        "jev_smoke_script", ROOT / "scripts" / "smoke.py"
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_smoke_script_prints_the_retry(capsys):
+    """The line CI would show, since a retry nobody can read is the risk."""
+    smoke = _smoke()
+
+    smoke._report_retry("screenshot", {"ops": [{"ok": True, "detail": "the first capture timed out"}]})
+
+    out = capsys.readouterr().out
+    assert "needed a second attempt" in out, out
+    assert "the first capture timed out" in out, "the reason was dropped"
+
+
+def test_the_smoke_script_says_nothing_when_there_was_no_retry(capsys):
+    """The other half: silence on the ordinary path, or the note means nothing."""
+    smoke = _smoke()
+
+    smoke._report_retry("screenshot", {"ops": [{"ok": True, "target": "/tmp/shot.jpg"}]})
+
+    assert capsys.readouterr().out == ""
