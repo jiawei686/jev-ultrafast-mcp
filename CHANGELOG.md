@@ -166,11 +166,11 @@ All notable changes to this project are documented here. The format follows
 
 - **A disabled control was invisible to the model, which is not the same as being unusable.** The
   observer dropped every disabled candidate while *collecting*, before ranking, so an element that
-  never entered the table could not be shown however the offers were computed. On a check-in page the
-  submit button 「提交答案」 was in the page text and absent from the element table: the model could
-  select an option and then have nothing on the page it was allowed to press, and reported the form as
-  having no way to submit it. It is the ordinary shape of a form — a button that only enables once
-  something is chosen — so the fix is to keep it and mark it `⊗`, not to drop it.
+  never entered the table could not be shown however the offers were computed. On the daily-question
+  page the submit button 「提交答案」 was in the page text and absent from the element table: the model
+  could select an option and then have nothing on the page it was allowed to press, and reported the
+  form as having no way to submit it. It is the ordinary shape of a form — a button that only enables
+  once something is chosen — so the fix is to keep it and mark it `⊗`, not to drop it.
   Everything downstream was already right, which is what made this a visibility bug rather than an act
   bug: `resolve` refused a disabled element with `reason: 'disabled'`, and the guard-reason vocabulary
   already classified that as terminal rather than stale, so keeping one costs a clear refusal instead
