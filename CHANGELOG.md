@@ -200,6 +200,11 @@ All notable changes to this project are documented here. The format follows
   happened to be compared. Both flags are now ported, the `expanded === 'true'` suppression comes with
   them, and the fixtures gained the three rows that would have caught it — including the suppressed
   case, which is the one a reader is most likely to "simplify" away.
+  The gap itself is now guarded rather than remembered: `test_every_flag_the_renderer_can_emit_is_exercised_by_a_fixture`
+  derives the flag vocabulary from `observe.py` and fails if `fixtures.json` does not exercise all of
+  it. Regenerating the fixtures removes the author's-belief problem for each *case*, but which cases
+  exist is still a choice, and that is what let this one go uncompared for months — so the choice is
+  now checked against the renderer instead of against memory.
 - **The extension check read the browser's debugger count once and called the detach's latency a
   leak.** `chrome.debugger.detach` is asynchronous: the worker's own list is empty the moment its
   `finally` runs, but `chrome.debugger.getTargets()` is the browser's view and trails it. On run

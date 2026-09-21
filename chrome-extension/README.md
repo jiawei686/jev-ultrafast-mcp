@@ -60,6 +60,10 @@ The first two were invisible from inside the repo and showed up as parity failur
 argument for having a port and a parity harness at all. The third is the argument for the other half
 of the job: the fixtures are *generated* from Python, but which shapes they cover is still a choice
 someone makes, and a flag nobody thinks to include is a flag nobody compares.
+`tests/test_extension.py::test_every_flag_the_renderer_can_emit_is_exercised_by_a_fixture` now
+closes that hole by deriving the flag vocabulary from `observe.py` and failing if any of it is absent
+from `fixtures.json` — so adding a flag without a case for it fails in the suite rather than surviving
+until an unrelated change happens to compare the line it lives on.
 
 ## Replay, and the second half of the port
 

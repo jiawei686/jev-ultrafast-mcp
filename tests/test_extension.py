@@ -16,6 +16,7 @@ port and a parity harness at all.
 
 from __future__ import annotations
 
+import codecs
 import glob
 import importlib.util
 import json
@@ -99,6 +100,39 @@ def test_the_committed_fixtures_are_what_the_generator_produces():
     assert committed == produced, (
         "chrome-extension/test/fixtures.json is stale; regenerate it with "
         "`.venv/bin/python chrome-extension/test/make_fixtures.py`")
+
+
+def test_every_flag_the_renderer_can_emit_is_exercised_by_a_fixture():
+    """A generated fixture set still only covers the shapes someone thought of.
+
+    Regenerating the fixtures removes the "author's belief" problem for each *case*, but which cases
+    exist is still a choice, and a flag no case contains is a flag the parity harness never compares
+    -- while staying green the whole time. That is exactly how the port came to have no `⋮` and no
+    "(N ⋮ = menu trigger, hover before choosing)" header for months: `hoverable` was the one flag the
+    fixture set had never contained, so there was nothing for the two sides to disagree about.
+
+    So the required coverage is derived from the renderer rather than from memory: every flag
+    `Element.render` can append has to appear in the committed fixtures. Adding a flag without a case
+    for it now fails here, next to the fixtures it is about, instead of surviving until an unrelated
+    change happens to compare the line it lives on.
+    """
+    source = (ROOT / "jev_ultrafast_mcp" / "observe.py").read_text(encoding="utf-8")
+    # The renderer writes these as "\u2298" and friends, so the escape has to be decoded before it
+    # can be looked for: comparing the raw escape against rendered output finds nothing, and a test
+    # that finds nothing passes for the wrong reason.
+    vocabulary = {
+        codecs.decode(escape, "unicode_escape")
+        for escape in re.findall(r'flags \+= "([^"]+)"', source)
+    }
+    assert len(vocabulary) >= 5, (
+        "the renderer's flag vocabulary moved; this guard is looking in the wrong place")
+
+    fixtures = (TEST / "fixtures.json").read_text(encoding="utf-8")
+    uncovered = sorted(glyph for glyph in vocabulary if glyph not in fixtures)
+
+    assert not uncovered, (
+        f"no fixture exercises {uncovered}; add a case to make_fixtures.py that renders "
+        f"them, or the port can drop them without the parity test noticing")
 
 
 def test_the_popup_renders_with_the_port_rather_than_its_own_formatter():
