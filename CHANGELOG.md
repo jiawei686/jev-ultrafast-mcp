@@ -372,6 +372,19 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **A docstring claimed one key configures both models, and the loader does not do that.** The
+  comment above `_turbo_backend` said pointing `TYPESAFE_BASE_URL` at OpenRouter "lets a single
+  `OPENROUTER_API_KEY` drive both the decision model and the text helper". The first half is true —
+  the decision model falls back to that key, because every decisions route speaks the same contract.
+  The second half is not: the text helper is resolved from `TEXT_MODEL_API_KEY` with no fallback, and
+  posts to `TEXT_MODEL_BASE_URL`, which is DeepSeek by default. A reader who believed the sentence
+  would set one key, find `TYPE_TEXT` refused, and have no reason to look at the variable that was
+  actually missing — which is the exact shape of a live run that failed to type into a field. The
+  comment now says which key configures which model and that covering both with one key is a
+  configuration rather than something the loader arranges. A test pins the separation, because
+  adding the fallback looks like a kindness and is not one: an OpenRouter key sent to DeepSeek earns
+  a 401 whose message names the wrong provider, and a run diagnosed from the wrong provider's error
+  is a run nobody diagnoses.
 - **The two ways to attach a page now share one setup block, and the reason is written down.** A
   `Session` reaches a page either by attaching to a target it just created (`_attach_page`, via
   `browser_open`) or by attaching to a tab that already exists (`switch_tab`). CDP documents

@@ -83,9 +83,16 @@ def _turbo_backend() -> tuple[str, str | None]:
     TypeSafe's own endpoint is the default. Every route speaks the same
     request/response contract -- `{model, state, questions}` in, typed
     `answers` out -- so switching routes changes only the URL and whose
-    credits pay for it. Pointing TYPESAFE_BASE_URL at OpenRouter lets a
-    single OPENROUTER_API_KEY drive both the decision model and the text
-    helper, and needs no TypeSafe account.
+    credits pay for it. Pointing TYPESAFE_BASE_URL at OpenRouter lets
+    OPENROUTER_API_KEY pay for the decision model, with no TypeSafe account.
+
+    That covers the *decision* model only. The text helper -- the one that
+    writes a value into a field -- is resolved separately from
+    TEXT_MODEL_API_KEY / TEXT_MODEL_BASE_URL / TEXT_MODEL, and deliberately
+    does not fall back to this key: it posts to a different API, and a key that
+    works for one provider is not evidence that it works for another. Covering
+    both with a single key therefore means pointing TEXT_MODEL_BASE_URL and
+    TEXT_MODEL at that provider too, not expecting the loader to do it.
     """
     url = os.environ.get("TYPESAFE_BASE_URL", "").strip()
     if not url:

@@ -83,3 +83,36 @@ def test_an_answer_with_no_message_at_all_does_not_crash(monkeypatch):
 
     with pytest.raises(policy.TurboUnavailable):
         policy.text_for(cfg, "open the Python article", element, observation, [])
+
+
+def test_one_key_covering_both_is_a_configuration_and_not_a_fallback(monkeypatch):
+    """The decision model may borrow OPENROUTER_API_KEY; the text helper must not.
+
+    `_turbo_backend` falls back to `OPENROUTER_API_KEY` because every decisions route speaks the
+    same contract. The text helper does not, and borrowing would be worse than refusing: it posts
+    to `TEXT_MODEL_BASE_URL`, which is DeepSeek by default, and an OpenRouter key sent there earns a
+    401 whose message is about DeepSeek. A run diagnosed from the wrong provider's error is a run
+    nobody diagnoses. So the loader leaves it unset and the helper refuses by name.
+
+    Covering both with one key is therefore a configuration -- point `TEXT_MODEL_BASE_URL` and
+    `TEXT_MODEL` at that provider too -- not something the loader does for you. This is pinned
+    because adding the fallback looks like a kindness and is not one.
+    """
+    for var in ("TEXT_MODEL_API_KEY", "TEXT_MODEL_BASE_URL", "TEXT_MODEL", "TYPESAFE_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "openrouter-key")
+    monkeypatch.setenv("TYPESAFE_BASE_URL", "https://openrouter.ai/api/alpha/decisions")
+
+    cfg = Config.from_env()
+    _, element, observation = _fixtures()
+
+    assert cfg.typesafe_key == "openrouter-key", "the decision model does borrow it"
+    assert cfg.text_model_key is None, "the text helper must not borrow a key for a different API"
+    assert cfg.text_model_base == "https://api.deepseek.com/v1", (
+        "the default base is DeepSeek, which is exactly why the key cannot be borrowed")
+
+    with pytest.raises(policy.TurboUnavailable) as caught:
+        policy.text_for(cfg, "open the Python article", element, observation, [])
+
+    assert "TEXT_MODEL_API_KEY" in str(caught.value), (
+        "the refusal has to name the variable to set, or it is a dead end")
