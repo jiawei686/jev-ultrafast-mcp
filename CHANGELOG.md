@@ -213,8 +213,10 @@ All notable changes to this project are documented here. The format follows
   once the count reaches the limit `browser.py` already defines, and reports `stopped: no progress`.
   The observation is refreshed *before* the break on purpose: `verify` judges the page as it stands,
   so a goal whose last action removed the thing it acted on still ends `done` when the assertion
-  proves it. The count also belongs to a run rather than to the session — it is only ever
+  proves it.   The count also belongs to a run rather than to the session — it is only ever
   incremented, so a goal that inherited the previous goal's streak would call itself stuck on step 1.
+  The README names the stop statuses as well, because it described `status` as the model's own
+  summary and that stopped being the whole truth the moment the loop started writing it.
 - **The candidate list was cut by where an element sat rather than by what it was.** Both truncations
   — `observer.js`'s 250-element table cap and `policy.reachable_first`'s 120-candidate question cap —
   ordered by viewport position with no notion of role, so a submit button below the fold lost its

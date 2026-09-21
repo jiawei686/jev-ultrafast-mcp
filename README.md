@@ -598,11 +598,18 @@ Every way the decision model can fail — no key, no credits, unreachable, a mal
 that is not JSON — comes back as `turbo_unavailable:` with nothing executed. The trace of the steps
 already taken is kept, so a run that dies on step five still reports what steps one to four did.
 
-`status` is the model's own summary, and `verify` is checked by code, so when the two disagree the
-assertion decides: if the page passes your checks the run reports `status: done` whatever the model
-said, and the trace records that it overruled. This is the ordinary shape of a goal whose last
-action removes what it acted on — click a check-in button and the button is gone, so the model,
-finding nothing left to do, reports `BLOCKED` on a goal that in fact succeeded.
+`status` is mostly the model's own summary, but the loop writes it too, and the values it writes are
+worth recognising: `stopped: no progress` after three consecutive actions changed nothing — the page
+is as finished as it is going to get, so the run stops there rather than spending the rest of
+`max_steps` discovering it — and `stopped: hit max_steps` when the budget simply ran out. The two
+read differently on purpose: the first says there is nothing left to do, the second says there might
+be.
+
+`verify` is checked by code, so when the summary and the page disagree the assertion decides: if the
+page passes your checks the run reports `status: done` whatever the model said, and the trace
+records that it overruled. This is the ordinary shape of a goal whose last action removes what it
+acted on — click a check-in button and the button is gone, so the model, finding nothing left to do,
+reports `BLOCKED` on a goal that in fact succeeded.
 
 ### `browser_tabs` · `browser_sessions` · `browser_close` · `browser_doctor`
 Tab management (list / new / switch / close), session listing, teardown, and a self-check that
