@@ -164,6 +164,42 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **A disabled control was invisible to the model, which is not the same as being unusable.** The
+  observer dropped every disabled candidate while *collecting*, before ranking, so an element that
+  never entered the table could not be shown however the offers were computed. On a check-in page the
+  submit button 「提交答案」 was in the page text and absent from the element table: the model could
+  select an option and then have nothing on the page it was allowed to press, and reported the form as
+  having no way to submit it. It is the ordinary shape of a form — a button that only enables once
+  something is chosen — so the fix is to keep it and mark it `⊗`, not to drop it.
+  Everything downstream was already right, which is what made this a visibility bug rather than an act
+  bug: `resolve` refused a disabled element with `reason: 'disabled'`, and the guard-reason vocabulary
+  already classified that as terminal rather than stale, so keeping one costs a clear refusal instead
+  of a wrong click. What changed is the collection filter, the flag on the built element, and the three
+  places the flag has to be honoured: `_operation_heads` leaves disabled elements out of the offered
+  targets exactly as it already did for occluded ones — a target that cannot be acted on buys a step
+  that cannot execute — `reachable` no longer counts them, and they rank in a tier of their own below
+  every actionable element, so on a page that fills the table cap they are the first to go and the
+  table a model sees is never narrower than it was before. `disabled` is in `signature()` as well, or
+  the transition renders as an unchanged line: the model would never be told that the button it could
+  not press is now pressable, and the goal would end with the form filled in and nothing submitted.
+  Measured on a fixture of twelve candidate shapes rather than argued: 3 of 12 reached the table
+  before, 6 of 12 after, and the five genuinely invisible ones — zero-size, `visibility: hidden`,
+  `opacity: 0`, behind `aria-hidden`, and a cursor-styled `div` with no role — are still dropped. The
+  four new tests were checked by mutation, each failing when its own fix is reverted.
+  Adding the flag to the legend turned up a second stale sentence: `docs/DESIGN.md` still described
+  the ranking as "in-viewport first, then interactive controls", which is the order it had *before*
+  role was moved above position. The paragraph now says what the code does and why position is last,
+  because a design note that argues for the arrangement the code deliberately reversed is worse than
+  no note at all.
+- **The extension rendered an element differently from the server, and no fixture had ever looked.**
+  `render.js` had no `FLAG_HOVER`, never mapped `hoverable`, and never emitted the header segment that
+  counts menu triggers — so the popup showed a menu trigger without the `⋮` the server puts on it, and
+  without the `(N ⋮ = menu trigger, hover before choosing)` line that says what the glyph means. It
+  survived because `hoverable` was the one flag the fixture set never exercised, so the parity harness
+  had nothing to disagree with; it surfaced only when the disabled flag was added and the header line
+  happened to be compared. Both flags are now ported, the `expanded === 'true'` suppression comes with
+  them, and the fixtures gained the three rows that would have caught it — including the suppressed
+  case, which is the one a reader is most likely to "simplify" away.
 - **The extension check read the browser's debugger count once and called the detach's latency a
   leak.** `chrome.debugger.detach` is asynchronous: the worker's own list is empty the moment its
   `finally` runs, but `chrome.debugger.getTargets()` is the browser's view and trails it. On run
@@ -173,7 +209,7 @@ All notable changes to this project are documented here. The format follows
   the timeout does not soften the assertion: a count that never returns to the baseline still fails,
   ten seconds later and with the same numbers in the message. The helper is new rather than a reuse
   of `wait_until`, which returns the first *truthy* value — a count of zero is falsy, so it would
-  poll straight through the one answer a count of zero is entitled to give. 228 tests, 3 of them
+  poll straight through the one answer a count of zero is entitled to give. 232 tests, 3 of them
   here, and the one that matters is the count that never settles: it is what says polling is a
   narrowing of the race and not a way to stop noticing a real leak.
 - **An empty path is not a path, in two more places where `exists()` said it was.** `Path("")`

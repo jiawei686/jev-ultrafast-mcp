@@ -41,6 +41,8 @@ export const DEFAULT_SECRET_PATTERNS = [
 const ELLIPSIS = '\u2026';
 const FLAG_COVERED = '\u2298';
 const FLAG_OFFSCREEN = '\u00bb';
+const FLAG_DISABLED = '\u2297';
+const FLAG_HOVER = '\u22ee';
 const FLAG_EXPANDED = '\u25be';
 const FLAG_CHECKED = '\u2713';
 const FLAG_UNCHECKED = '\u00b7';
@@ -93,6 +95,8 @@ export function elementFromRaw(raw, { secret = false } = {}) {
     accept: raw.accept === undefined ? null : raw.accept,
     multiple: Boolean(raw.multiple),
     label: short(raw.label || '', 160),
+    hoverable: Boolean(raw.hoverable),
+    disabled: Boolean(raw.disabled),
     in_viewport: raw.inViewport === undefined ? true : Boolean(raw.inViewport),
   };
 }
@@ -106,7 +110,7 @@ export function roleCode(role) {
 export function elementSignature(element) {
   return [
     element.role, element.name, element.value, element.checked, element.current,
-    element.expanded, element.occluded, element.editable,
+    element.expanded, element.occluded, element.editable, element.disabled,
   ];
 }
 
@@ -116,6 +120,8 @@ export function elementRender(element, { detail = false, mask = true } = {}) {
   if (element.editable) flags += '*';
   if (element.occluded) flags += FLAG_COVERED;
   else if (!element.in_viewport) flags += FLAG_OFFSCREEN;
+  if (element.disabled) flags += FLAG_DISABLED;
+  if (element.hoverable && element.expanded !== 'true') flags += FLAG_HOVER;
   if (element.expanded === 'true') flags += FLAG_EXPANDED;
   if (element.checked === true) flags += FLAG_CHECKED;
   else if (element.checked === false) flags += FLAG_UNCHECKED;
@@ -231,6 +237,8 @@ function deltaLines(observation, previous, detailRefs) {
     if (old.value !== element.value && element.editable) note = `   (was "${old.value}")`;
     else if (old.occluded !== element.occluded) {
       note = element.occluded ? '   (now covered)' : '   (now reachable)';
+    } else if (old.disabled !== element.disabled) {
+      note = element.disabled ? '   (now disabled)' : '   (now usable)';
     }
     lines.push(`~ ${elementRender(element, { detail: detailRefs.has(element.ref) })}${note}`);
   }
@@ -259,6 +267,12 @@ export function observationLines(observation, {
   if (observation.omitted) header += `  (omitted ${observation.omitted} low-priority)`;
   if (observation.offscreen) {
     header += `  (offscreen ${observation.offscreen}, ${FLAG_OFFSCREEN} = will scroll on act)`;
+  }
+  const triggers = observation.elements.filter(
+    element => element.hoverable && element.expanded !== 'true',
+  ).length;
+  if (triggers) {
+    header += `  (${triggers} ${FLAG_HOVER} = menu trigger, hover before choosing)`;
   }
 
   const lines = [header];

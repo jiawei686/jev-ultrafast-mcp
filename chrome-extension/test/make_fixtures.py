@@ -39,6 +39,7 @@ def action(ref: str, role: str, name: str = "", **extra) -> dict:
     item = {
         "ref": ref, "role": role, "name": name, "label": name, "value": "",
         "editable": False, "occluded": False, "inViewport": True,
+        "hoverable": False, "disabled": False,
         "checked": None, "expanded": None, "current": None, "options": [],
         "opts_total": 0, "secret": False, "context": "", "accept": None, "multiple": False,
     }
@@ -55,7 +56,7 @@ def observation(actions: list[dict], **extra) -> dict:
     }
     raw.update(extra)
     raw["reachable"] = extra.get("reachable", sum(
-        1 for a in actions if a["inViewport"] and not a["occluded"]
+        1 for a in actions if a["inViewport"] and not a["occluded"] and not a["disabled"]
     ))
     raw["offscreen"] = extra.get("offscreen", sum(1 for a in actions if not a["inViewport"]))
     return raw
@@ -98,8 +99,9 @@ def build() -> dict:
     # Every flag and every body variant, in one table.
     cases.append(case(
         "flags-and-bodies",
-        "every flag (*, \u2298, \u00bb, \u25be, \u2713, \u00b7) and every body shape "
-        "(plain, editable, secret, options, file, context) in one table",
+        "every flag (*, \u2298, \u00bb, \u2297, \u22ee, \u25be, \u2713, \u00b7) and every body "
+        "shape (plain, editable, secret, options, file, context) in one table, including a "
+        "hover trigger whose menu is already open, where the \u22ee must be suppressed",
         observation([
             action("e1", "link", "Skip to main content"),
             action("e2", "button", "Submit", occluded=True),
@@ -118,6 +120,9 @@ def build() -> dict:
             action("e11", "button", "Book", context="Outbound"),
             action("e12", "link", "Book", context="Return"),
             action("e13", "spinbutton", "Adults", editable=True, value="2"),
+            action("e14", "button", "Daily tasks", hoverable=True),
+            action("e15", "button", "Daily tasks", hoverable=True, expanded="true"),
+            action("e16", "button", "Submit answer", disabled=True),
         ], text="Search flights \u2014 one way or round trip."),
     ))
 

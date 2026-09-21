@@ -16,11 +16,16 @@ These tests compare the two ends directly. No network, no browser, no key.
 
 from __future__ import annotations
 
+import dataclasses
+import json
 import re
 from pathlib import Path
 
+import pytest
+
 from jev_ultrafast_mcp import policy, server
 from jev_ultrafast_mcp.browser import CLICKABLE_KINDS
+from jev_ultrafast_mcp.config import Config
 from jev_ultrafast_mcp.observe import Element, Observation
 
 OBSERVER_JS = Path(__file__).resolve().parents[1] / "jev_ultrafast_mcp" / "js" / "observer.js"
@@ -51,6 +56,10 @@ def _observation(elements: list[Element]) -> Observation:
         cross_frames=0,
         cross_frame_srcs=[],
     )
+
+
+def _cfg() -> Config:
+    return dataclasses.replace(Config.from_env(), typesafe_key="test-key")
 
 
 def test_every_offered_operation_maps_to_a_real_act_verb():
@@ -194,6 +203,42 @@ def test_the_observer_decides_hoverable_from_aria_alone():
     )
 
 
+def test_the_observer_collects_a_disabled_control_and_marks_it():
+    """The regression lived in the collection loop, so it is pinned there.
+
+    `disabled(e)` used to sit in the filter that decides what enters the table at
+    all -- a different decision from what may be *chosen*, and the wrong one to
+    make: an element that never enters the table cannot be shown to the model
+    however the offers are computed. The rule is a line of JavaScript, so reading
+    the source is the only way to hold it from here; the shapes that must still
+    be dropped (zero-size, behind `aria-hidden`, `opacity: 0`) are why the filter
+    cannot simply be deleted.
+    """
+    source = OBSERVER_JS.read_text()
+
+    start = source.index("for (const e of found)")
+    loop = source[start:source.index("const role = roleOf(e)", start)]
+    code = "\n".join(
+        line for line in loop.splitlines() if not line.strip().startswith("//")
+    )
+    assert "disabled(e)" not in code, (
+        "a disabled control that never enters the table cannot be shown to the "
+        "model at all; the refusal belongs on act, not on collection")
+    assert "deepVisible(e)" in code, "genuinely invisible shapes must still be dropped"
+
+    assert "disabled: isDisabled" in source, "the flag has to travel with the element"
+    assert "!b.disabled" in source, (
+        "`reachable` is the count the agent acts on; a disabled control is shown, "
+        "not usable")
+
+    # Keeping them is only safe because they are demoted: on a page that fills
+    # the table cap they are the first to go, so the table a model sees is never
+    # narrower than it was before this change.
+    assert "(isDisabled ? 0 : 10000)" in source, (
+        "a disabled control outranking an actionable one would trade a usable "
+        "element's slot for a button nobody can press")
+
+
 def test_the_observer_and_the_reader_agree_on_the_field_name():
     """A field the observer emits and Python never reads fails silently.
 
@@ -208,6 +253,85 @@ def test_the_observer_and_the_reader_agree_on_the_field_name():
 
     assert marked.hoverable and "HOVER" in marked.target_kinds()
     assert not unmarked.hoverable and "HOVER" not in unmarked.target_kinds()
+
+
+def test_a_disabled_control_is_shown_but_not_offered():
+    """Present-but-unusable is its own state, and it is not the same as absent.
+
+    The observer used to drop disabled candidates while collecting, so a submit
+    button that only enables once an option is chosen was invisible: the model
+    could select the option and then have nothing on the page it was allowed to
+    press. That is a real check-in that ended `BLOCKED` with 「提交答案」 in the
+    page text and nothing of the sort in the element table.
+
+    Keeping it is not the same as offering it. The exclusion is here, in the
+    offers, and not in `target_kinds()` -- an occluded element keeps its kinds
+    too, and the guard that runs on act is what refuses both.
+    """
+    submit = Element(ref="e1", role="button", name="提交答案", disabled=True)
+
+    assert "CLICK" in submit.target_kinds(), (
+        "the element's own vocabulary is about its role; what may be *chosen* "
+        "is decided in `_operation_heads`")
+
+    operations, heads = policy._operation_heads(_observation([submit]))
+
+    assert operations == set(), "nothing on this page can be acted on"
+    assert "e1" not in {element.ref for group in heads.values() for element in group}
+
+
+def test_a_disabled_control_still_reaches_the_model_in_the_state(monkeypatch):
+    """Dropped from the offers must not mean dropped from the question.
+
+    The model needs to see what the page is waiting for. A greyed-out submit is
+    the page saying "fill something in first", and a model that cannot see the
+    button cannot know there is anything to wait for -- it will report the form
+    as having no way to submit it, which is what happened.
+    """
+    captured: dict = {}
+
+    def _capture(url, key, body):
+        captured.update(body)
+        raise policy.TurboUnavailable("stop here; the body is what we came for")
+
+    monkeypatch.setattr(policy, "_post", _capture)
+    observation = _observation([
+        Element(ref="e1", role="combobox", name="选项", options=[{"value": "A"}]),
+        Element(ref="e2", role="button", name="提交答案", disabled=True),
+    ])
+
+    with pytest.raises(policy.TurboUnavailable):
+        policy.choose(_cfg(), observation, "submit the answer", [])
+
+    shown = {element["ref"]: element for element in captured["state"]["elements"]}
+    assert shown["e2"]["disabled"] is True
+    assert "disabled" not in shown["e1"], (
+        "the mark belongs to the element that has it, not to every element")
+
+    assert '"e2"' not in json.dumps(captured["questions"]), (
+        "a disabled control must not be put to the model as something to choose")
+
+
+def test_becoming_usable_is_a_change_the_model_is_told_about():
+    """A submit button that switches on is the step that finishes the form.
+
+    `signature()` is what the delta compares, so a `disabled` that is not in it
+    leaves the transition rendering as an unchanged line: the model is never
+    told that the button it could not press is now pressable, and the goal ends
+    with the form filled in and nothing submitted.
+    """
+    before = Element(ref="e1", role="button", name="提交答案", disabled=True)
+    after = dataclasses.replace(before, disabled=False)
+
+    assert before.signature() != after.signature()
+
+    rendered = _observation([after]).render(_observation([before]))
+
+    assert "now usable" in rendered
+    assert "\u2297" not in rendered, "the flag goes away with the state"
+
+    reversed_note = _observation([before]).render(_observation([after]))
+    assert "now disabled" in reversed_note
 
 
 def test_a_retried_target_stops_being_offered_for_that_operation():

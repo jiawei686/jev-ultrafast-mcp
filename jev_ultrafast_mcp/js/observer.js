@@ -297,7 +297,14 @@
         for (const e of found) {
           if (seen.has(e)) continue;
           if (UNSAFE_TYPES.includes(typeOf(e))) continue;
-          if (!e.isConnected || !deepVisible(e) || disabled(e)) continue;
+          // Disabled controls are kept rather than dropped. A control that
+          // exists and cannot be used is information the model needs: a submit
+          // button that only enables once an option is chosen is the ordinary
+          // shape of a form, and dropping it silently is how the model ends up
+          // able to select an option and with nothing to submit. `resolve`
+          // already refuses one with reason 'disabled', so keeping it costs a
+          // clear refusal rather than a wrong click.
+          if (!e.isConnected || !deepVisible(e)) continue;
           const role = roleOf(e);
           if (!role) continue;
           if (role === 'gridcell' && e.querySelector('button,[role="button"]')) continue;
@@ -315,6 +322,7 @@
     let offscreen = 0;
     for (const it of items) {
       const e = it.e;
+      const isDisabled = disabled(e);
       const name = clean(nameOf(e)).slice(0, 160);
       const key = it.role + '\u0000' + name.toLowerCase();
       count.set(key, (count.get(key) || 0) + 1);
@@ -367,14 +375,20 @@
       built.push({
         node, ref: 'e' + node, role: it.role, name, label: name || it.role,
         value: secretField ? '' : valueOf(e).slice(0, 300),
-        editable, occluded, inViewport, hoverable,
+        editable, occluded, inViewport, hoverable, disabled: isDisabled,
         // Role outranks position. The reverse order -- viewport 100 against a
         // primary control's 40 -- let a submit button below the fold lose its
         // slot to a hundred in-viewport navigation links, and made the kept set
         // a function of how far the page happened to be scrolled, so the same
         // page produced a different table on the next read. Position still
         // separates candidates inside a tier, which is why it stays.
-        rank: (editable || PRIMARY.has(it.role) ? 1000 : 0)
+        //
+        // Disabled controls sit in a tier of their own, below every actionable
+        // one. They are worth showing -- see the collection loop above -- but
+        // never at the cost of an element the model could actually use, so on a
+        // page that fills the cap they are the first to go, exactly as before.
+        rank: (isDisabled ? 0 : 10000)
+          + (editable || PRIMARY.has(it.role) ? 1000 : 0)
           + (SECONDARY.has(it.role) ? 400 : 0)
           + (inViewport ? 100 : 0),
         order: built.length,
@@ -422,8 +436,11 @@
       url: location.href, title: document.title, w: innerWidth, h: innerHeight, text,
       scroll: { y: Math.round(scrollY), height },
       // `reachable` is the number an agent actually cares about: how many of
-      // these refs can be acted on without first dismissing something.
-      reachable: actions.filter(b => b.inViewport && !b.occluded).length,
+      // these refs can be acted on without first dismissing something. Disabled
+      // controls are in `actions` but not in this count -- they are shown so the
+      // model can see what the page is waiting for, and "shown" is not
+      // "actionable".
+      reachable: actions.filter(b => b.inViewport && !b.occluded && !b.disabled).length,
       actions, omitted, offscreen,
       overlays: overlays(),
       cross_frames: cross.length,

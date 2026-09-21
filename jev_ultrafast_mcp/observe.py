@@ -54,6 +54,12 @@ class Element:
     # whatever it opens is only reachable after pointing at it. The observer
     # decides this from `aria-haspopup`/`aria-expanded`; see js/observer.js.
     hoverable: bool = False
+    # Present but not usable. Kept in the table on purpose: a submit button that
+    # only enables once an option is chosen is the ordinary shape of a form, and
+    # a model that cannot see it can select an option and still have nothing to
+    # submit. `policy` leaves these out of the operations it offers, so seeing
+    # one costs nothing but tells the model what the page is waiting for.
+    disabled: bool = False
 
     @property
     def code(self) -> str:
@@ -79,6 +85,7 @@ class Element:
             multiple=bool(raw.get("multiple")),
             label=_short(raw.get("label") or "", 160),
             hoverable=bool(raw.get("hoverable")),
+            disabled=bool(raw.get("disabled")),
             # The observer reports this as `inViewport`. Dropping it left `in_viewport`
             # permanently True, so the `»` flag never rendered even though the header
             # advertises it and counts the same elements in `offscreen`.
@@ -91,7 +98,7 @@ class Element:
         """Everything that, when changed, is worth telling the agent about."""
         return (
             self.role, self.name, self.value, self.checked, self.current,
-            self.expanded, self.occluded, self.editable,
+            self.expanded, self.occluded, self.editable, self.disabled,
         )
 
     def target_kinds(self) -> list[str]:
@@ -128,6 +135,8 @@ class Element:
             flags += "\u2298"
         elif not self.in_viewport:
             flags += "\u00bb"          # off-screen: act will scroll it into view
+        if self.disabled:
+            flags += "\u2297"          # present, but not usable yet
         if self.hoverable and self.expanded != "true":
             flags += "\u22ee"          # menu trigger: hover it, then choose
         if self.expanded == "true":
@@ -296,6 +305,11 @@ class Observation:
                         note = f"   (was \"{old.value}\")"
                     elif old.occluded != element.occluded:
                         note = "   (now covered)" if element.occluded else "   (now reachable)"
+                    elif old.disabled != element.disabled:
+                        # The transition a form makes after you fill it in, and
+                        # the one the model has to notice to finish: a submit
+                        # button that was inert while the form was empty.
+                        note = "   (now disabled)" if element.disabled else "   (now usable)"
                     lines.append(f"~ {element.render(detail=element.ref in detail_refs)}{note}")
                 for ref in gone:
                     lines.append(f"- {ref}  (removed)")

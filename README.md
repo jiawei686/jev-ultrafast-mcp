@@ -418,8 +418,10 @@ e12  btn    Delete account
 ```
 
 Flags: `*` editable · `»` off-screen (the server scrolls it into view) · `⊘` covered by something
-else · `▾` expanded · `✓`/`·` checked state. `reachable=16/19` means three controls exist but are
-covered or off-screen right now.
+else · `⊗` present but disabled · `⋮` opens a menu, hover it first · `▾` expanded · `✓`/`·` checked
+state. `reachable=16/19` means three controls exist but are covered, off-screen, or disabled right
+now — a disabled one is still listed so you can see what the form is waiting for, and is never put to
+you as something to click.
 
 After an action it reports **only what changed** — that is the single biggest saving in a long loop:
 

@@ -43,16 +43,23 @@ matching JavaScript: lengths are counted in code points rather than UTF-16 units
 in an emoji truncates where Python truncates; and `scroll.get(key, 0)` is reproduced with an
 own-property check rather than `??`, so a present `0` is never replaced.
 
-Building this found two real bugs in `observe.py`, both the same shape — a field the observer emits
-that the Python model never reads:
+Building this found three real divergences, all the same shape — a field one side carries and the
+other never reads:
 
 - `inViewport` was dropped, so `in_viewport` was permanently `True` and the `»` flag on an element
   was dead code, even though the header counted those elements in `offscreen`.
 - `offscreen` was dropped, so the header's "(offscreen N, » = will scroll on act)" note always said
   zero.
+- `hoverable` was never mapped at all, so the port had no `⋮` on a menu trigger and never emitted the
+  "(N ⋮ = menu trigger, hover before choosing)" line the server writes above the table. This one
+  survived the harness rather than being caught by it: `hoverable` was the single flag the fixture
+  set never exercised, so there was nothing for the two sides to disagree about. It surfaced only
+  when a new flag was added and the header happened to be compared line for line.
 
-Neither was visible from inside the repo. Both showed up as parity failures between the port and
-Python, which is the argument for having a port and a parity harness at all.
+The first two were invisible from inside the repo and showed up as parity failures, which is the
+argument for having a port and a parity harness at all. The third is the argument for the other half
+of the job: the fixtures are *generated* from Python, but which shapes they cover is still a choice
+someone makes, and a flag nobody thinks to include is a flag nobody compares.
 
 ## Replay, and the second half of the port
 

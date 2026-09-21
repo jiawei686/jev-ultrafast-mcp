@@ -235,7 +235,13 @@ def _operation_heads(observation: Observation) -> tuple[set[str], dict[str, list
     """
     heads: dict[str, list] = {}
     for element in observation.elements:
-        if element.occluded:
+        # `occluded` and `disabled` are both "present but not usable now", and
+        # both are refused by the guard that runs on act. Offering one as a
+        # target buys a step that cannot execute. They stay in `state` so the
+        # model can see what the page is waiting for -- a submit button that
+        # only enables once the form is filled in is the whole point of showing
+        # it -- but the operations offered are only the ones that would work.
+        if element.occluded or element.disabled:
             continue
         for kind in element.target_kinds():
             if kind in OPERATION_TO_ACT:
@@ -359,7 +365,8 @@ def choose(cfg: Config, observation: Observation, goal: str, history: list[dict]
              **({"options": [option.get("label") for option in element.options[:20]]}
                 if element.options else {}),
              **({"checked": element.checked} if element.checked is not None else {}),
-             **({"covered": True} if element.occluded else {})}
+             **({"covered": True} if element.occluded else {}),
+             **({"disabled": True} if element.disabled else {})}
             for element in observation.elements
         ],
         "recent_actions": history[-10:],

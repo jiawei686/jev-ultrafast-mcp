@@ -98,10 +98,20 @@ Every element is hit-tested at observation time and carries a flag:
 ```
 e30 btn⊘ Submit          ← covered right now
 e11 fil» CV accept=.pdf,.txt   ← off-screen; act will scroll it into view
+e12 btn⊗ Submit answer   ← present but disabled; shown, never offered as a target
 ```
 
 jev checks occlusion at execution time, which costs the agent an entire round trip per covered
 control. Reporting it up front turns a wasted step into a line of text.
+
+A control that exists but cannot be used *yet* is the same kind of fact, and the observer used to
+throw it away: disabled candidates were dropped while **collecting**, before ranking, so a submit
+button that only enables once an option is chosen never entered the table at all. The model could
+select the option and then have nothing it was allowed to press, and reported the form as having no
+way to submit it. It is now kept and marked `⊗`, and left out of the *offers* instead — the same
+place an occluded element is left out, for the same reason. The distinction is the point: "not there"
+and "there, but not usable yet" are different messages, and only the second one tells the model what
+the page is waiting for.
 
 Two related fixes fall out of the same hit-test work:
 
@@ -116,10 +126,14 @@ Two related fixes fall out of the same hit-test work:
 ### 6. Truncation by usefulness, not by DOM order
 
 The element table is capped. jev truncates the first 250 candidates in DOM order, which can drop a
-form in favour of forty footer links. Here candidates are ranked — in-viewport first, then
-interactive controls, then secondary roles — the top N are kept, and they are **re-rendered in
-document order** so the table stays readable. Off-screen controls are included rather than dropped;
-they are actionable because `act` scrolls them into view, and their count is reported in the header.
+form in favour of forty footer links. Here candidates are ranked — actionable before disabled,
+interactive controls before secondary roles, and only then in-viewport before off-screen — the top N
+are kept, and they are **re-rendered in document order** so the table stays readable. Off-screen
+controls are included rather than dropped; they are actionable because `act` scrolls them into view,
+and their count is reported in the header. Position is deliberately the *last* term: putting it first
+let a submit button below the fold lose its slot to a hundred navigation links that happened to be on
+screen, and made the kept set a function of how far the page was scrolled, so the same page produced
+a different table on the next read.
 
 ### 7. Deterministic verification and zero-token replay
 
@@ -213,5 +227,6 @@ e20 btn   Select  @Zurich → London Option 2 · 3 · any stops
   1 changed, 1 new, 0 gone
 ```
 
-`*` accepts `type` · `»` off-screen · `⊘` covered · `▾` expanded · `✓`/`·` checked state ·
+`*` accepts `type` · `»` off-screen · `⊘` covered · `⊗` disabled · `⋮` menu trigger · `▾` expanded ·
+`✓`/`·` checked state ·
 `@context` appears only when a label repeats, which is when it is actually needed to disambiguate.
