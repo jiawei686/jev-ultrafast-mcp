@@ -165,19 +165,20 @@ All notable changes to this project are documented here. The format follows
 ### Fixed
 
 - **A stalled screenshot capture is retried once, and says so.** The intermittent failure below now
-  has a name: CI reports `Page.captureScreenshot: timed out after 30.0s`, on the *first* capture after
-  a tab is closed and another promoted — while the capture immediately after it succeeds, in the same
-  run, on the same page, in 0.04s, and the PNG that follows lands a 40KB file. So it is a stall rather
-  than a refusal: the command was accepted and no frame came back inside the client's own 30s timeout.
-  `Session._capture` now retries exactly once, only for a timeout, and records that it happened in the
-  step, so the condition cannot settle into a slow green build nobody hears about;
+  has a name: CI reports `Page.captureScreenshot: timed out after 30.0s` — the command is accepted
+  and no frame comes back inside the client's own 30s timeout, so it is a stall rather than a
+  refusal. `Session._capture` now retries exactly once, only for a timeout, and records that it
+  happened in the step, so the condition cannot settle into a slow green build nobody hears about;
   `scripts/smoke.py` prints it as `[note] … needed a second attempt`. The mechanism is **not**
-  established and the retry is mitigation, not a fix — it reproduces on CI's Chrome 152 and never on
-  the local 153 across a dozen runs, the page reports itself visible either way, and the two surviving
-  explanations (the first capture forcing the frame the second then finds ready; a burst of
-  target-destruction events after the close delaying the reply past 30s) are not told apart by
-  anything here. The retry is the part that can be justified without knowing which it is, and the
-  note is what keeps the question open rather than closed.
+  established and this is mitigation, not a fix. The first guess — that it was the *first* capture
+  after a tab is closed and another promoted — is disproved: in the run that exercised the retry,
+  both captures stalled, the second one sent immediately after the first had succeeded. What
+  survives is something about the state or the moment rather than the ordinal. It reproduces on CI's
+  Chrome 152 and never on the local 153 across a dozen runs, the page reports itself visible either
+  way, and it hit one matrix entry out of three on the same commit and runner image, which reads as
+  scheduling noise. The retry is the part that can be justified without knowing which it is, and the
+  note is what keeps the question open rather than closed — it is also how the run above was found,
+  and a silent retry would have let a two-stall run read as a fix.
 - **A screenshot check that could pass without a screenshot.** `scripts/smoke.py` built the path from
   the op's `target` with `Path(target or "")`, and the empty path resolves to the current directory —
   which exists, and on Linux is 4096 bytes. A screenshot op that failed therefore read as

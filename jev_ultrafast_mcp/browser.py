@@ -800,21 +800,22 @@ class Session:
     def _capture(self, params: dict) -> tuple[dict, str | None]:
         """`Page.captureScreenshot`, retried once if the first attempt stalls.
 
-        CI reports `Page.captureScreenshot: timed out after 30.0s` on the *first*
-        capture after a tab is closed and another promoted -- and the capture
-        immediately after it succeeds, in the same run, on the same page, in
-        0.04s. That is a stall rather than a refusal: the command was accepted
-        and no frame came back inside the client's timeout, and whatever the
-        first attempt did left the second one able to answer.
+        CI reports `Page.captureScreenshot: timed out after 30.0s`: the command is
+        accepted and no frame comes back inside the client's own timeout, so it is
+        a stall rather than a refusal. A retry is the remedy, and the run that
+        proved it needed one twice -- both captures in the same section timed out
+        on their first attempt and both succeeded on the second, and without the
+        retry that job would have been red like most of its predecessors.
 
-        The mechanism is *not* established, which is why this is written as a
-        retry rather than as a fix, and why the retry is reported. It reproduces
-        on CI's Chrome (152) and not on the local one (153) across a dozen runs,
-        the page reports itself visible either way, and the driven tab is
-        activated on the paths that are allowed to. Two unconfirmed explanations
-        survive -- the first capture forcing the frame that the second then finds
-        ready, and a burst of target-destruction events after the close delaying
-        the reply past 30s -- and nothing here distinguishes them.
+        The mechanism is *not* established, and the first guess was wrong: it is
+        not "the first capture after a tab is closed and another promoted",
+        because in the run above the second capture -- sent immediately after the
+        first had succeeded -- stalled too. What survives is something about the
+        state or the moment rather than the ordinal: it reproduces on CI's Chrome
+        (152) and never on the local one (153) across a dozen runs, the page
+        reports itself visible either way, and it hit one matrix entry out of
+        three on the same commit and the same runner image, which reads as
+        scheduling noise rather than a version.
 
         A silent retry would turn a real defect into a slow green build, so the
         step carries the fact that it happened: if this starts firing on every

@@ -696,11 +696,11 @@ export function createSession(driver, {
         if (dryRun) return stepOf({ op, ok: true, detail: 'dry run' });
         // One call, and deliberately no retry, which is a difference from the server: `_capture`
         // there retries once when `Page.captureScreenshot` stalls instead of failing, because CI
-        // intermittently times that command out on the first capture after a tab is closed and
-        // another promoted. That stall is a headless-Chrome behaviour -- the page reports itself
-        // visible either way, and it reproduces on Chrome 152 and not 153 -- and this runs in the
-        // tab a person is looking at, so there is nothing here to reproduce. Recorded rather than
-        // added to the divergence list because that list feeds the parity harness, which has no
+        // intermittently times that command out. That stall is a headless-Chrome behaviour -- the
+        // page reports itself visible either way, it reproduces on Chrome 152 and not 153, and it
+        // hit one matrix entry out of three on the same runner image -- and this runs in the tab a
+        // person is looking at, so there is nothing here to reproduce. Recorded rather than added
+        // to the divergence list because that list feeds the parity harness, which has no
         // screenshot case: the extension has no disk to write to, so this op's report already
         // differs from the server's in what it puts in `target`.
         const shot = await driver.call('Page.captureScreenshot', {
