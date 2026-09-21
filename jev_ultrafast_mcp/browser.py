@@ -603,6 +603,15 @@ class Session:
                 paths = raw_op.get("paths") or ([raw_op["path"]] if raw_op.get("path") else [])
                 if not paths:
                     raise ValueError("upload needs 'path' or 'paths'")
+                # An empty entry is not a path. `Path("")` is the current
+                # directory, which exists, so it would sail past the check below
+                # and `resolve()` would hand CDP the working directory as though
+                # the caller had asked to upload it. Note the fix is *not*
+                # `is_file()`: a directory is a legitimate argument here, because
+                # `DOM.setFileInputFiles` takes one for a `webkitdirectory` input.
+                blank = [p for p in paths if not str(p).strip()]
+                if blank:
+                    raise ValueError("upload paths must not be empty")
                 missing = [p for p in paths if not Path(p).expanduser().exists()]
                 if missing:
                     raise ValueError(f"file not found: {missing[0]}")

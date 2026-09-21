@@ -284,8 +284,16 @@ def test_the_readmes_reference_nothing_pypi_cannot_resolve():
             for prefix in (BLOB, RAW):
                 if target.startswith(prefix):
                     local = target[len(prefix):].split("#", 1)[0]
-                    assert (ROOT / local).exists(), (
-                        f"{path.name} points at {local}, which is not in the tree"
+                    # Three ways this could pass while pointing at nothing in
+                    # particular, all of which `exists()` accepts: `ROOT / ""` is
+                    # `ROOT`, which exists, so a link with no path after the
+                    # prefix would be "in the tree" by naming the whole tree;
+                    # `..` would be "in the tree" by leaving it; and `exists()`
+                    # does not care which. The path has to be a real entry and
+                    # stay inside the repository.
+                    resolved = (ROOT / local).resolve()
+                    assert local and resolved.is_relative_to(ROOT.resolve()) and resolved.exists(), (
+                        f"{path.name} points at {local!r}, which is not an entry in the tree"
                     )
 
 

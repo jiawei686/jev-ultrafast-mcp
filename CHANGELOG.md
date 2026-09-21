@@ -164,6 +164,20 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **An empty path is not a path, in two more places where `exists()` said it was.** `Path("")`
+  resolves to the current directory, which exists, so the natural way to write "is this file there?"
+  accepts an empty string — the same trap that let a screenshot check pass for a file that was never
+  written. The upload op had it worst: `paths: [""]` sailed past the `file not found` check,
+  `Path.resolve()` turned it into the working directory, and the step came back `ok: true` with that
+  directory's *name* as its target. A caller asking to upload nothing was told it had uploaded the
+  project. Blank entries are now refused by name. The fix is deliberately **not** `is_file()`, which
+  is the right answer for the screenshot instance: a directory is a legitimate upload target for a
+  `webkitdirectory` input, and `tests/test_path_arguments.py` pins that, so the next person to spot
+  the shape does not tighten it into a regression. `tests/test_docs.py` had the same hole in the
+  guard for the absolute-URL rule: `ROOT / ""` is `ROOT`, so a README link with no path after the
+  blob prefix satisfied "is in the tree" by naming the whole tree, and `..` would have satisfied it
+  by leaving. The check now resolves and requires the result to be inside the repository. Verified
+  by control rather than by passing: the old guard accepted a path-less link the new one rejects.
 - **A stalled screenshot capture is retried once, and says so.** The intermittent failure below now
   has a name: CI reports `Page.captureScreenshot: timed out after 30.0s` — the command is accepted
   and no frame comes back inside the client's own 30s timeout, so it is a stall rather than a
