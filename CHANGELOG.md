@@ -164,6 +164,22 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **The debugged-target check compared a count that is not stable, and its first repair did not
+  hold.** The check read `chrome.debugger.getTargets()` once before a replay and once after, and
+  failed when the two numbers differed. Both halves of that were wrong. The number is not a fixed
+  quantity: the extension's service worker starts and stops as it is used, so the same measurement
+  reads 2 or 3 depending on *when* it was sampled — a single read is a reading of the worker's
+  lifecycle wearing a leak's clothes. And the first repair, polling that count for ten seconds, could
+  not have worked: a one-beat detach lag does not survive a ten-second poll. It came back anyway,
+  reading `2 before the run, 3 after`, on **two of three matrix jobs in one run, after a commit that
+  only touched a skill file** — a failure that lands right after a commit which cannot cause it is
+  evidence about the check, not about the commit, and this is the third time it has done so.
+  The check compares *names* now, which is the question that was always meant: did this run leave
+  anything attached that was not attached before. It is a subset test, so a target that disappears
+  during the poll — the worker going dormant — is not a failure, and the failure message names the
+  extra target instead of printing a number. The three tests that pinned the count helper were
+  replaced by four that pin the new one, including the subset semantics and the reason an empty set
+  cannot be waited for with `wait_until`.
 - **A disabled control was invisible to the model, which is not the same as being unusable.** The
   observer dropped every disabled candidate while *collecting*, before ranking, so an element that
   never entered the table could not be shown however the offers were computed. On the daily-question
@@ -217,6 +233,8 @@ All notable changes to this project are documented here. The format follows
   poll straight through the one answer a count of zero is entitled to give. 232 tests, 3 of them
   here, and the one that matters is the count that never settles: it is what says polling is a
   narrowing of the race and not a way to stop noticing a real leak.
+  **Superseded by the entry at the top of this section.** The reasoning above assumed the count was a
+  fixed quantity that lagged; it is not, and the poll it introduced did not prevent the failure.
 - **An empty path is not a path, in two more places where `exists()` said it was.** `Path("")`
   resolves to the current directory, which exists, so the natural way to write "is this file there?"
   accepts an empty string — the same trap that let a screenshot check pass for a file that was never

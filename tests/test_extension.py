@@ -484,53 +484,72 @@ def test_the_fallback_announces_that_it_skips_the_grant():
     assert "invoke_action(" in script, "the primary path must go through the invocation"
 
 
-# --- the debugged-target count ---------------------------------------------------------------
+# --- what the run left attached ---------------------------------------------------------------
 
 
-def test_the_debugger_count_is_polled_because_the_detach_lags():
-    """The browser's count trails the worker's own list, and reading it once measured that lag.
+def test_the_debugger_list_is_polled_rather_than_read_once():
+    """The browser's list is not stable at the moment the run ends.
 
-    On run 35557546471 the count read "2 before the run, 3 after" while the check immediately above
-    it -- the worker reporting what it still holds -- passed. `chrome.debugger.detach` is
-    asynchronous and the report is written before the browser's own view has caught up, so the same
-    pair read 2/2 and 3/3 across the eleven other runs in the window and 2/3 in that one.
+    It used to be compared as a *count*, read once. The count reads 2 or 3 depending on whether the
+    extension's service worker happens to be alive, so a single read measured the worker's lifecycle
+    and reported it as a leak. Polling is the repair, and comparing names is what makes a failure
+    actionable -- the earlier repair polled the count and the same failure came back reading
+    "2 before the run, 3 after", which is a number with no next step in it.
     """
     check = _load_script("extension_check")
-    reads = iter([3, 3, 2])
+    reads = iter([{"a", "b", "c"}, {"a", "b", "c"}, {"a", "b"}])
 
-    assert check.wait_for_count(lambda: next(reads), 2, timeout=1.0) == 2
+    assert check.wait_until_nothing_new(lambda: next(reads), {"a", "b"}, timeout=1.0) == {"a", "b"}
 
 
-def test_a_count_that_never_settles_still_fails_and_names_the_number():
-    """The fix must not soften the assertion -- a genuine leak never returns to the baseline.
+def test_something_that_stays_attached_still_fails_and_can_be_named():
+    """The poll must not soften the assertion -- a genuine leak never clears.
 
-    This is the test that says polling is safe: the timeout only decides how long to wait, and a
-    count that stays too high is still a failure. The last value is returned rather than `None`
-    because `None after` would read as a broken check instead of a count that stayed wrong.
+    This is the test that says waiting is safe: the timeout only decides how long to wait, and a
+    target still attached at the end is still a failure. The last value is returned rather than
+    `None` so the caller can name what was still there; `None` would read as a broken check rather
+    than as a leak.
     """
     check = _load_script("extension_check")
     seen = []
+    leaked = {"a", "b", "page http://example.test/ EXTRA"}
 
     def read():
-        seen.append(3)
-        return 3
+        seen.append(1)
+        return leaked
 
-    assert check.wait_for_count(read, 2, timeout=0.2, interval=0.01) == 3
+    assert check.wait_until_nothing_new(read, {"a", "b"}, timeout=0.2, interval=0.01) == leaked
     assert len(seen) > 1, "it gave up without looking a second time"
 
 
-def test_a_count_of_zero_is_not_a_reason_to_keep_polling():
-    """Why this cannot be `wait_until`: that helper returns the first *truthy* value, and zero is
-    falsy, so it would poll straight through the one answer a count of zero is entitled to give."""
+def test_nothing_extra_is_not_a_reason_to_keep_polling():
+    """Why this cannot be `wait_until`: the value being waited for is the empty set.
+
+    `wait_until` returns the first *truthy* value, and `set()` is falsy -- so it would poll straight
+    past the one answer that means "this run attached nothing new", which is the answer the check
+    exists to see.
+    """
     check = _load_script("extension_check")
     calls = []
 
     def read():
         calls.append(1)
-        return 0
+        return {"a"}
 
-    assert check.wait_for_count(read, 0, timeout=1.0) == 0
+    assert check.wait_until_nothing_new(read, {"a"}, timeout=1.0) == {"a"}
     assert len(calls) == 1, "it kept polling past the answer it was waiting for"
+
+
+def test_a_target_going_away_is_not_a_failure():
+    """A subset test, not an equality test.
+
+    A target that disappears during the poll -- the worker going dormant, most likely -- is not this
+    check's business. Waiting for exact equality with the earlier list would time out and then fail
+    on something that is not a leak, which is how a check starts being ignored.
+    """
+    check = _load_script("extension_check")
+
+    assert check.wait_until_nothing_new(lambda: {"a"}, {"a", "b"}, timeout=1.0) == {"a"}
 
 
 # --- helpers -----------------------------------------------------------------------------------

@@ -116,21 +116,26 @@ def wait_until(pred, timeout: float = 20.0, interval: float = 0.15):
         time.sleep(interval)
 
 
-def wait_for_count(read, target: int, timeout: float = 10.0, interval: float = 0.15) -> int:
-    """Poll `read` until it equals `target`; return the last value seen either way.
+def wait_until_nothing_new(read, known: set, timeout: float = 10.0,
+                           interval: float = 0.15) -> set:
+    """Poll `read` until it holds nothing outside `known`; return the last value seen.
 
-    Deliberately not `wait_until`, which returns the first *truthy* value: a count
-    of zero is falsy, so that helper would keep polling through the one answer a
-    count of zero is entitled to give. `read` is a callable rather than a value
-    because the whole point is to call it more than once.
+    A subset test rather than an equality test. The assertion is "this run left
+    nothing attached that was not attached before", and a target legitimately
+    going away during the poll is not a failure -- so the condition is `<=` and
+    exact equality would be the wrong one to wait for.
 
-    Returning the last value rather than `None` on timeout is the other half. The
-    caller's failure message has to name the number it settled on -- `None after`
-    reads as a broken check rather than as a count that stayed too high.
+    Deliberately not `wait_until`. The value being waited for is "nothing extra",
+    which is the empty set, and an empty set is falsy -- so that helper would poll
+    straight through the one answer that means success.
+
+    Returning the last value rather than `None` is the other half: the caller's
+    message has to name what was still attached. "3 after" is a number with no
+    next step in it, and this check spent three failures printing one.
     """
     deadline = time.monotonic() + timeout
     value = read()
-    while value != target and time.monotonic() < deadline:
+    while not value <= known and time.monotonic() < deadline:
         time.sleep(interval)
         value = read()
     return value
@@ -525,12 +530,12 @@ def _run(base: str, screenshot: Path | None, cfg: Config, manager: BrowserManage
     popup.run("(() => { document.getElementById('macro-params').value = "
               f"{json.dumps(json.dumps(params))}; return true; }})()")
 
-    # `chrome.debugger.getTargets()` counts targets *the browser* considers debugged, and this check
-    # has its own CDP sessions on the fixture and on the popup, so the number is never zero. What it
-    # can answer is whether the count came back to where it started — and the extension having taken
-    # the debugger at all is already established by the run having worked, since real input is the
-    # only thing this dispatches.
-    attached_before = popup.run(_ATTACHED_JS, await_promise=True)
+    # `chrome.debugger.getTargets()` lists the targets *the browser* considers debugged, and this
+    # check has its own CDP sessions on the fixture and on the popup, so the list is never empty.
+    # What it can answer is whether the run left anything attached that was not attached before —
+    # and the extension having taken the debugger at all is already established by the run having
+    # worked, since real input is the only thing this dispatches.
+    known = _attached_targets(popup)
     popup.run("document.getElementById('macro-run').click(), true")
 
     report = wait_until(
@@ -559,17 +564,24 @@ def _run(base: str, screenshot: Path | None, cfg: Config, manager: BrowserManage
         "chrome.runtime.sendMessage({type: 'ping'}).then(reply => "
         "(reply.attached || []).length)", await_promise=True)
     check("the worker holds no attachment after the run", held == 0, f"{held} held")
-    # Read once, this measured the detach's latency and called it a leak. The worker's own list is
-    # empty the moment its `finally` runs, but `chrome.debugger.getTargets()` is the browser's view
-    # and lags that by a beat: on run 35557546471 this reported "2 before the run, 3 after" while
-    # the check above passed, and the same pair read 2/2 and 3/3 across the eleven other runs in the
-    # window. Polling does not soften the assertion -- a genuine leak never returns to the baseline,
-    # so it still fails, ten seconds later and with the same numbers in the message.
-    attached_after = wait_for_count(
-        lambda: popup.run(_ATTACHED_JS, await_promise=True), attached_before)
-    check("the browser's debugged-target count came back down",
-          attached_after == attached_before,
-          f"{attached_before} before the run, {attached_after} after")
+    # This compared a *count*, read once, against the count before the run. Two things were wrong
+    # with that. The count is not stable -- the extension's service worker starts and stops as it is
+    # used, so the same quantity reads 2 or 3 depending on when it was sampled -- which makes a
+    # single read a measurement of the worker's lifecycle wearing a leak's clothes. And the first
+    # repair (poll the count for ten seconds) did not hold: the same failure came back reading "2
+    # before the run, 3 after", on two of three matrix jobs at once, after a commit that only touched
+    # a skill file. A one-beat detach lag cannot survive a ten-second poll, so the lag was not the
+    # explanation and this check had no way to find out what was.
+    #
+    # It compares *names* now, which is the question that was always meant: did this run leave
+    # anything attached that was not attached before. A failure names the extra target, so the next
+    # red run is a diagnosis rather than a number.
+    attached = wait_until_nothing_new(lambda: _attached_targets(popup), known)
+    extra = sorted(attached - known)
+    check("the run left nothing attached that was not attached before",
+          not extra,
+          f"{len(known)} attached before, {len(attached)} after"
+          + (f"; still attached and new: {extra}" if extra else ""))
 
     # The strongest assertion in this file: the extension's report has to be the reply the *real*
     # `browser_macro` tool produces for the same macro. Not "similar" — the same string, down to the
@@ -625,9 +637,17 @@ def _run(base: str, screenshot: Path | None, cfg: Config, manager: BrowserManage
 _OPTIONS_JS = ("Array.from(document.getElementById('macro-select').options)"
                ".map(option => option.value).join(',')")
 
-# How many targets the browser currently considers debugged. Never zero during a run of this check,
-# because the check's own CDP sessions count — see where it is used.
-_ATTACHED_JS = "chrome.debugger.getTargets().then(list => list.filter(item => item.attached).length)"
+# The targets the browser currently considers debugged, named rather than counted. A count is what
+# this check used to compare, and it could not answer the only question a failure raises -- *which*
+# target is the extra one. It is the weaker question too: one target detaching while another attaches
+# in its place leaves a count unchanged. Names cost nothing and turn the next red run into a
+# diagnosis instead of a number.
+_ATTACHED_JS = (
+    "chrome.debugger.getTargets().then(list => JSON.stringify("
+    "list.filter(item => item.attached)"
+    ".map(item => (item.type || '?') + ' ' + (item.url || item.title || '') + ' ' + item.id)"
+    ".sort()))"
+)
 
 
 def _ref_named(observation, name: str) -> str | None:
@@ -636,6 +656,11 @@ def _ref_named(observation, name: str) -> str | None:
         if element.name.strip() == name:
             return element.ref
     return None
+
+
+def _attached_targets(popup) -> set[str]:
+    """The targets the browser currently considers debugged, as `type url id` strings."""
+    return set(json.loads(popup.run(_ATTACHED_JS, await_promise=True)))
 
 
 def _load_server():
