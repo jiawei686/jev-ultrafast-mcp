@@ -174,7 +174,12 @@ Two signatures that look like engine bugs but are not:
   refused it. The optional `TEXT_MODEL_API_KEY` (DeepSeek by default, via
   `TEXT_MODEL_BASE_URL` / `TEXT_MODEL`) only affects writing a value into an
   input; a click-only task needs no key. Do not report this as "the model is
-  unavailable". Workaround while no key is set: **put the parameters in the URL**
+  unavailable". **The decision model's key does not cover this one.** A single
+  `OPENROUTER_API_KEY` pays for the decision model and is deliberately *not*
+  borrowed here — the helper posts to `TEXT_MODEL_BASE_URL`, so an OpenRouter key
+  sent there earns a 401 naming the wrong provider. To cover both with one key,
+  point `TEXT_MODEL_BASE_URL` and `TEXT_MODEL` at that provider as well.
+  Workaround while no key is set: **put the parameters in the URL**
   and let the model only wait and read. Many sites accept them, including
   natural-language queries — a flight search becomes
   `…/travel/flights?q=One way flights from SIN to PQC on 2026-09-26`, and then no
