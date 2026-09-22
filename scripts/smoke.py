@@ -43,6 +43,16 @@ SLOW_REQUEST_SECONDS = 1.5
 
 
 def check(name: str, ok: bool, detail: str = "") -> bool:
+    """Record and print one check.
+
+    `detail` prints on success too, so it has to read as *the observed state* and
+    never as an explanation of a failure. `"attached again without complaint"` on
+    a line that says `[ok  ]` is a sentence arguing with itself, and that mistake
+    has been made here more than once. Two shapes are safe: keep the failure
+    wording in an `else:` branch, or make it the fallback of the value it
+    describes (`ref or "not found"`), so it can only render when there is nothing
+    to show.
+    """
     RESULTS.append((name, bool(ok), detail))
     flag = "ok  " if ok else "FAIL"
     print(f"  [{flag}] {name}" + (f"  — {detail}" if detail else ""), flush=True)
@@ -88,10 +98,10 @@ class _QuietHandler(http.server.SimpleHTTPRequestHandler):
     anyway -- interleaved with the check results it was meant to keep readable.
     """
 
-    def log_message(self, *args, **kwargs):  # noqa: ARG002
+    def log_message(self, *args, **kwargs):  # signature is http.server's
         return
 
-    def do_GET(self):  # noqa: N802 - the name is `http.server`'s to choose
+    def do_GET(self):  # http.server's name to choose; ruff exempts an override of a resolvable base
         """Hold `/slow.json` open, so that a page can be *fetching* on purpose.
 
         `late-shell.html` is about the gap between "the DOM stopped moving" and
@@ -657,7 +667,7 @@ def main() -> int:
             for manager in LIVE_MANAGERS:
                 try:
                     manager.shutdown()
-                except Exception:
+                except Exception:  # noqa: BLE001 - teardown must not mask the result
                     pass
 
 

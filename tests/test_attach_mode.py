@@ -46,7 +46,7 @@ class FakeCdp:
 def _manager(mode: str, cdp_url: str | None = None) -> tuple[BrowserManager, FakeCdp]:
     manager = BrowserManager(Config(mode=mode, cdp_url=cdp_url))
     fake = FakeCdp()
-    manager._cdp = fake  # noqa: SLF001 - the point is to exercise shutdown without a browser
+    manager._cdp = fake  # the point is to exercise shutdown without a browser
     return manager, fake
 
 

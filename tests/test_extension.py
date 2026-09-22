@@ -32,7 +32,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from jev_ultrafast_mcp.observe import Element, Observation  # noqa: E402
+from jev_ultrafast_mcp.observe import Element, Observation
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = ROOT / "chrome-extension"
@@ -501,7 +501,7 @@ class _StubPopup:
         self.reply = reply
         self.ran: list[str] = []
 
-    def run(self, expression, *, await_promise=False):  # noqa: ARG002 - matches the real signature
+    def run(self, expression, *, await_promise=False):  # matches the real signature
         self.ran.append(expression)
         return self.reply if "debugger.attach" in expression else ""
 

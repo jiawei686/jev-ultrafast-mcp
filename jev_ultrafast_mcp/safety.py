@@ -16,7 +16,7 @@ class SafetyError(RuntimeError):
 def _host(url: str) -> str:
     try:
         return (urlparse(url).hostname or "").lower()
-    except Exception:
+    except Exception:  # noqa: BLE001 - an unparseable URL has no host; check_url refuses it
         return ""
 
 
@@ -63,10 +63,3 @@ def confirm_reason(cfg: Config, name: str, role: str) -> str | None:
         if re.search(pattern, haystack, re.IGNORECASE):
             return f"matches confirmation rule {pattern!r}"
     return None
-
-
-def redact(cfg: Config, value: str) -> str:
-    """Never let a secret value cross the wire, even if it was typed by the agent."""
-    if not value:
-        return value
-    return "*" * min(len(value), 12)

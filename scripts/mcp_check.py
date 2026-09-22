@@ -40,7 +40,7 @@ def check(name: str, ok: bool, detail: str = "") -> bool:
 
 def serve(directory: Path) -> tuple[http.server.ThreadingHTTPServer, str]:
     handler = partial(http.server.SimpleHTTPRequestHandler, directory=str(directory))
-    handler.log_message = lambda *args, **kwargs: None  # noqa: ARG005
+    handler.log_message = lambda *args, **kwargs: None  # signature is http.server's
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]

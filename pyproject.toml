@@ -73,7 +73,13 @@ line-length = 110
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "W"]
+# Deliberately narrow -- ruff is here to be a guardrail, not a style opinion -- but it has to cover
+# what the code already claims. Every `# noqa:` in this repo must name a rule that is actually on:
+# a suppression for a rule nobody runs is a comment dressed up as a check, and the next person to
+# touch that line reads it as enforcement. `RUF100` is what keeps that true. `BLE001` is the one
+# exception this codebase justifies most often -- teardown must not mask a result, and a failed
+# `close()` is not a finding -- so those nine sites now say why instead of catching silently.
+select = ["E", "F", "I", "W", "BLE001", "RUF100"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

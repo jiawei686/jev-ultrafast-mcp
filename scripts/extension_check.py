@@ -91,6 +91,16 @@ RESULTS: list[tuple[str, bool, str]] = []
 
 
 def check(name: str, ok: bool, detail: str = "") -> bool:
+    """Record and print one check.
+
+    `detail` prints on success too, so it has to read as *the observed state* and
+    never as an explanation of a failure. `"attached again without complaint"` on
+    a line that says `[ok  ]` is a sentence arguing with itself, and that mistake
+    has been made here more than once. Two shapes are safe: keep the failure
+    wording in an `else:` branch, or make it the fallback of the value it
+    describes (`ref or "not found"`), so it can only render when there is nothing
+    to show.
+    """
     RESULTS.append((name, bool(ok), detail))
     print(f"  [{'ok  ' if ok else 'FAIL'}] {name}" + (f"  — {detail}" if detail else ""), flush=True)
     return bool(ok)
@@ -138,7 +148,7 @@ def mask_stopwatches(report: str) -> str:
 
 
 class _QuietHandler(http.server.SimpleHTTPRequestHandler):
-    def log_message(self, *_args) -> None:  # noqa: D102 - silence the per-request log
+    def log_message(self, *_args) -> None:  # silence the per-request log
         pass
 
 

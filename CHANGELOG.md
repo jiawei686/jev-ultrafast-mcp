@@ -440,6 +440,35 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **The lint config now enforces the guardrails the code already documents.** `pyproject.toml`
+  selected only `E,F,I,W`, while the tree carried 23 `# noqa:` directives naming rules that were not
+  switched on — thirteen for `BLE001`, four `PLC0415`, three `ARG002`/`ARG005`, and one each of
+  `D102`, `N802`, `SLF001`. A suppression for a rule nobody runs is not a guardrail; it is a comment
+  that reads like one to whoever touches the line next, and this repo had a `except Exception:`
+  justification written in prose in five files with nothing checking it. `select` now includes
+  `BLE001` and `RUF100`, so a blind catch needs a written reason and a stale suppression is an error
+  rather than a fossil. Nine deliberate broad catches gained that reason — teardown must not mask a
+  result, a browser that quit first is not a failure, an unparseable URL has no host. The other ten
+  suppressions became plain comments: the reason is worth keeping, the claim of enforcement is not.
+  `N802` was measured and deliberately *not* enabled, because ruff already exempts a method that
+  overrides a statically resolvable base, so `do_GET` in `smoke.py` never needed the suppression it
+  carried — proven by switching the rule on and watching `RUF100` still call the directive unused.
+  Four `# noqa: E402` went the same way for the same reason: ruff permits a lone `sys.path.insert`
+  before an import and only fires once an assignment precedes it, which is why `turbo_check.py`'s
+  copy is the one that is load-bearing and `make_fixtures.py`'s three were decoration. Two mutations
+  confirm the new rules bite rather than merely pass: a bare `except Exception` fails with `BLE001`,
+  and `# noqa: PLC0415` fails with `RUF100`.
+- **`check()`'s third argument is documented as the observed state, not a verdict.** It prints on
+  success as well as failure, so a detail phrased as an explanation of a failure renders as a
+  sentence arguing with the `[ok  ]` beside it — `attached again on tab N without complaint` on a
+  green line. That mistake has now been made twice in this repo, once in `smoke.py` and once in
+  `extension_check.py`, and both times it read correctly until the day the check passed. Both
+  `check()` functions now carry the rule and the two shapes that are safe: keep the failure wording
+  in an `else:` branch, or make it the fallback of the value it describes (`ref or "not found"`), so
+  it can only render when there is nothing to show. All 81 call sites were read against it and none
+  is wrong today — the surviving `"no 'London' option observed"` strings sit in `else:` branches that
+  hard-code `False`. This is deliberately not mechanised: a rule tight enough to avoid false
+  positives across 81 hand-written strings would be too tight to catch the next phrasing.
 - **A docstring claimed one key configures both models, and the loader does not do that.** The
   comment above `_turbo_backend` said pointing `TYPESAFE_BASE_URL` at OpenRouter "lets a single
   `OPENROUTER_API_KEY` drive both the decision model and the text helper". The first half is true —
@@ -733,6 +762,21 @@ All notable changes to this project are documented here. The format follows
   the tab as its target, and that only an unavailable command falls back. The grep version of this
   test passed while the invocation had been disabled, which is exactly the kind of guard that is
   worse than none.
+
+### Removed
+
+- **Two package functions nothing called, one of which could not have worked.** `safety.redact()`
+  took the config as its first argument and never read it, so it had no criterion for deciding what
+  to redact — it could not implement the sentence in its own docstring, "never let a secret value
+  cross the wire, even if it was typed by the agent". The guarantee is real, but it lives elsewhere:
+  `observe.py` masks on the element's `secret` flag, `browser.py` feeds that flag from `is_secret`,
+  and a `type` into a sensitive field is refused outright unless the caller confirms. The README's
+  claim that secret fields are redacted was checked against the code and is accurate — only the
+  function named after it was dead. `cdp._free_port()` was an orphan too; `smoke.py` has its own copy
+  and uses that one. Both were found by asking the whole tree whether each top-level name in the
+  package appears anywhere but its own definition. The suite passing proves nothing here, which is
+  the point: 247 tests passed before the deletion and 247 after, because no test ever covered either
+  function.
 
 ## [0.1.5] — 2026-09-20
 

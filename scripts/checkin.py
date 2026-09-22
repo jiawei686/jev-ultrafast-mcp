@@ -114,16 +114,16 @@ def main() -> int:
 
     httpd = None
     if not args.url:
-        from smoke import serve  # noqa: PLC0415 - only the demo needs the fixture server
+        from smoke import serve  # only the demo needs the fixture server
 
         httpd, base = serve(ROOT / "examples", port=args.port)
         args.url = f"{base}/checkin.html"
 
     # Imported after the environment is set: the server reads its configuration
     # once, at import, so --headed would be silently ignored otherwise.
-    from jev_ultrafast_mcp import macros as macros_mod  # noqa: PLC0415
-    from jev_ultrafast_mcp import policy  # noqa: PLC0415
-    from jev_ultrafast_mcp import server as mcp  # noqa: PLC0415
+    from jev_ultrafast_mcp import macros as macros_mod
+    from jev_ultrafast_mcp import policy
+    from jev_ultrafast_mcp import server as mcp
 
     name = args.name or _macro_name(args.url)
     goal = args.goal or DEFAULT_GOAL

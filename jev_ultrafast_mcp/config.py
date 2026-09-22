@@ -184,7 +184,7 @@ class Config:
         window = os.environ.get("JEVMCP_WINDOW", "1280x860")
         try:
             w, h = (int(part) for part in window.lower().split("x", 1))
-        except Exception:
+        except Exception:  # noqa: BLE001 - a malformed JEVMCP_WINDOW falls back, it does not refuse
             w, h = 1280, 860
         return cls(
             chrome=os.environ.get("JEVMCP_CHROME"),

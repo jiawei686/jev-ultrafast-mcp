@@ -1079,7 +1079,7 @@ class BrowserManager:
         """
         try:
             self._cdp.close()
-        except Exception:
+        except Exception:  # noqa: BLE001 - the socket is already gone, which is the point
             pass
         self._cdp = None
         self._sessions.clear()
@@ -1145,14 +1145,14 @@ class BrowserManager:
         for session in list(self._sessions.values()):
             try:
                 session.close()
-            except Exception:
+            except Exception:  # noqa: BLE001 - teardown must not mask the result
                 pass
         self._sessions.clear()
         if self._cdp is not None:
             if self.owns_browser:
                 try:
                     self._cdp.call("Browser.close", timeout=3)
-                except Exception:
+                except Exception:  # noqa: BLE001 - a browser that quit first is not a failure
                     pass
             self._cdp.close()
             self._cdp = None

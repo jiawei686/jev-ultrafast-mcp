@@ -23,9 +23,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from jev_ultrafast_mcp.config import Config  # noqa: E402
-from jev_ultrafast_mcp.observe import Observation  # noqa: E402
-from jev_ultrafast_mcp.safety import is_secret  # noqa: E402
+from jev_ultrafast_mcp.config import Config
+from jev_ultrafast_mcp.observe import Observation
+from jev_ultrafast_mcp.safety import is_secret
 
 OUT = Path(__file__).with_name("fixtures.json")
 

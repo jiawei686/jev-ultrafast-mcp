@@ -12,7 +12,6 @@ import itertools
 import json
 import os
 import signal
-import socket
 import subprocess
 import time
 import urllib.error
@@ -33,12 +32,6 @@ class CdpError(RuntimeError):
 
 class ChromeLaunchError(RuntimeError):
     """Chrome could not be started or did not expose a debugging endpoint."""
-
-
-def _free_port() -> int:
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        return sock.getsockname()[1]
 
 
 def _read_active_port(directory: Path) -> tuple[int, str] | None:
@@ -98,7 +91,7 @@ class Cdp:
             payload["sessionId"] = session_id
         try:
             self._ws.send(json.dumps(payload))
-        except Exception as exc:  # transport died
+        except Exception as exc:  # noqa: BLE001 - transport died; re-raised as a CdpError below
             raise CdpError(f"{method}: transport closed ({exc})") from None
         deadline = time.monotonic() + (timeout or self.timeout)
         while True:
@@ -109,7 +102,7 @@ class Cdp:
                 raw = self._ws.recv(timeout=remaining)
             except TimeoutError:
                 raise CdpError(f"{method}: timed out after {timeout or self.timeout:.1f}s") from None
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - any recv failure is a dead transport
                 raise CdpError(f"{method}: transport closed ({exc})") from None
             message = json.loads(raw)
             if message.get("id") != message_id:
@@ -146,7 +139,7 @@ class Cdp:
     def close(self) -> None:
         try:
             self._ws.close()
-        except Exception:
+        except Exception:  # noqa: BLE001 - already closed is the outcome we wanted
             pass
 
 
