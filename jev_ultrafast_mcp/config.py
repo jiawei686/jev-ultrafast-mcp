@@ -180,6 +180,35 @@ def provider_note() -> str | None:
     return None
 
 
+def model_env_vars() -> tuple[str, ...]:
+    """Every variable that decides which model answers, and who pays for it.
+
+    The check scripts spawn a server subprocess and inherit the real environment, so that a
+    browser in a non-default location -- or a proxy -- still reaches the child. The model
+    variables are stripped on the way in, because the surface those checks exercise needs no key,
+    and a host's key must not be able to change what they are testing.
+
+    That strip list was written out by hand, and adding a second provider left
+    `OPENROUTER_API_KEY` off it: a developer who exported the documented OpenRouter key got a
+    child that could reach a decision model while the check claimed to be exercising a keyless
+    one. It is derived from `PROVIDERS` now, so the next provider cannot be forgotten -- the
+    same reason the table exists at all.
+
+    The text helper's variables are named here rather than derived, because it has no table: it
+    is one route, resolved by `_text_backend`.
+    """
+    keys = {name for spec in PROVIDERS.values() for name in spec["key_vars"]}
+    return tuple(sorted(keys | {
+        "JEV_PROVIDER",         # selects the provider
+        "TYPESAFE_BASE_URL",    # overrides the endpoint; selects the provider when the above is unset
+        "TYPESAFE_MODEL",       # the decision model slug
+        "TEXT_MODEL_API_KEY",   # the text helper's explicit route
+        "TEXT_MODEL_BASE_URL",
+        "TEXT_MODEL",
+        "TEXT_MODEL_REASONING",
+    }))
+
+
 def _provider_key(provider: str) -> str | None:
     for name in PROVIDERS[provider]["key_vars"]:
         value = _env(name)

@@ -204,6 +204,23 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Two check scripts kept a hand-written list of "the variables that let a child reach a decision
+  model", and the second provider was not on it.** `mcp_check.py` and `live_check.py` each spawn the
+  server as a subprocess and inherit the real environment — deliberately, so that a Chrome in a
+  non-default location or a proxy still reaches the child — then strip the model variables, because
+  the surface those checks exercise needs no key and a host's key must not change what is being
+  tested. Both lists said `TYPESAFE_API_KEY` and `TEXT_MODEL_API_KEY`. Adding OpenRouter made
+  `OPENROUTER_API_KEY` a first-class decision key, and it stayed out: a developer who exported the
+  *documented* way to configure the OpenRouter route handed a working decision key to a child that
+  the check believed was keyless. Nothing failed, because neither script calls `browser_goal` — the
+  guarantee was simply not the one written down, which is the only kind of defect a green run can
+  hide indefinitely. The list is now derived from `PROVIDERS` by `config.model_env_vars()`, so the
+  next provider cannot be forgotten, and `tests/test_child_env.py` pins the guarantee instead of the
+  list: it populates every variable the config module names, builds both children, and asserts none
+  survives — plus that `JEVMCP_CHROME` and a proxy still do, so the fix cannot decay into "strip
+  everything". The derivation has its own test, which adds a third provider and looks for its key,
+  because "it is derived" stops being true the moment someone writes the names out again. Both arms
+  of the parametrised test were watched failing against the old list first.
 - **The extension check's release assertion could not see the tab it named, and failed on runs where
   nothing had leaked.** It compared the browser's whole list of attached targets before and after a
   replay. Measured on this build, the harness's own CDP session is on the *same* target the extension

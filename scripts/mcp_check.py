@@ -29,6 +29,8 @@ sys.path.insert(0, str(ROOT))
 from mcp import ClientSession  # noqa: E402
 from mcp.client.stdio import StdioServerParameters, stdio_client  # noqa: E402
 
+from jev_ultrafast_mcp.config import model_env_vars  # noqa: E402
+
 RESULTS: list[tuple[str, bool, str]] = []
 
 
@@ -54,10 +56,12 @@ def _child_env(state: Path) -> dict[str, str]:
 
     Inherit the real environment so JEVMCP_CHROME (and a proxy, on machines that
     need one) reach the child, then override the keys this check controls and
-    drop the ones that would make it non-hermetic.
+    drop every variable that configures the model path. The list comes from
+    `config.model_env_vars()` rather than from memory, because a hand-written one
+    missed a provider's key the day a second provider was added.
     """
     env = dict(os.environ)
-    for key in ("TYPESAFE_API_KEY", "TEXT_MODEL_API_KEY"):
+    for key in model_env_vars():
         env.pop(key, None)
     env.update({
         "JEVMCP_HEADLESS": "1",

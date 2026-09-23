@@ -38,6 +38,8 @@ sys.path.insert(0, str(ROOT))
 from mcp import ClientSession  # noqa: E402
 from mcp.client.stdio import StdioServerParameters, stdio_client  # noqa: E402
 
+from jev_ultrafast_mcp.config import model_env_vars  # noqa: E402
+
 # --------------------------------------------------------------------- report
 
 RESULTS: list[tuple[str, str, str]] = []   # (status, name, detail)
@@ -138,8 +140,16 @@ def count_roles(view: str, role: str) -> int:
 
 
 def child_env(state: Path, headless: bool) -> dict[str, str]:
+    """The environment for the server subprocess: real, minus the model path.
+
+    `JEVMCP_CHROME` and a proxy have to reach the child or this check fails on a
+    machine that is configured differently rather than wrongly. What must not reach
+    it is anything that lets the child reach a decision model -- these checks drive
+    the keyless surface, and the list of variables that could change that comes
+    from `config.model_env_vars()` so it cannot fall behind the providers.
+    """
     env = dict(os.environ)
-    for key in ("TYPESAFE_API_KEY", "TEXT_MODEL_API_KEY"):
+    for key in model_env_vars():
         env.pop(key, None)
     env.update({
         "JEVMCP_HEADLESS": "1" if headless else "0",
