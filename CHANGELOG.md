@@ -25,6 +25,16 @@ All notable changes to this project are documented here. The format follows
   `main` normally carries unreleased commits, so a bundle built from it declares a version whose
   code it does not contain. The workflow validates and uploads, but deliberately does not attach the
   file to a release — that is a distribution decision, not a build artefact.
+- **The bundle's declared launch command is now executed, not just described.** `check_bundle.py` ran
+  the entry point file, which is the cheap route, and left the route a host actually takes — the
+  `mcp_config` command — as an untested promise. It now builds that command out of the manifest
+  itself, substituting `${__dirname}` and every `${user_config.*}`, and CI runs it under `uv`. Two
+  things that were invisible become visible: a manifest whose declared command is wrong fails the
+  check instead of the check cheerfully running something nobody ships, and the blank `user_config`
+  values a host passes for unset optional keys get exercised — that is the configuration most users
+  run. The handshake would not have caught an unexpanded token on its own, because a literal
+  `${user_config.typesafe_api_key}` reaches the server as an API key and `initialize`/`tools/list`
+  never need one, so an unknown token now raises rather than travels.
 - **`smithery.yaml`**, so a Smithery listing can start the server from PyPI with no checkout. Its
   config schema requires nothing: the reading tools are keyless and only `browser_goal` needs a
   decision-model key. The command function builds `env` conditionally rather than emitting empty

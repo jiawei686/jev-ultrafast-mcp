@@ -37,6 +37,12 @@ jobs:
         with:
           python-version: "3.13"
 
+      # The manifest declares a `uv` launch command, and a declared command that has never been run
+      # is a claim rather than a fact. Installing uv lets `check_bundle.py --uv` execute the exact
+      # command the manifest advertises, with uv doing its own dependency resolution -- the one part
+      # of the bundle's life that the bundle itself cannot prove.
+      - uses: astral-sh/setup-uv@v5
+
       - name: Install the package
         run: pip install .
 
@@ -50,8 +56,8 @@ jobs:
       - name: Validate the manifest with the official CLI
         run: npx --yes @anthropic-ai/mcpb validate mcpb/manifest.json
 
-      - name: Prove the packed server answers a stdio handshake
-        run: python scripts/check_bundle.py
+      - name: Prove the packed server answers a stdio handshake on both launch routes
+        run: python scripts/check_bundle.py --uv
 
       - uses: actions/upload-artifact@v4
         with:

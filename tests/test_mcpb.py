@@ -20,10 +20,13 @@ import re
 import zipfile
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "mcpb" / "manifest.json"
 LAUNCHER = ROOT / "mcpb" / "server.py"
 BUILD = ROOT / "scripts" / "build_mcpb.py"
+CHECK = ROOT / "scripts" / "check_bundle.py"
 
 TOOL_RE = re.compile(
     r"@SERVER\.tool\(.*?\)\s*\ndef\s+([a-z_][a-z0-9_]*)\(", re.MULTILINE,
@@ -121,3 +124,32 @@ def test_the_manifest_does_not_claim_a_runtime_the_bundle_cannot_carry():
     assert _manifest()["manifest_version"] >= "0.4", (
         "server.type 'uv' requires manifest version 0.4 or later"
     )
+
+
+def _check_module():
+    spec = importlib.util.spec_from_file_location("check_bundle", CHECK)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_declared_launch_command_is_expanded_and_never_passed_through_raw(tmp_path):
+    """The check runs the manifest's own launch command, so the expansion has to be right.
+
+    An unexpanded `${user_config.typesafe_api_key}` in `env` would arrive at the server as that
+    literal string -- and the handshake would still pass, because `initialize` and `tools/list` never
+    need an API key. So every placeholder must be gone before anything runs, and a token nobody knows
+    how to expand must fail loudly rather than travel to the server as a value.
+    """
+    module = _check_module()
+    command, env = module.manifest_command(_manifest(), tmp_path)
+
+    assert str(tmp_path) in command, "`${__dirname}` must become the extracted directory"
+    assert env["TYPESAFE_API_KEY"] == "", "an unset optional key must reach the server as empty"
+    assert not any("${" in part for part in command)
+    assert not any("${" in value for value in env.values())
+
+    unknown = _manifest()
+    unknown["server"]["mcp_config"]["args"] = ["run", "${mystery}"]
+    with pytest.raises(SystemExit, match="cannot expand"):
+        module.manifest_command(unknown, tmp_path)
