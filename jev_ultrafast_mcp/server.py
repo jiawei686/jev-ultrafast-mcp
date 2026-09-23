@@ -362,6 +362,12 @@ def browser_macro(action: str, session: str = "default", name: str = "",
     action="run"           replay `name`; `params` fills {{placeholders}} in text/url
     action="list" | "inspect" | "delete"
 
+    A field the page marks as a secret is never written to the macro: its text is
+    stored as the placeholder {{secret}}, so pass `params={"secret": "…"}` to
+    replay it. Leaving that out types the placeholder literally, which fails
+    visibly rather than leaking — and the extension's replay panel asks for the
+    same field, because it is an ordinary placeholder.
+
     Replay re-resolves each step by role + name against a fresh observation and
     refuses to act when the best match is weak or ambiguous.
     """

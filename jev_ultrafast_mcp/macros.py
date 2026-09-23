@@ -28,6 +28,17 @@ AMBIGUITY_MARGIN = 0.06
 CONTEXT_WEIGHT = 0.15
 TEMPLATE = re.compile(r"\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}")
 
+# What a recorded secret is replaced with before the step is written to disk. A
+# macro is a file, and a file is the one place a password would outlive the run
+# -- so the value is not stored at all and the caller supplies it at replay time
+# under this name: `run name=login params={"secret": "..."}`. It is an ordinary
+# `{{placeholder}}` rather than a special case, which is why the extension's
+# replay panel offers it as a field without knowing what it is. Named here so
+# both sides of the recording can say the same word; it used to be a literal in
+# `browser.py` and a comment nowhere.
+SECRET_PLACEHOLDER = "{{secret}}"
+SECRET_PARAM = "secret"
+
 
 class MacroError(RuntimeError):
     """A macro could not be resolved against the current page."""

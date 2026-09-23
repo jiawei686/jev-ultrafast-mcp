@@ -204,6 +204,22 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **The placeholder a recorded secret is stored under had no name and no documentation.** Recording a
+  login wrote `"text": "{{secret}}"` into the macro file — the rule that a secret never reaches disk
+  worked — but `{{secret}}` appeared exactly once in the tree, at the line that creates it. Nothing
+  said the contract was `params={"secret": …}` at replay time, so the only way to learn why a
+  replayed login typed the literal string `{{secret}}` was to read `browser.py`. It is now
+  `macros.SECRET_PLACEHOLDER` / `macros.SECRET_PARAM`, named on both sides, and `browser_macro` says
+  what it is: an ordinary placeholder, which is why the extension's replay panel offers the field
+  without knowing anything about secrets. `tests/test_macro_recording.py` is the first test of either
+  rule — that a secret's text is replaced before the step is described, and that `confirm: true` is
+  *not* stored, so recording a destructive click once cannot launder it past the confirmation
+  envelope on every later replay. The negative cases are asserted too: an ordinary field keeps its
+  text, and an unsupplied secret stays as the placeholder. Three of the seven fail if the masking is
+  removed, with the plaintext in the assertion message. The seventh exists because the other six are
+  blind to the difference between the constant and a copy of its value — it asserts `browser.py`
+  *names* the placeholder rather than spelling it out, which is the only thing that stops the name
+  from becoming the dead mirror `observe.EDITABLE_ROLES` was.
 - **`browser_tabs` could open a tab outside the domain envelope.** `JEVMCP_ALLOW_DOMAINS` and
   `JEVMCP_DENY_DOMAINS` are the whole of what stands between an agent and a host it was told not to
   visit, and `browser_doctor` advertises them as a guard — but the guard was applied at one of the

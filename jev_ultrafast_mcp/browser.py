@@ -1039,10 +1039,11 @@ class Session:
     def _record(self, raw_op: dict, op: str, ref: str | None, label: str | None) -> None:
         if not self._recording:
             return
-        # A macro is a file on disk. Never write a secret into one.
+        # A macro is a file on disk. Never write a secret into one. The name
+        # comes from `macros`, which is where the replay contract is documented.
         element = self.last.by_ref.get(ref) if (self.last and ref) else None
         if element is not None and element.secret and op == "type":
-            raw_op = {**raw_op, "text": "{{secret}}"}
+            raw_op = {**raw_op, "text": macros_mod.SECRET_PLACEHOLDER}
         descriptor = macros_mod.describe(raw_op, op, ref, label, self.last)
         if descriptor is not None:
             self._recorder.append(descriptor)
