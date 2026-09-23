@@ -44,21 +44,46 @@ def run(checks: list[dict], observation: Observation, *, allow_js: bool = False,
     }
 
 
+def _needle(check: dict, *keys: str) -> str:
+    """The non-empty string a text-matching check has to be given.
+
+    An absent or empty needle is a malformed check, not a match. `"" in s` is true for
+    every string, so reading a missing key as an empty needle makes the check pass
+    without looking at anything -- the one failure an assertion must not have, since a
+    passing assertion is what overrules the model's own claim of success. A caller who
+    misspells the key (`"value"` for `"text"`) got a pass rather than an error.
+    """
+    for key in keys:
+        value = check.get(key)
+        if value is None:
+            continue
+        text = str(value)
+        if text:
+            return text
+    return ""
+
+
 def _one(kind: str, check: dict, observation: Observation, allow_js: bool, eval_js) -> dict:
     if kind == "url_matches":
         pattern = str(check.get("pattern") or check.get("url") or "")
         return (_ok if fnmatch.fnmatch(observation.url, pattern) else _fail)(
             kind, f"url {observation.url!r} vs pattern {pattern!r}")
     if kind == "url_contains":
-        needle = str(check.get("text") or "")
+        needle = _needle(check, "text")
+        if not needle:
+            return _fail(kind, "url_contains needs a non-empty 'text'")
         found = needle.lower() in observation.url.lower()
         return (_ok if found else _fail)(kind, f"url={observation.url!r} contains {needle!r}: {found}")
     if kind == "title_matches":
-        pattern = str(check.get("pattern") or check.get("text") or "")
+        pattern = _needle(check, "pattern", "text")
+        if not pattern:
+            return _fail(kind, "title_matches needs a non-empty 'pattern'")
         found = fnmatch.fnmatch(observation.title, pattern) or pattern.lower() in observation.title.lower()
         return (_ok if found else _fail)(kind, f"title={observation.title!r} vs {pattern!r}")
     if kind in {"text_contains", "text_absent"}:
-        needle = str(check.get("text") or "")
+        needle = _needle(check, "text")
+        if not needle:
+            return _fail(kind, f"{kind} needs a non-empty 'text'")
         haystack = observation.text or ""
         found = needle.lower() in haystack.lower()
         if check.get("regex"):
@@ -94,7 +119,23 @@ def _one(kind: str, check: dict, observation: Observation, allow_js: bool, eval_
         element = observation.by_ref.get(ref or "")
         if element is None:
             return _fail(kind, f"ref {ref!r} is not on the page")
-        want = bool(check.get("state", True))
+        if "state" in check:
+            raw = check["state"]
+        elif "checked" in check:
+            # The type is named `checked` and its argument is named `state`, so a caller
+            # will guess `checked`. Reading it costs nothing, and a guess that lands is
+            # worth more than being right about the key name.
+            raw = check["checked"]
+        else:
+            # No default. `state` used to default to True, so a check that said nothing
+            # about which state it wanted asserted "checked" -- and a caller writing
+            # `"checked": false` got the opposite of what they wrote, as a pass.
+            return _fail(kind, "checked needs 'state' (true or false)")
+        if isinstance(raw, str):
+            # `bool("false")` is True. A model writing JSON by hand sends strings, and
+            # getting this wrong asserts the opposite of what was asked for.
+            raw = raw.strip().lower() not in {"false", "0", "no", "off", ""}
+        want = bool(raw)
         found = bool(element.checked) == want
         return (_ok if found else _fail)(kind, f"{ref} checked={element.checked} expected={want}")
     if kind == "count_at_least":

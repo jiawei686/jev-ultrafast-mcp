@@ -204,6 +204,26 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Three check types passed without looking at anything, and `checked` asserted the opposite of what
+  it was told.** An assertion is the one part of this product that judges a run without asking the
+  model — `browser_goal`'s `verify` is the same code — so a check that cannot fail is worse here than
+  a crash. `url_contains`, `title_matches` and `text_contains` all read a missing key as an empty
+  needle, and `"" in s` is true for every `s`: a caller who wrote `{"type": "url_contains", "value":
+  "dashboard"}` got `url=... contains '': True` and a `pass`. The wrong key is not exotic, because
+  the natural guess at a key name is the type name. `checked` had the mirror-image problem: its
+  argument is `state`, its type is `checked`, and `state` defaulted to `True`, so a caller writing
+  `"checked": false` asserted *checked* — and a checkbox that was ticked reported PASS. A string
+  `"false"` did the same, since `bool("false")` is true. Now an empty needle is refused by name
+  (`url_contains needs a non-empty 'text'`), `checked` reads either key and refuses to guess when
+  neither is given, and a string state is read as a bool.
+  Found by measuring rather than reading: `coverage.py` is not installed and not in the dev extra, so
+  the suite was run under a ~40-line `sys.monitoring` plugin instead, which showed **five of the
+  eleven check types had never been executed** by any test or by `smoke.py` — `url_contains`,
+  `title_matches`, `value_equals`, `checked`, `js`. Both defects were inside that unexecuted region,
+  and `tests/test_assertions.py` now exercises all eleven plus the malformed cases, so the file went
+  from 33.7% to 100% of its statements. The new tests were run against the old code first: 12 of the
+  34 fail there. Two of the eleven types, `title_matches` and `js`, had no caller anywhere in the
+  tree, which is why nothing had noticed.
 - **Two check scripts kept a hand-written list of "the variables that let a child reach a decision
   model", and the second provider was not on it.** `mcp_check.py` and `live_check.py` each spawn the
   server as a subprocess and inherit the real environment — deliberately, so that a Chrome in a
