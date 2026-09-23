@@ -33,12 +33,16 @@
   const UNSAFE_TYPES = ['hidden'];
 
   // Word-bounded on purpose: /pass/ alone flags "Passengers", /code/ alone
-  // flags every "Promo code" field.
+  // flags every "Promo code" field -- and `safety.is_secret` on the server side
+  // matches the same names, because the observation masks on the union of this flag
+  // and that list. A name only this side matches is a field whose value the agent
+  // cannot read.
   const SECRET_HINT = new RegExp([
-    'password', 'passwd', 'passcode', 'passphrase', 'otp', 'one[- ]?time',
-    'verification code', 'security code', 'cvv', 'cvc', 'card\\s*number',
-    'secret', 'api\\s*key', 'access\\s*token', 'ssn', 'social security',
-    'iban', 'routing\\s*number', 'security\\s*answer', '\\bpin\\b',
+    '\\bpassword\\b', '\\bpasswd\\b', '\\bpasscode\\b', '\\bpassphrase\\b',
+    '\\botp\\b', '\\bone[- ]?time\\b', '\\bverification code\\b', '\\bsecurity code\\b',
+    '\\bcvv\\b', '\\bcvc\\b', '\\bcard\\s*number\\b', '\\bsecret\\b',
+    '\\bapi\\s*key\\b', '\\baccess\\s*token\\b', '\\bssn\\b', '\\bsocial security\\b',
+    '\\biban\\b', '\\brouting\\s*number\\b', '\\bsecurity\\s*answer\\b', '\\bpin\\b',
   ].join('|'), 'i');
 
   const PRIMARY = new Set(['button', 'combobox', 'listbox', 'textbox', 'searchbox',

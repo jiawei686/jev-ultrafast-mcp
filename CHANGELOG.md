@@ -204,6 +204,23 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **The page's own secret detector disagreed with the server's, in the direction that hides fields.**
+  `js/observer.js` builds a regex for "this name looks like a secret" and sets the element's `secret`
+  flag from it; `safety.is_secret` is the server's, and `observe.py` masks on the union of the two.
+  The page's comment says it is word-bounded on purpose — one of its twenty alternatives was.
+  Unbounded, `secret` matches "Secretary name" and `ssn` matches "className", so a field labelled
+  "Secretary name" had its value replaced with a mask in the table the model reads while the server's
+  list considered it ordinary. All twenty are word-bounded now, and a test holds the two detectors to
+  the same verdict on nineteen names, because this failure is invisible from either side alone.
+  `HELPER_VERSION` goes to 7 — the helper's behaviour changed, so a page still carrying the old one
+  has to be re-injected — and the act fixtures were regenerated for the version they pin.
+  Landing it took two attempts, both of which failed silently and are worth recording. A backslash
+  typed into the script is a backslash nobody counted; and `re.subn` interprets escapes in its
+  *replacement*, so the doubled backslash meant to survive into the JS was collapsed back to one. JS
+  reads a single-backslash escape as a character, so that version's regex matched nothing at all —
+  worse than the bug it was fixing, because it turned over-masking into under-masking. The working
+  version builds the pattern from `chr(92)`, asserts the round trip, and checks that the file really
+  carries two backslashes, which is the assertion that caught it.
 - **The guard that decides whether the decision model can be trusted crashed on four shapes of
   malformed answer.** `policy._validate` reads `answer["probabilities"].values()`, and `probabilities`
   is whatever the route sent back — a list, a string, a number or null is an ordinary thing to receive

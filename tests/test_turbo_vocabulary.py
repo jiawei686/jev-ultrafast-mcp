@@ -503,3 +503,49 @@ def test_every_role_the_observer_calls_editable_is_one_it_can_name():
     source = OBSERVER_JS.read_text()
 
     assert _js_includes_list(source, "isEditable") <= _js_list(source, "ROLES")
+
+
+def _js_regex(source: str, name: str) -> re.Pattern[str]:
+    """The alternation a `const NAME = new RegExp([...].join('|'), 'i')` builds.
+
+    The JS source carries two backslashes where the regex needs one, because a
+    single-quoted string literal eats one. Written with `chr(92)` rather than a literal:
+    a hand-written backslash here is a backslash whose count nothing checks, and getting
+    it wrong does not raise -- JS reads a single-backslash escape as a character, so the
+    pattern silently stops matching.
+    """
+    backslash = chr(92)
+    opener = f"const {name} = new RegExp(["
+    start = source.index(opener)
+    end = source.index("].join('|'), 'i');", start)
+    alternatives = re.findall(r"'([^']+)'", source[start + len(opener):end])
+    assert alternatives, f"{name} has no alternatives"
+    unescaped = [item.replace(backslash * 2, backslash) for item in alternatives]
+    assert all(backslash in item for item in unescaped), (
+        f"{name} has an alternative carrying no escaped metacharacter. The page builds its "
+        "regex from a JS string literal, where one backslash is eaten and a doubled one "
+        "survives as the character the regex needs -- so a plain word here is not a word "
+        "boundary, and the pattern silently matches something else."
+    )
+    return re.compile("|".join(unescaped), re.IGNORECASE)
+
+
+def test_the_page_and_the_server_reach_the_same_verdict_on_a_secret_looking_name():
+    """Two detectors, two languages, and the page's is the one nothing tested.
+
+    `observer.js` sets an element's `secret` flag from its own regex; `safety.is_secret` is
+    the server's, and `observe.py` masks on the union of the two. So a name only the page
+    matches is a field whose value the agent cannot read. The page's comment said it was
+    word-bounded on purpose, and one of its twenty alternatives was: unbounded, `secret`
+    matches "Secretary name" and `ssn` matches "className".
+    """
+    from jev_ultrafast_mcp.safety import is_secret
+
+    page = _js_regex(OBSERVER_JS.read_text(), "SECRET_HINT")
+    cfg = Config()
+
+    for name in ["Password", "passwd", "One-time code", "Verification code", "CVV",
+                 "Card number", "API key", "Access token", "SSN", "IBAN", "PIN",
+                 "Passengers", "Promo code", "Where from?", "Secretary name",
+                 "className", "Search", "Destination", "Phone"]:
+        assert bool(page.search(name)) == is_secret(cfg, name, "textbox"), name

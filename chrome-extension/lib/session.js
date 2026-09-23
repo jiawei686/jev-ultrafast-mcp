@@ -25,7 +25,7 @@ import { DEFAULT_THRESHOLD, pythonRepr, resolve as resolveSteps } from './macro.
 
 /* Must equal `browser.py`'s `HELPER_VERSION`. The helper announces its own version, and a mismatch
  * means the page is carrying an observer this code was not written against, so it is reinstalled. */
-export const HELPER_VERSION = 6;
+export const HELPER_VERSION = 7;
 
 /* `browser.py`'s tables, verbatim. They are data, not logic, and getting one key code wrong is a
  * keystroke that lands as the wrong character with nothing in the report to say so. */

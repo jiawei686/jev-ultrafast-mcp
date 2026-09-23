@@ -1570,7 +1570,7 @@
     }
   ],
   "tables": {
-    "helper_version": 6,
+    "helper_version": 7,
     "threshold": 0.7,
     "modifiers": {
       "alt": 1,

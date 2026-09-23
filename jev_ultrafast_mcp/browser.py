@@ -32,7 +32,7 @@ from .observe import Observation
 from .safety import SafetyError, check_url, confirm_reason, is_secret
 
 HELPER_SRC = (Path(__file__).with_name("js") / "observer.js").read_text(encoding="utf-8")
-HELPER_VERSION = 6
+HELPER_VERSION = 7
 
 MODIFIERS = {
     "alt": 1, "option": 1,
