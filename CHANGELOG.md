@@ -828,6 +828,21 @@ All notable changes to this project are documented here. The format follows
 
 ### Removed
 
+- **A dead mirror of a page-side list, and a dead storage helper.** `observe.EDITABLE_ROLES` was
+  Python's copy of the roles the observer calls editable, and nothing had read it since
+  `Element.editable` started arriving from the page: `target_kinds` gates TYPE_TEXT on that flag, and
+  the list that decides it is inline in `observer.js`. A mirror nothing consumes is worse than no
+  mirror, because it is the copy nobody updates — and unlike the role tiers, which
+  `test_turbo_vocabulary.py` holds to `observer.js` by name, this one had no test either. So the
+  deletion came with the test the mirror never had, pointed at the list that is actually used: every
+  role `isEditable` accepts has to be one `roleOf` can return, or the branch can never fire and that
+  field is silently one the model is never offered a way to fill. It was checked by breaking it —
+  adding `'textarea'` to the page's list fails the test and names the role — because a guard that
+  cannot fail is decoration. `chrome-extension/lib/store.js`'s `macroNames` was the second: its
+  docstring names `chrome.storage.onChanged` as the caller, and the listener in `popup.js` refreshes
+  on a change instead of comparing names. Both were found the way the pair above was — asking whether
+  a top-level name appears anywhere but its own definition — and the suite is again indifferent: 264
+  tests passed before the deletions and 265 after, the extra one being the new guard.
 - **Two package functions nothing called, one of which could not have worked.** `safety.redact()`
   took the config as its first argument and never read it, so it had no criterion for deciding what
   to redact — it could not implement the sentence in its own docstring, "never let a secret value

@@ -23,8 +23,6 @@ ROLE_CODE = {
     "listbox": "list", "file": "file",
 }
 
-EDITABLE_ROLES = {"textbox", "searchbox", "spinbutton", "combobox"}
-
 
 def _short(text: str, limit: int) -> str:
     text = " ".join((text or "").split())

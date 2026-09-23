@@ -467,3 +467,39 @@ def test_the_role_tiers_match_the_observer_they_are_ranked_against():
 
     assert _js_set(source, "PRIMARY") == policy.PRIMARY_ROLES
     assert _js_set(source, "SECONDARY") == policy.SECONDARY_ROLES
+
+
+def _js_includes_list(source: str, function: str) -> frozenset[str]:
+    """The literal a `const NAME = e => { ... }` function tests `role` against."""
+    body = re.search(rf"const {function} = e => \{{(.*?)\n  \}};", source, re.S)
+    assert body, f"{function} is not declared in observer.js"
+    literal = re.search(r"\[(.*?)\]\.includes\(role\)", body.group(1), re.S)
+    assert literal, f"{function} does not test an inline list of roles"
+    return frozenset(re.findall(r"'([^']+)'", literal.group(1)))
+
+
+def _js_list(source: str, name: str) -> frozenset[str]:
+    """The string elements of a `const NAME = [ ... ]` array, however it is wrapped."""
+    match = re.search(rf"const {name} = \[(.*?)\]", source, re.S)
+    assert match, f"{name} is not declared in observer.js"
+    return frozenset(re.findall(r"'([^']+)'", match.group(1)))
+
+
+def test_every_role_the_observer_calls_editable_is_one_it_can_name():
+    """`editable` is the only gate on TYPE_TEXT, and the page decides it.
+
+    `Element.target_kinds` offers TYPE_TEXT exactly when the observer set
+    `editable`, and `roleOf` can only ever return a member of `ROLES` -- the
+    explicit `role` attribute is itself checked against that set first. So a role
+    in `isEditable`'s list that `ROLES` does not carry is a branch that can never
+    fire: the element is never indexed, `editable` is never true for it, and the
+    model is never offered a way to fill that field. Nothing reports the gap,
+    because nothing was attempted.
+
+    The list is inline in the page's source and has no second copy to drift from,
+    which is the point -- a Python mirror of it used to exist and had gone unused.
+    This holds it to the vocabulary it is drawn from instead.
+    """
+    source = OBSERVER_JS.read_text()
+
+    assert _js_includes_list(source, "isEditable") <= _js_list(source, "ROLES")

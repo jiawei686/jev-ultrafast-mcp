@@ -122,8 +122,3 @@ export async function deleteMacro(name) {
   await chrome.storage.local.set({ [KEY]: macros });
   return true;
 }
-
-/** The names in storage, for `chrome.storage.onChanged` to compare against. */
-export function macroNames(macros) {
-  return Object.keys(macros || {}).sort();
-}
