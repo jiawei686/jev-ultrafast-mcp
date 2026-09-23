@@ -179,6 +179,13 @@ function replyFor(script, expression) {
   if (expression.includes('settle(')) return null;
   // The one reply Python's fixture does not need, because it drives `_run_op` directly while this
   // goes through `act`, which reads the page first.
+  //
+  // `actions: []` is load-bearing, not a stub. Both refusal rails read the *observed* element for the
+  // ref -- its role, and whether the page flagged it `secret` -- and Python's fixture has no
+  // observation at all, so an empty action list here is what puts the two sides in the same state.
+  // Without it this side would have an observation and Python would not, and every scenario would
+  // diverge on the half of the decision the fixtures are least able to explain. The element-derived
+  // half is covered in Python instead, by `tests/test_click_rails.py`.
   if (expression.includes('readState(')) return FIXTURE_READ;
   return null;
 }

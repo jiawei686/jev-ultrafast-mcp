@@ -202,6 +202,14 @@ SCENARIOS: list[dict] = [
      "label": "Buy now"},
     {"why": "the same click, confirmed", "op": {"op": "click", "ref": "e5", "confirm": True},
      "label": "Buy now"},
+    # A `role` on the op is the caller's claim about the target, and it used to be what
+    # `confirm_reason`'s gate read: `"checkbox"` is outside the button/link/menuitem/tab allowlist, so
+    # a button named "Delete account" returned None and the rail was lifted by a word in the request.
+    # The role now comes from the element the server observed; the fixture's scripted page carries no
+    # actions at all, so both sides fall back to `""` here and the pair pins that the op's own role
+    # decides nothing.
+    {"why": "a click whose op claims a role that is not a button",
+     "op": {"op": "click", "ref": "e5", "role": "checkbox"}, "label": "Delete account"},
     {"why": "a click with no ref", "op": {"op": "click"}},
     {"why": "a click on a ref the page has moved on from", "op": {"op": "click", "ref": "e5"},
      "guard": {"ok": False, "reason": "detached"}},
@@ -211,6 +219,12 @@ SCENARIOS: list[dict] = [
      "op": {"op": "type", "ref": "e5", "text": "Zurich"}, "label": "Where from?"},
     {"why": "typing into a password field", "op": {"op": "type", "ref": "e5", "text": "hunter2"},
      "label": "Password"},
+    # The other direction of the same rule. `is_secret` only ever *adds* strictness for a role, so an
+    # op claiming `"password"` could refuse an ordinary field -- a denial nobody asked for, from a word
+    # in the request. The claim is not read at all now, and the field's own name still is.
+    {"why": "typing into an ordinary field whose op claims to be a password",
+     "op": {"op": "type", "ref": "e5", "text": "Zurich", "role": "password"},
+     "label": "Where from?"},
     {"why": "typing without clearing first, one key at a time",
      "op": {"op": "type", "ref": "e5", "text": "ab", "clear": False, "slow": True}},
     {"why": "typing and submitting", "op": {"op": "type", "ref": "e5", "text": "ab", "submit": True}},
@@ -225,6 +239,17 @@ SCENARIOS: list[dict] = [
     {"why": "toggling on", "op": {"op": "toggle", "ref": "e5", "state": True}},
     {"why": "a toggle already in the requested state",
      "op": {"op": "toggle", "ref": "e5", "state": False}},
+    # `toggle` clicks. `_do_click` has two callers and the confirmation rail was written into one of
+    # them, so this op clicked a control whose name matches a destructive rule and asked nothing.
+    # These three are that finding: the rail, the rail lifted by `confirm`, and the early return that
+    # clicks nothing and therefore needs no confirmation.
+    {"why": "toggling a control whose name matches a confirmation rule",
+     "op": {"op": "toggle", "ref": "e5", "state": True}, "label": "Delete account"},
+    {"why": "the same toggle, confirmed",
+     "op": {"op": "toggle", "ref": "e5", "state": True, "confirm": True},
+     "label": "Delete account"},
+    {"why": "a toggle already in the requested state on a confirmation rule",
+     "op": {"op": "toggle", "ref": "e5", "state": False}, "label": "Delete account"},
     {"why": "hovering", "op": {"op": "hover", "ref": "e5"}},
     {"why": "a key combination", "op": {"op": "keys", "keys": "ctrl+shift+k"}},
     {"why": "a named key", "op": {"op": "keys", "key": "Enter"}},

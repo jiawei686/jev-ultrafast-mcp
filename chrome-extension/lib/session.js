@@ -409,6 +409,36 @@ export function createSession(driver, {
     return typeof value === 'string' ? value : '';
   }
 
+  /**
+   * `browser.py`'s `_observed` — the element the last observation recorded for `ref`.
+   *
+   * Not a stale read, which is why the rails may use it where they may not use the caller's own op.
+   * Every op carrying a ref has already run `guard`, and the page's `verify`/`reinspect` compare this
+   * element's role and name against what was observed, so a ref that reaches a rail is still the same
+   * control the observation described — or the op was refused as `target_changed` first.
+   *
+   * Python has a `by_ref` map for this; this port keeps its observation as an array, so it scans.
+   * Same answer, and `act-parity.mjs`'s scripted page reads no actions at all, which is what keeps
+   * the element-derived half of both rails inert on both sides of the fixture comparison.
+   */
+  function observed(ref) {
+    if (!state.last || !ref) return null;
+    return state.last.elements.find((element) => element.ref === ref) || null;
+  }
+
+  /** `browser.py`'s `_click_refusal` — why clicking `ref` must be confirmed first, or null. */
+  function clickRefusal(ref, target) {
+    const element = observed(ref);
+    return confirmReason(target, element ? element.role : '', confirmPatterns);
+  }
+
+  /** `browser.py`'s `_typing_refusal` — whether this field's value needs an explicit confirm. */
+  function typingRefusal(ref, target) {
+    const element = observed(ref);
+    if (element && element.secret) return true;
+    return isSecret(target, element ? element.role : '', secretPatterns);
+  }
+
   async function mouse(type, x, y, extra = {}) {
     await driver.call('Input.dispatchMouseEvent', { type, x, y, ...extra });
   }
@@ -574,7 +604,7 @@ export function createSession(driver, {
 
       if (op === 'click') {
         target = await labelOf(ref);
-        const blocked = confirmReason(target, rawOp.role || '', confirmPatterns);
+        const blocked = clickRefusal(ref, target);
         if (blocked && !rawOp.confirm) {
           return stepOf({ op, ref, target, ok: false, error: 'needs_confirmation',
             detail: `${blocked}; re-send with "confirm": true to proceed` });
@@ -585,7 +615,7 @@ export function createSession(driver, {
 
       } else if (op === 'type') {
         target = await labelOf(ref);
-        if (isSecret(target, rawOp.role || '', secretPatterns) && !rawOp.confirm) {
+        if (typingRefusal(ref, target) && !rawOp.confirm) {
           return stepOf({ op, ref, target, ok: false, error: 'needs_confirmation',
             detail: 'field looks sensitive; re-send with "confirm": true' });
         }
@@ -620,9 +650,17 @@ export function createSession(driver, {
           `(() => { const e=window.__jevRefs.nodes.get(${node}); return e ? !!e.checked : null; })()`);
         const want = rawOp.state === undefined ? null : rawOp.state;
         if (want !== null && Boolean(want) === Boolean(current)) {
+          // Nothing is clicked here, so there is nothing to confirm -- and no label is fetched,
+          // because this path costs no page work at all today and should not start.
           return stepOf({ op, ref, ok: true, detail: 'already in requested state' });
         }
-        if (dryRun) return stepOf({ op, ref, ok: true, detail: 'dry run' });
+        target = await labelOf(ref);
+        const blocked = clickRefusal(ref, target);
+        if (blocked && !rawOp.confirm) {
+          return stepOf({ op, ref, target, ok: false, error: 'needs_confirmation',
+            detail: `${blocked}; re-send with "confirm": true to proceed` });
+        }
+        if (dryRun) return stepOf({ op, ref, target, ok: true, detail: 'dry run' });
         await doClick(ref);
         await afterInput('fast');
 

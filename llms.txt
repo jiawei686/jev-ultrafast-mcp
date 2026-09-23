@@ -59,9 +59,14 @@ Cline, Windsurf, Gemini CLI). MIT licensed. Requires Python ≥ 3.10 and any Chr
   server turns that into a real click, and refuses with a reason (`occluded`, `detached`,
   `page_changed`, `needs_confirmation`) rather than guessing.
 - Destructive-sounding clicks are held back as `needs_confirmation`, `JEVMCP_ALLOW_DOMAINS` pins
-  navigation to a set of hosts, and secret-looking fields are redacted from observations.
+  navigation to a set of hosts, and secret-looking fields are redacted from observations. The rule
+  covers every op that clicks, not the op named `click` — `toggle` presses the control too. The role
+  it gates on is read from the observed element, never from the op, so a `"role"` you send cannot
+  lift it.
 - A field whose value must not leave the page needs `"confirm": true` to `type` into, and is stored
-  in a macro as `{{secret}}`. Two ops can put text into one: `type`, and `keys` with a bare single
+  in a macro as `{{secret}}`. It is sensitive if the page flagged it *or* if its name and role say so
+  — the same union the observation masks on, so the field whose value is hidden in the table is the
+  field `type` asks about. Two ops can put text into one: `type`, and `keys` with a bare single
   character, which goes out as `Input.insertText` into whatever has focus. The second is refused
   rather than confirmed on such a field — use `type` with the field's ref.
 - Two ops touch this machine's disk. `screenshot` writes only inside the state directory — `path` is

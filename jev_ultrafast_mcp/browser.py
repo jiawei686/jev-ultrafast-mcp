@@ -28,7 +28,7 @@ from .cdp import (
     stop_chrome,
 )
 from .config import Config
-from .observe import Observation
+from .observe import Element, Observation
 from .safety import SafetyError, check_url, confirm_reason, is_secret
 
 HELPER_SRC = (Path(__file__).with_name("js") / "observer.js").read_text(encoding="utf-8")
@@ -648,6 +648,58 @@ class Session:
         value = self._safe_eval("window.__jevMcp.label(%s)" % json.dumps(ref))
         return value if isinstance(value, str) else ""
 
+    def _observed(self, ref: str) -> Element | None:
+        """The element the last observation recorded for `ref`, if it has one.
+
+        Not a stale read, which is why the rails may use it where they may not
+        use the caller's own op. Every op carrying a ref has already run
+        `_guard`, and the page's `verify`/`reinspect` compare this element's
+        role and name against what was observed -- `guardOf` begins
+        `[identity, role, name, ...]`. So a ref that reaches a rail is still
+        the same control the observation described, or the op was refused as
+        `target_changed` first. The observation is therefore a *fact* about the
+        target; the op is the caller's claim about it.
+        """
+        return self.last.by_ref.get(ref) if (self.last and ref) else None
+
+    def _click_refusal(self, ref: str, label: str) -> str | None:
+        """Why clicking `ref` has to be confirmed first, or None.
+
+        Both ops that click ask this. The check used to sit inside the `click`
+        branch, which guards the op that is *spelled* click rather than the act
+        of clicking: `{"op": "toggle", "ref": <a button named "Delete
+        account">}` clicked it with no question asked, because `_do_click` has
+        two callers and only one of them consulted this.
+
+        The role is the observed element's, not the op's. A role on the op is a
+        claim about the target, and `confirm_reason` reads the role as "is this
+        name an action name at all" -- so `role: "checkbox"` made a button
+        named "Delete account" return None and lifted the rail outright.
+        Nothing in this repo ever sent one, which is the only reason that was
+        latent rather than live.
+        """
+        element = self._observed(ref)
+        return confirm_reason(self.cfg, label, element.role if element is not None else "")
+
+    def _typing_refusal(self, ref: str, label: str) -> bool:
+        """Whether this field's value must not be typed without `"confirm": true`.
+
+        The union `observe.py` masks on, and for the same reason: a field is
+        sensitive if the page said so *or* if its name and role say so. Reading
+        only the label left a password field with no accessible name ungated --
+        the observer still flagged it `secret` and masked its value, so the
+        mask was wider than the rail that is supposed to stop and ask.
+
+        The role is the observed element's, for the reason `_click_refusal`
+        gives. `is_secret` only ever adds strictness for a role, so the op's
+        own `role` could not open this rail -- but it could close it over an
+        ordinary field, which is a refusal nobody asked for.
+        """
+        element = self._observed(ref)
+        if element is not None and element.secret:
+            return True
+        return is_secret(self.cfg, label, element.role if element is not None else "")
+
     # ------------------------------------------------------------ op dispatch
 
     def _run_op(self, raw_op: dict, *, dry_run: bool, strict: bool = True) -> Step:
@@ -675,7 +727,7 @@ class Session:
 
             if op == "click":
                 target_label = self._label(ref)
-                blocked = confirm_reason(self.cfg, target_label, raw_op.get("role") or "")
+                blocked = self._click_refusal(ref, target_label)
                 if blocked and not raw_op.get("confirm"):
                     return Step(op=op, ref=ref, target=target_label, ok=False,
                                 error="needs_confirmation",
@@ -687,7 +739,7 @@ class Session:
 
             elif op == "type":
                 target_label = self._label(ref)
-                if is_secret(self.cfg, target_label, raw_op.get("role") or "") and not raw_op.get("confirm"):
+                if self._typing_refusal(ref, target_label) and not raw_op.get("confirm"):
                     return Step(op=op, ref=ref, target=target_label, ok=False,
                                 error="needs_confirmation",
                                 detail="field looks sensitive; re-send with \"confirm\": true")
@@ -722,9 +774,18 @@ class Session:
                 )
                 want = raw_op.get("state")
                 if want is not None and bool(want) == bool(current):
+                    # Nothing is clicked here, so there is nothing to confirm --
+                    # and no label is fetched, because this path costs no page
+                    # work at all today and should not start.
                     return Step(op=op, ref=ref, ok=True, detail="already in requested state")
+                target_label = self._label(ref)
+                blocked = self._click_refusal(ref, target_label)
+                if blocked and not raw_op.get("confirm"):
+                    return Step(op=op, ref=ref, target=target_label, ok=False,
+                                error="needs_confirmation",
+                                detail=f"{blocked}; re-send with \"confirm\": true to proceed")
                 if dry_run:
-                    return Step(op=op, ref=ref, ok=True, detail="dry run")
+                    return Step(op=op, ref=ref, target=target_label, ok=True, detail="dry run")
                 self._do_click(ref)
                 self._after_input("fast")
 

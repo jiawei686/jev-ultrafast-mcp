@@ -506,6 +506,30 @@
       }
     },
     {
+      "why": "a click whose op claims a role that is not a button",
+      "platform": "mac",
+      "op": {
+        "op": "click",
+        "ref": "e5",
+        "role": "checkbox"
+      },
+      "dry_run": false,
+      "script": {
+        "label": "Delete account"
+      },
+      "expected": {
+        "step": {
+          "op": "click",
+          "ok": false,
+          "ref": "e5",
+          "target": "Delete account",
+          "error": "needs_confirmation",
+          "detail": "matches confirmation rule '\\\\bdelete\\\\s+(account|workspace|repository|project)\\\\b'; re-send with \"confirm\": true to proceed"
+        },
+        "calls": []
+      }
+    },
+    {
       "why": "a click with no ref",
       "platform": "mac",
       "op": {
@@ -706,6 +730,75 @@
           "detail": "field looks sensitive; re-send with \"confirm\": true"
         },
         "calls": []
+      }
+    },
+    {
+      "why": "typing into an ordinary field whose op claims to be a password",
+      "platform": "mac",
+      "op": {
+        "op": "type",
+        "ref": "e5",
+        "text": "Zurich",
+        "role": "password"
+      },
+      "dry_run": false,
+      "script": {
+        "label": "Where from?"
+      },
+      "expected": {
+        "step": {
+          "op": "type",
+          "ok": true,
+          "ref": "e5",
+          "target": "Where from?"
+        },
+        "calls": [
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mousePressed",
+              "button": "left",
+              "clickCount": 1
+            }
+          },
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mouseReleased",
+              "button": "left",
+              "clickCount": 1
+            }
+          },
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "keyDown",
+              "key": "a",
+              "code": "KeyA",
+              "windowsVirtualKeyCode": 65,
+              "modifiers": 4,
+              "commands": [
+                "selectAll"
+              ]
+            }
+          },
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "keyUp",
+              "key": "a",
+              "code": "KeyA",
+              "windowsVirtualKeyCode": 65,
+              "modifiers": 4
+            }
+          },
+          {
+            "method": "Input.insertText",
+            "params": {
+              "text": "Zurich"
+            }
+          }
+        ]
       }
     },
     {
@@ -1002,7 +1095,8 @@
         "step": {
           "op": "toggle",
           "ok": true,
-          "ref": "e5"
+          "ref": "e5",
+          "target": "Search"
         },
         "calls": [
           {
@@ -1040,6 +1134,98 @@
       },
       "dry_run": false,
       "script": {},
+      "expected": {
+        "step": {
+          "op": "toggle",
+          "ok": true,
+          "ref": "e5",
+          "detail": "already in requested state"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "toggling a control whose name matches a confirmation rule",
+      "platform": "mac",
+      "op": {
+        "op": "toggle",
+        "ref": "e5",
+        "state": true
+      },
+      "dry_run": false,
+      "script": {
+        "label": "Delete account"
+      },
+      "expected": {
+        "step": {
+          "op": "toggle",
+          "ok": false,
+          "ref": "e5",
+          "target": "Delete account",
+          "error": "needs_confirmation",
+          "detail": "matches confirmation rule '\\\\bdelete\\\\s+(account|workspace|repository|project)\\\\b'; re-send with \"confirm\": true to proceed"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "the same toggle, confirmed",
+      "platform": "mac",
+      "op": {
+        "op": "toggle",
+        "ref": "e5",
+        "state": true,
+        "confirm": true
+      },
+      "dry_run": false,
+      "script": {
+        "label": "Delete account"
+      },
+      "expected": {
+        "step": {
+          "op": "toggle",
+          "ok": true,
+          "ref": "e5",
+          "target": "Delete account"
+        },
+        "calls": [
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mouseMoved"
+            }
+          },
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mousePressed",
+              "button": "left",
+              "clickCount": 1
+            }
+          },
+          {
+            "method": "Input.dispatchMouseEvent",
+            "params": {
+              "type": "mouseReleased",
+              "button": "left",
+              "clickCount": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "why": "a toggle already in the requested state on a confirmation rule",
+      "platform": "mac",
+      "op": {
+        "op": "toggle",
+        "ref": "e5",
+        "state": false
+      },
+      "dry_run": false,
+      "script": {
+        "label": "Delete account"
+      },
       "expected": {
         "step": {
           "op": "toggle",

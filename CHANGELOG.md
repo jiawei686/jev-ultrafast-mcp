@@ -204,6 +204,31 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **`toggle` clicks, and the confirmation rail was attached to the op named `click`.** `_do_click` has
+  exactly two callers and only one of them consulted `confirm_reason`, so
+  `{"op": "toggle", "ref": <a button named "Delete account">}` pressed it with no question asked. This
+  is the `keys` finding one level down — there, a text rail hung off the op *spelled* `type` rather
+  than off the act of typing; here a click rail hung off the op spelled `click` rather than off the act
+  of clicking. A guard with two call sites is a guard with one. The same two branches held two more
+  holes with the same cause, and one repair closes all three: **both rails now read the element the
+  server observed.**
+  The op's own `"role"` was what they read before, and `confirm_reason` uses the role to decide whether
+  a name is an action name at all — so `"role": "checkbox"` on a button named "Delete account" returned
+  `None` and lifted the rail outright, while `"role": "password"` on an ordinary field produced the
+  opposite error, a refusal nobody asked for. Nothing in this repository ever sent one, which is the
+  only reason it was latent rather than live. A role is the caller's *claim* about the target; the
+  observation is a fact about it, and the guard has already re-checked that fact against the page —
+  `verify`/`reinspect` compare the element's role and name — so a ref that reaches a rail is still the
+  control the observation described. `confirm_reason`'s role gate is unchanged, and now reachable: a
+  checkbox named "Delete account" is not a click this stops for, a button is.
+  And `type`'s rail read only the label, never the element's own `secret` flag, so a password field
+  with no accessible name — the ordinary shape of a login form — was typed into with no confirmation
+  while `observe.py` still masked its value. The mask was wider than the rail. It is the same **union**
+  now, which is the property `tests/test_click_rails.py` pins: it renders each field and asserts the
+  rail refuses exactly when the table writes `«hidden»` over the value, the near miss `Passenger`
+  included. 23 tests, **14 of them red** against the old dispatcher; the parity fixture gained five
+  scenarios (`act 238 → 253`), one of which carries `"role": "checkbox"` on the op, so both sides of
+  the port pin that a role in the request decides nothing.
 - **`keys` was a second way to type, and every rail that guards `type` was written against `type`.**
   `_dispatch_keys` sends a bare single character with `Input.insertText` rather than as a key press —
   reasonable in itself, and documented nowhere, so nothing else in the server knew that `keys` can put

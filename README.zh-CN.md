@@ -519,6 +519,13 @@ e12  btn    Delete account
 失败会说明原因：`occluded`、`detached`、`target_changed`、`page_changed`、`needs_confirmation`、
 `blocked_by_policy`。这时该去 `browser_observe`，而不是重试。
 
+可访问名命中确认规则（`buy now`、`delete account`、`unsubscribe`……）的控件会以
+`needs_confirmation` 返回，直到该 op 带上 `"confirm": true`。这条规则管的是**所有会点下去的 op**，
+而不是名叫 `click` 的那个 —— `toggle` 同样会按下控件。决定「这个名字算不算动作名」的 role
+（名叫 "Delete account" 的复选框不算需要拦的点击，按钮算）来自服务端**观察到**的元素，不来自 op，
+所以请求里写 `"role"` 无法绕过这道闸。`type` 同理：字段只要**页面标了敏感**、**或名字与 role 命中**，
+就算敏感 —— 这正是观察结果做脱敏时的那个并集，所以表格里值被隐藏的字段，就是 `type` 会追问的字段。
+
 操作标签页时**优先用 `target_id` 而不是 `index`**：index 是位置性的，标签列表一变就会重编号，
 上一次调用读到的 index 可能已经指向另一个标签了。
 

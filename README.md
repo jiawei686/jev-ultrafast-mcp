@@ -560,6 +560,15 @@ Executes ops in order in **one round trip**, then returns a delta.
 A failing op reports why: `occluded`, `detached`, `target_changed`, `page_changed`,
 `needs_confirmation`, `blocked_by_policy`. Reach for `browser_observe`, not a retry.
 
+A control whose accessible name matches a confirmation rule (`buy now`, `delete account`,
+`unsubscribe`, …) comes back as `needs_confirmation` until the op carries `"confirm": true`. That
+applies to **every op that clicks**, not to the op named `click` — `toggle` presses the control too.
+The role that decides whether a name is an action name at all (a checkbox labelled "Delete account"
+is not a click this stops for; a button is) is read from the element the server observed, never from
+the op, so a `"role"` in your request cannot lift the rail. The same rule governs `type`: a field is
+sensitive if the page flagged it **or** if its name and role say so — the union the observation masks
+on, so the field whose value is hidden in the table is the field `type` asks about.
+
 For tabs, prefer `target_id` over `index`. Indexes are positional and get renumbered whenever the
 tab list changes, so an index read one call ago can address a different tab.
 

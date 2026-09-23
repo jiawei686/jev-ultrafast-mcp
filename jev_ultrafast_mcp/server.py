@@ -308,7 +308,10 @@ def browser_act(ops: list[dict], session: str = "default", dry_run: bool = False
     eval            js                      (only when JEVMCP_ALLOW_JS=1)
 
     Actions matching the confirmation rules (pay, delete account, …) return
-    needs_confirmation; re-send that op with "confirm": true to proceed.
+    needs_confirmation; re-send that op with "confirm": true to proceed. That
+    covers every op that clicks, not only the one named `click` -- `toggle`
+    presses the control too -- and the role it gates on is read from the
+    element the server observed, never from the op.
 
     A bare single character in `keys` is text, not a key press -- it goes into
     whatever has focus -- so it is refused (blocked_by_policy) on a field whose
