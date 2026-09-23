@@ -22,7 +22,7 @@ from jev_ultrafast_mcp.config import Config
 from jev_ultrafast_mcp.observe import Element, Observation
 
 
-def _fixtures():
+def _page():
     element = Element(ref="e1", role="searchbox", name="Search Wikipedia", editable=True)
     observation = Observation(
         url="https://example.test/",
@@ -39,7 +39,12 @@ def _fixtures():
         cross_frames=0,
         cross_frame_srcs=[],
     )
+    return element, observation
+
+
+def _fixtures():
     cfg = dataclasses.replace(Config.from_env(), text_model_key="test-key", text_model="test-model")
+    element, observation = _page()
     return cfg, element, observation
 
 
@@ -85,34 +90,90 @@ def test_an_answer_with_no_message_at_all_does_not_crash(monkeypatch):
         policy.text_for(cfg, "open the Python article", element, observation, [])
 
 
-def test_one_key_covering_both_is_a_configuration_and_not_a_fallback(monkeypatch):
-    """The decision model may borrow OPENROUTER_API_KEY; the text helper must not.
+def test_a_borrowed_key_always_comes_with_its_own_provider_s_base_url(monkeypatch):
+    """The helper may borrow the decision model's key -- but never the key alone.
 
-    `_turbo_backend` falls back to `OPENROUTER_API_KEY` because every decisions route speaks the
-    same contract. The text helper does not, and borrowing would be worse than refusing: it posts
-    to `TEXT_MODEL_BASE_URL`, which is DeepSeek by default, and an OpenRouter key sent there earns a
-    401 whose message is about DeepSeek. A run diagnosed from the wrong provider's error is a run
-    nobody diagnoses. So the loader leaves it unset and the helper refuses by name.
+    An earlier version of this test pinned the opposite: that the helper must never borrow a
+    key at all. The reasoning was sound, but it was not about borrowing -- it was about the
+    *mismatch*. The helper posts to `TEXT_MODEL_BASE_URL`, which defaults to DeepSeek, so an
+    OpenRouter key sent there earned a 401 naming the wrong company, and a run diagnosed from
+    the wrong provider's error is a run nobody diagnoses.
 
-    Covering both with one key is therefore a configuration -- point `TEXT_MODEL_BASE_URL` and
-    `TEXT_MODEL` at that provider too -- not something the loader does for you. This is pinned
-    because adding the fallback looks like a kindness and is not one.
+    The invariant worth pinning is therefore not "never borrow" but "the key and the base URL
+    come from the same provider". That is what makes the borrow safe, and it is what this
+    holds to: a borrowed key always arrives with the base URL of the API that issued it.
     """
     for var in ("TEXT_MODEL_API_KEY", "TEXT_MODEL_BASE_URL", "TEXT_MODEL", "TYPESAFE_API_KEY"):
         monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("JEV_PROVIDER", "openrouter")
     monkeypatch.setenv("OPENROUTER_API_KEY", "openrouter-key")
-    monkeypatch.setenv("TYPESAFE_BASE_URL", "https://openrouter.ai/api/alpha/decisions")
 
     cfg = Config.from_env()
-    _, element, observation = _fixtures()
 
-    assert cfg.typesafe_key == "openrouter-key", "the decision model does borrow it"
-    assert cfg.text_model_key is None, "the text helper must not borrow a key for a different API"
-    assert cfg.text_model_base == "https://api.deepseek.com/v1", (
-        "the default base is DeepSeek, which is exactly why the key cannot be borrowed")
+    assert cfg.typesafe_key == "openrouter-key"
+    assert cfg.text_model_key == "openrouter-key", "the helper may reuse the same key"
+    assert cfg.text_model_base == "https://openrouter.ai/api/v1", (
+        "and it must be OpenRouter's own base URL, or the key is being sent to a stranger")
+    assert cfg.text_model is None, (
+        "the slug is not inherited: `deepseek-chat` is not an OpenRouter slug, and guessing "
+        "one would turn a clear refusal into a confusing 400")
+
+
+def test_jev_s_own_api_has_no_chat_route_to_inherit(monkeypatch):
+    """Jev chooses; it does not write prose, so there is nothing here for the helper to borrow.
+
+    That is a fact about the provider, and it lives in `PROVIDERS[provider]["chat_base"]`
+    rather than in a docstring -- which is what lets the refusal say *why* instead of naming a
+    key that would not have helped.
+    """
+    for var in ("TEXT_MODEL_API_KEY", "TEXT_MODEL_BASE_URL", "TEXT_MODEL", "OPENROUTER_API_KEY",
+                "TYPESAFE_BASE_URL", "JEV_PROVIDER"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("TYPESAFE_API_KEY", "typesafe-key")
+
+    cfg = Config.from_env()
+    element, observation = _page()
+
+    assert cfg.provider == "typesafe"
+    assert cfg.text_model_key is None, "Jev's own API has no chat route to borrow from"
 
     with pytest.raises(policy.TurboUnavailable) as caught:
         policy.text_for(cfg, "open the Python article", element, observation, [])
 
-    assert "TEXT_MODEL_API_KEY" in str(caught.value), (
-        "the refusal has to name the variable to set, or it is a dead end")
+    message = str(caught.value)
+    assert "JEV_PROVIDER=openrouter" in message, (
+        "the refusal must offer the route that would work, not only the key that would not")
+    assert "generate" in message, (
+        "and it must say why this provider cannot serve it, or a provider that does not do "
+        "this reads as a variable somebody forgot to set")
+
+
+def test_inheriting_a_route_still_requires_naming_a_model(monkeypatch):
+    """A borrowed base URL is not a borrowed model slug, and guessing one is worse than asking."""
+    for var in ("TEXT_MODEL_API_KEY", "TEXT_MODEL_BASE_URL", "TEXT_MODEL", "TYPESAFE_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("JEV_PROVIDER", "openrouter")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "openrouter-key")
+
+    cfg = Config.from_env()
+    element, observation = _page()
+
+    with pytest.raises(policy.TurboUnavailable) as caught:
+        policy.text_for(cfg, "open the Python article", element, observation, [])
+
+    assert "TEXT_MODEL" in str(caught.value), (
+        "the refusal has to name the variable that is actually missing")
+
+
+def test_an_explicit_text_configuration_is_untouched(monkeypatch):
+    """The long-standing route must not move under anyone already relying on it."""
+    for var in ("TEXT_MODEL_BASE_URL", "TEXT_MODEL", "JEV_PROVIDER", "OPENROUTER_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("TEXT_MODEL_API_KEY", "deepseek-key")
+
+    cfg = Config.from_env()
+
+    assert cfg.text_model_base == "https://api.deepseek.com/v1", (
+        "setting only a key keeps the DeepSeek base it has always had")
+    assert cfg.text_model == "deepseek-chat"
+    assert cfg.text_model_key == "deepseek-key"

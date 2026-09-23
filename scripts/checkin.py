@@ -179,8 +179,8 @@ def main() -> int:
         # ---- stage 3: explore, the only stage that costs money --------------
         if not policy.available(mcp.CONFIG):
             print("\ncannot explore this page: no decision-model key.")
-            print("  set TYPESAFE_API_KEY, or OPENROUTER_API_KEY with")
-            print("  TYPESAFE_BASE_URL=https://openrouter.ai/api/alpha/decisions")
+            print("  set TYPESAFE_API_KEY, or JEV_PROVIDER=openrouter with OPENROUTER_API_KEY")
+            print("  (equivalently, TYPESAFE_BASE_URL=https://openrouter.ai/api/alpha/decisions)")
             return 1
 
         print(f"\nexploring with {mcp.CONFIG.typesafe_model} — this is the stage that costs money")

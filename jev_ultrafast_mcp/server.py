@@ -21,7 +21,7 @@ from . import macros as macros_mod
 from . import policy
 from .browser import BrowserManager, PageStale
 from .cdp import CdpError, ChromeLaunchError
-from .config import Config
+from .config import Config, provider_note
 from .observe import Observation
 from .safety import SafetyError
 
@@ -435,17 +435,18 @@ def browser_goal(goal: str, url: str = "", session: str = "default", max_steps: 
     speculative fan-out). `verify` runs browser_assert-style checks on the final
     page, so the result is a fact rather than a model's claim of success.
 
-    The key is TYPESAFE_API_KEY, or OPENROUTER_API_KEY when TYPESAFE_BASE_URL
-    points at https://openrouter.ai/api/alpha/decisions -- same model, same
-    contract, no TypeSafe account needed. Reading a page needs no key at all, so
-    when no key is set the handoff is unavailable while browser_open,
-    browser_observe and browser_act keep working.
+    The decision model is reachable through two APIs and both are supported here.
+    `JEV_PROVIDER=typesafe` uses Jev's own API with TYPESAFE_API_KEY;
+    `JEV_PROVIDER=openrouter` routes the same model through OpenRouter with
+    OPENROUTER_API_KEY and no TypeSafe account. Same model, same contract either
+    way. Reading a page needs no key at all, so when no key is set the handoff is
+    unavailable while browser_open, browser_observe and browser_act keep working.
     """
     if not policy.available(CONFIG):
         return ("turbo_unavailable: no decision-model key is set, so the task cannot be "
                 "handed over.\n"
-                "Set TYPESAFE_API_KEY, or OPENROUTER_API_KEY with "
-                "TYPESAFE_BASE_URL=https://openrouter.ai/api/alpha/decisions.\n"
+                "Set TYPESAFE_API_KEY for Jev's own API, or OPENROUTER_API_KEY with "
+                "JEV_PROVIDER=openrouter.\n"
                 "Until then, drive the loop yourself: browser_observe → pick a ref → browser_act.")
     try:
         tab = _session(session)
@@ -676,8 +677,22 @@ def browser_doctor() -> str:
         "window": list(CONFIG.window),
         "profile": str(CONFIG.resolved_profile()),
         "macros_dir": str(CONFIG.macros_dir()),
+        # Which API is configured, not merely whether a key exists. The two providers are
+        # different hosts reached with different keys, so "it 401s" is a different fix in
+        # each, and the caller cannot tell them apart from a bare `turbo_ready: true`.
+        "decision_provider": CONFIG.provider,
+        "decision_endpoint": CONFIG.typesafe_endpoint,
+        "decision_model": CONFIG.typesafe_model,
+        "text_helper": {
+            "configured": bool(CONFIG.text_model_key),
+            "base": CONFIG.text_model_base,
+            "model": CONFIG.text_model,
+        },
     }
     report["hints"] = []
+    unknown_provider = provider_note()
+    if unknown_provider:
+        report["hints"].append(unknown_provider)
     if not report.get("connected"):
         if report.get("connection") == "dropped":
             # The socket is gone but the setup is fine, so the "point me at a

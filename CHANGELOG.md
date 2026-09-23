@@ -162,6 +162,46 @@ All notable changes to this project are documented here. The format follows
   hint, because the existing attach-mode advice ("point `JEVMCP_CDP_URL` at a browser
   exposing CDP") would send the caller off to fix a config that was never wrong.
 
+- **Both APIs that serve Jev are first-class, and the one paying has a name.** The decision model was
+  always reachable two ways — Jev's own API at `api.typesafe.ai`, and the same model through
+  OpenRouter's decisions route — but only one of them was *named* in the configuration. The other
+  was expressed as a URL, by pointing `TYPESAFE_BASE_URL` at another company's host, so the default
+  was a company and the alternative was a side effect of a variable named after the default; nothing
+  in `browser_doctor` could tell you which one you were on. `JEV_PROVIDER=typesafe|openrouter` now
+  names it. Both routes speak the same `{model, state, questions}` contract, so a provider is three
+  facts — where decisions are posted, which variables hold its key, and whether it also serves an
+  OpenAI-compatible chat route — and adding a third API later is a table entry rather than a branch.
+  One thing the table no longer does is fall back: the OpenRouter route used to accept
+  `TYPESAFE_API_KEY` as a second choice, and that could only ever convert "no key for this provider"
+  into a 401 naming the company that rejected it. A provider is now paid for with its own key and no
+  other, which is what makes the second column of the table mean one thing. `TYPESAFE_BASE_URL` still
+  overrides the URL and is still what the provider is inferred from when `JEV_PROVIDER` is unset, so
+  every existing configuration keeps working unchanged, including the one this repository has been
+  developed against — the URL plus `OPENROUTER_API_KEY`, with no `JEV_PROVIDER` and no `TEXT_MODEL_*`.
+
+  Two cases are resolved rather than obeyed, and both for the same reason — a wrong answer here is
+  indistinguishable from a bad key. A `TYPESAFE_BASE_URL` naming a *different* provider than the one
+  selected loses to the explicit name, because obeying it would post one API's key to another API's
+  host and report the 401 as if the key were bad. An unrecognised `JEV_PROVIDER` is ignored rather
+  than raised — `Config.from_env()` runs at import, and a typo in one optional variable must not take
+  down the browser surface that needs no key at all — but it is not silent either: `browser_doctor`
+  reports it as a hint naming the value and the ones this build knows.
+
+  The same change makes the text helper's route explicit. It was `TEXT_MODEL_API_KEY` with no
+  fallback, which was safe and incomplete: whether a helper can inherit depends on whether the
+  provider serves chat at all, and that is now a fact in the table rather than a rule in prose. With
+  no `TEXT_MODEL_*` set, the helper inherits the decision model's provider — key *and* base URL
+  together, never the key alone — and only OpenRouter has a chat route to inherit. Jev's own API
+  answers typed questions and never writes prose, so under it the helper refuses by name and says
+  which provider cannot serve it, rather than reporting a missing key for a provider that has none to
+  give. Inheritance does not carry the model slug either: `deepseek-chat` is not an OpenRouter slug,
+  so inheriting requires `TEXT_MODEL`, and the refusal for a missing slug is a different sentence from
+  the refusal for a missing route. Eight tests in `tests/test_provider.py` pin the resolution — the
+  default, the name, the inference from the old variable, the contradiction, a custom endpoint, a
+  typo, a clean config raising no note, and one provider's key never paying for another — and four in
+  `tests/test_text_helper.py` pin the rule that makes all of it safe: a key is never sent to a
+  provider that did not issue it.
+
 ### Fixed
 
 - **The extension check's release assertion could not see the tab it named, and failed on runs where
@@ -469,18 +509,20 @@ All notable changes to this project are documented here. The format follows
   is wrong today — the surviving `"no 'London' option observed"` strings sit in `else:` branches that
   hard-code `False`. This is deliberately not mechanised: a rule tight enough to avoid false
   positives across 81 hand-written strings would be too tight to catch the next phrasing.
-- **A docstring claimed one key configures both models, and the loader does not do that.** The
-  comment above `_turbo_backend` said pointing `TYPESAFE_BASE_URL` at OpenRouter "lets a single
-  `OPENROUTER_API_KEY` drive both the decision model and the text helper". The first half is true —
-  the decision model falls back to that key, because every decisions route speaks the same contract.
-  The second half is not: the text helper is resolved from `TEXT_MODEL_API_KEY` with no fallback, and
-  posts to `TEXT_MODEL_BASE_URL`, which is DeepSeek by default. A reader who believed the sentence
-  would set one key, find `TYPE_TEXT` refused, and have no reason to look at the variable that was
-  actually missing — which is the exact shape of a live run that failed to type into a field. The
-  comment now says which key configures which model and that covering both with one key is a
-  configuration rather than something the loader arranges. A test pins the separation, because
-  adding the fallback looks like a kindness and is not one: an OpenRouter key sent to DeepSeek earns
-  a 401 whose message names the wrong provider, and a run diagnosed from the wrong provider's error
+- **A docstring claimed one key configures both models, and the loader did not do that.** The
+  comment above what was then `_turbo_backend` said pointing `TYPESAFE_BASE_URL` at OpenRouter "lets
+  a single `OPENROUTER_API_KEY` drive both the decision model and the text helper". The first half
+  was true — the decision model fell back to that key, because every decisions route speaks the same
+  contract. The second half was not: the text helper was resolved from `TEXT_MODEL_API_KEY` with no
+  fallback, and posted to `TEXT_MODEL_BASE_URL`, which is DeepSeek by default. A reader who believed
+  the sentence would set one key, find `TYPE_TEXT` refused, and have no reason to look at the
+  variable that was actually missing — the exact shape of a live run that failed to type into a
+  field. The comment was corrected when it was found, and it has since been *deleted* rather than
+  reworded: the loader arranges the inheritance now, in the one case where it can, and the reason it
+  cannot be arranged in general is a fact about each provider in `PROVIDERS` rather than a sentence
+  in a docstring. See *Added*. What survives from the correction is the rule it was written to
+  protect — a key is never sent to a provider that did not issue it — because the failure it prevents
+  is a 401 whose message names the wrong company, and a run diagnosed from the wrong provider's error
   is a run nobody diagnoses.
 - **The two ways to attach a page now share one setup block, and the reason is written down.** A
   `Session` reaches a page either by attaching to a target it just created (`_attach_page`, via

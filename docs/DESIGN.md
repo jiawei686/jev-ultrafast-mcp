@@ -26,6 +26,15 @@ here, and a decision model picks each step from refs the page actually has. Driv
 `browser_open` → `browser_observe` → `browser_act`, where the host agent is the policy and the
 server needs no key and no second model.
 
+One more difference is worth naming because it is invisible until you configure it: jev-ultrafast
+requires **two** keys, because its text helper posts to one fixed provider. Here the decision model's
+API is a choice — Jev's own, or the same model through OpenRouter's decisions route — and the text
+helper inherits whichever of those also serves chat. On OpenRouter that is one key for both models.
+On Jev's own API there is nothing to inherit, because an evaluation endpoint does not write prose, so
+the helper needs a chat provider of its own. Either way the key and the URL are taken from the same
+provider, and that invariant is what keeps a configuration mistake from presenting itself as a bad
+key.
+
 ## Seven differentiators
 
 ### 1. The handoff is a tool call, not an architecture
@@ -203,9 +212,9 @@ not a reason to quit a browser it never started.
 | `browser_act` | Batch of ops (`click` `type` `select` `toggle` `hover` `upload` `keys` `scroll` `nav` `back` `wait` `wait_for_ref` `wait_for_text` `screenshot` `tab` `eval`) then a delta |
 | `browser_assert` | Deterministic checks → `pass` / `fail` |
 | `browser_macro` | `record_start` · `record_stop` · `run` · `list` · `inspect` · `delete` |
-| `browser_goal` | Hand the whole goal over: run the loop server-side via TypeSafe (needs the key) |
+| `browser_goal` | Hand the whole goal over: run the loop server-side through Jev — TypeSafe's own API, or OpenRouter's decisions route under `JEV_PROVIDER=openrouter` (needs that provider's key) |
 | `browser_tabs` / `browser_sessions` / `browser_close` | Tab and session management |
-| `browser_doctor` | Browser binary, connection, keys, policy envelope |
+| `browser_doctor` | Browser binary, connection, which provider is paying, keys, policy envelope |
 
 ## Element table format
 

@@ -139,13 +139,14 @@ def _http_reason(status: int) -> str:
     failure in terms of what to fix rather than which company answered.
     """
     if status == 401:
-        return ("Decision model rejected the key (HTTP 401). Check TYPESAFE_API_KEY, or "
-                "OPENROUTER_API_KEY when TYPESAFE_BASE_URL points at OpenRouter. "
+        return ("Decision model rejected the key (HTTP 401). Check the key for the provider "
+                "in use: TYPESAFE_API_KEY for Jev's own API, or OPENROUTER_API_KEY when "
+                "JEV_PROVIDER=openrouter. browser_doctor reports which one is configured. "
                 "No action executed.")
     if status == 402:
         return ("OpenRouter has no credits on this account (HTTP 402). Add credits at "
-                "https://openrouter.ai/settings/credits, or point TYPESAFE_BASE_URL back "
-                "at TypeSafe and use TYPESAFE_API_KEY. No action executed.")
+                "https://openrouter.ai/settings/credits, or set JEV_PROVIDER=typesafe and use "
+                "TYPESAFE_API_KEY. No action executed.")
     return f"Decision model returned HTTP {status}; no action executed."
 
 
@@ -307,8 +308,9 @@ def choose(cfg: Config, observation: Observation, goal: str, history: list[dict]
     """One TypeSafe request: which operation, and which target for each operation."""
     if not cfg.typesafe_key:
         raise TurboUnavailable(
-            "Turbo mode needs a key for the decision model: TYPESAFE_API_KEY, or "
-            "OPENROUTER_API_KEY with TYPESAFE_BASE_URL=https://openrouter.ai/api/alpha/decisions"
+            "Turbo mode needs a key for the decision model: TYPESAFE_API_KEY for Jev's own "
+            "API, or OPENROUTER_API_KEY with JEV_PROVIDER=openrouter (equivalently, "
+            "TYPESAFE_BASE_URL=https://openrouter.ai/api/alpha/decisions)."
         )
 
     operations, heads = _operation_heads(observation)
@@ -443,13 +445,44 @@ def _pick_option(cfg: Config, element, goal: str, observation: Observation) -> s
         return None
 
 
+def _no_text_route(cfg: Config) -> str:
+    """Why the text helper has nowhere to go, said in terms of what to set.
+
+    Two different dead ends wear the same symptom -- nothing typed -- and they need different
+    fixes, so the message has to say which one this is. When the decision model is on Jev's own
+    API there is no route to inherit, and saying "set TEXT_MODEL_API_KEY" alone would read as a
+    missing key rather than as a provider that does not do this at all.
+    """
+    if cfg.provider == "typesafe":
+        return (
+            "TYPE_TEXT in turbo mode needs a model that writes text, and Jev's own API does "
+            "not: it answers typed questions and never generates prose. Either set "
+            "TEXT_MODEL_API_KEY (plus TEXT_MODEL) to a chat provider, or run the decision "
+            "model through OpenRouter with JEV_PROVIDER=openrouter and name a chat model "
+            "there with TEXT_MODEL, where OPENROUTER_API_KEY then covers both. Or pass the "
+            "value yourself with browser_act. Nothing typed."
+        )
+    return (
+        "TYPE_TEXT in turbo mode needs TEXT_MODEL_API_KEY (or pass the value yourself "
+        "with browser_act). Nothing typed."
+    )
+
+
 def text_for(cfg: Config, goal: str, element, observation: Observation,
              history: list[dict]) -> str:
-    """Field values need generation, which TypeSafe does not do. Use the helper model."""
+    """Field values need generation, which the decision model does not do.
+
+    Jev chooses; it never writes prose, so a second model fills the field. That helper's route
+    is resolved separately from the decision model's -- see `config._text_backend` for how the
+    two relate and why the key and the base URL are always taken from the same provider.
+    """
     if not cfg.text_model_key:
+        raise TurboUnavailable(_no_text_route(cfg))
+    if not cfg.text_model:
         raise TurboUnavailable(
-            "TYPE_TEXT in turbo mode needs TEXT_MODEL_API_KEY (or pass the value yourself "
-            "with browser_act)."
+            "TYPE_TEXT is routed at the decision model's provider, so it needs to be told "
+            "which of that provider's models to use: set TEXT_MODEL to a chat model it "
+            "serves. Nothing typed."
         )
     base = cfg.text_model_base.rstrip("/")
     reasoning = ({"thinking": {"type": "disabled"}} if "api.deepseek.com/" in base

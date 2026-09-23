@@ -213,6 +213,29 @@ def test_the_readmes_say_the_decision_model_is_the_only_thing_that_calls_out():
         assert "TYPESAFE_MODEL" in text, f"{path.name} must document the model slug"
 
 
+def test_the_readmes_name_the_provider_and_do_not_oversell_one_key():
+    """Both routes are first-class, so both are documented -- and neither is oversold.
+
+    `JEV_PROVIDER` is a name for a choice the READMEs used to express only as a URL, and the
+    sentence it replaces claimed something the loader did not do: that pointing `TYPESAFE_BASE_URL`
+    at OpenRouter meant one `OPENROUTER_API_KEY` covered the decision model *and* the text helper.
+    The second half was false, and the shape of the failure is why this is asserted rather than
+    left to prose review: a reader who believed it would set one key, watch `TYPE_TEXT` be refused,
+    and have no reason to look at the variable that was actually missing -- which is exactly how a
+    live run failed to type into a field. The claim is true of one provider, and only once
+    `TEXT_MODEL` is named, so the framing is pinned and the variable is pinned with it.
+    """
+    for path in (README, README_ZH):
+        text = path.read_text(encoding="utf-8")
+        assert "JEV_PROVIDER" in text, f"{path.name} never names the provider variable"
+        assert "TEXT_MODEL" in text, f"{path.name} never names the helper's model"
+
+    for path, stale in ((README, "at OpenRouter means one"),
+                        (README_ZH, "就同时覆盖决策模型和文本助手")):
+        assert stale not in path.read_text(encoding="utf-8"), (
+            f"{path.name} still claims one key covers both models unconditionally")
+
+
 def test_the_readmes_promise_attach_mode_leaves_the_users_browser_alone():
     """The one claim in here that, if wrong, costs a user every tab they had open.
 

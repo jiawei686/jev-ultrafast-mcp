@@ -177,17 +177,29 @@ Two signatures that look like engine bugs but are not:
   before you read `status`: a passing assertion upgrades this to `done`. If
   `verified` is absent or failing, the goal genuinely stalled and needs a
   different goal string, not a retry.
-- **`turbo_unavailable: … TYPE_TEXT … needs TEXT_MODEL_API_KEY`.** The model *did*
-  answer — it returned a plan that types into a field, and the **policy layer**
-  refused it. The optional `TEXT_MODEL_API_KEY` (DeepSeek by default, via
-  `TEXT_MODEL_BASE_URL` / `TEXT_MODEL`) only affects writing a value into an
-  input; a click-only task needs no key. Do not report this as "the model is
-  unavailable". **The decision model's key does not cover this one.** A single
-  `OPENROUTER_API_KEY` pays for the decision model and is deliberately *not*
-  borrowed here — the helper posts to `TEXT_MODEL_BASE_URL`, so an OpenRouter key
-  sent there earns a 401 naming the wrong provider. To cover both with one key,
-  point `TEXT_MODEL_BASE_URL` and `TEXT_MODEL` at that provider as well.
-  Workaround while no key is set: **put the parameters in the URL**
+- **`turbo_unavailable: … TYPE_TEXT …`.** The model *did* answer — it returned a plan
+  that types into a field, and the **policy layer** refused it. The optional text
+  helper only affects writing a value into an input; a click-only task needs no key.
+  Do not report this as "the model is unavailable".
+
+  Which dead end it is decides the fix, so read the sentence rather than the code:
+  - **Jev's own API** (`JEV_PROVIDER=typesafe`, the default) answers typed questions
+    and never writes prose, so it has no chat route for the helper to inherit. Either
+    give the helper its own chat provider (`TEXT_MODEL_API_KEY`, plus `TEXT_MODEL`),
+    or move the decision model to `JEV_PROVIDER=openrouter` and name a chat model
+    there with `TEXT_MODEL`.
+  - **OpenRouter** (`JEV_PROVIDER=openrouter`) does serve chat, so with
+    `OPENROUTER_API_KEY` set the helper inherits the key *and* the URL, and the only
+    thing still missing is `TEXT_MODEL` — `deepseek-chat` is not an OpenRouter slug.
+    A message asking for `TEXT_MODEL_API_KEY` while on OpenRouter therefore means one
+    of two things: no key at all, or `TEXT_MODEL_BASE_URL` set without its key, which
+    is read as the explicit route and will not borrow the decision model's key.
+  - Either way **the key and the URL come from the same provider.** Borrowing a key
+    across providers earns a 401 that names the company you did not call, which is a
+    worse failure than the refusal it replaced. `browser_doctor` reports the resolved
+    provider and whether the helper has a route.
+
+  Workaround while no route is configured: **put the parameters in the URL**
   and let the model only wait and read. Many sites accept them, including
   natural-language queries — a flight search becomes
   `…/travel/flights?q=One way flights from SIN to PQC on 2026-09-26`, and then no

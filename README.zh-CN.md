@@ -543,8 +543,9 @@ e12  btn    Delete account
 ### `browser_goal(goal, url="", session="default", max_steps=20, verify=[...])`
 把整个任务交出去。给了 `url` 和 goal，页面会被打开、然后在服务端跑完整个循环（用 TypeSafe 的
 投机扇出，每步一次请求）—— **一次调用、一个回合**。不给 `url` 就在 session 当前显示的那个页面上
-继续。需要 `TYPESAFE_API_KEY`，或者用 `OPENROUTER_API_KEY` 并把 `TYPESAFE_BASE_URL` 指向
-OpenRouter 的 decisions 路由。给了 `verify` 检查时返回 `verified: PASS/FAIL`。
+继续。需要一把决策模型的 key：直连 Jev 自己的 API 用 `TYPESAFE_API_KEY`，走 OpenRouter 用
+`OPENROUTER_API_KEY` 加 `JEV_PROVIDER=openrouter`（等价于把 `TYPESAFE_BASE_URL` 指向 OpenRouter 的
+decisions 路由）。给了 `verify` 检查时返回 `verified: PASS/FAIL`。
 
 看一眼不算任务：`browser_open`、`browser_observe`、`browser_assert` 是直接的、免费的、不需要 key，
 所以「读一下页面」依然便宜。交接是留给**会改变页面**的工作的。
@@ -592,13 +593,14 @@ OpenRouter 的 decisions 路由。给了 `verify` 检查时返回 `verified: PAS
 | `JEVMCP_SETTLE_TIMEOUT` | `4.0` | 打开网址后最多等多久：等页面停止发请求、且元素表不再变化 |
 | `JEVMCP_SETTLE_POLL_MS` | `120` | 等待期间多久重读一次 |
 | `JEVMCP_STATE_DIR` | `~/.jev-ultrafast-mcp` | profile、宏、截图的存放位置 |
-| `TYPESAFE_API_KEY` | — | 可选；开启 `browser_goal`，直连 TypeSafe |
-| `TYPESAFE_BASE_URL` | `https://api.typesafe.ai/v1/systemone` | 决策模型在哪；指到 `https://openrouter.ai/api/alpha/decisions` 即可改走 OpenRouter |
-| `OPENROUTER_API_KEY` | — | 当 `TYPESAFE_BASE_URL` 是 OpenRouter 地址时，作为决策模型的 key |
+| `JEV_PROVIDER` | `typesafe` | 决策模型由谁付费：`typesafe`（Jev 自己的 API）或 `openrouter` |
+| `TYPESAFE_API_KEY` | — | Jev 自己 API 的 key |
+| `TYPESAFE_BASE_URL` | `https://api.typesafe.ai/v1/systemone` | 决策模型在哪；既是自定义端点，也是 `JEV_PROVIDER` 未设时推断 provider 的依据 |
+| `OPENROUTER_API_KEY` | — | `JEV_PROVIDER=openrouter` 时，OpenRouter decisions 路由的 key |
 | `TYPESAFE_MODEL` | `jev-latest` | 决策模型的 slug |
-| `TEXT_MODEL_API_KEY` | — | 可选；只给 `browser_goal` 用的小文本助手（往输入框里写值） |
-| `TEXT_MODEL_BASE_URL` | `https://api.deepseek.com/v1` | 该助手的地址 |
-| `TEXT_MODEL` | `deepseek-chat` | 该助手用的模型 |
+| `TEXT_MODEL_API_KEY` | — | 可选；只给 `browser_goal` 用的小文本助手（往输入框里写值）。不设时该助手继承决策模型的 provider |
+| `TEXT_MODEL_BASE_URL` | `https://api.deepseek.com/v1` | 该助手的地址；设了它**或** `TEXT_MODEL_API_KEY` 就等于放弃继承决策模型的 provider |
+| `TEXT_MODEL` | `deepseek-chat` | 该助手用的模型；助手继承 provider 时必须显式指定（`deepseek-chat` 不是 OpenRouter 的 slug） |
 
 `JEVMCP_MODE=attach` 是「用我已经开着的那个浏览器」这条路 —— 需要的登录态本来就在你自己的 profile
 里时，走这条。Chrome 144+ 是用 `chrome://inspect/#remote-debugging` 开它的，而那个服务对
@@ -606,9 +608,19 @@ OpenRouter 的 decisions 路由。给了 `verify` 检查时返回 `verified: PAS
 「没人在听」。attach 模式只会碰它自己打开的那个标签页：`browser_close` 是**断开**而不是退出，服务进程
 结束时也一样。你其他的窗口、以及里面的登录态，不会被关掉。
 
-上面最后七行之前的所有变量都是本地的：它们配置的是你机器上的浏览器。只有「决策模型」这一组会联外，
-而且只在 `browser_goal` 真正跑起来时才会。把 `TYPESAFE_BASE_URL` 指到 OpenRouter，那么一把
-`OPENROUTER_API_KEY` 就同时覆盖决策模型和文本助手，也不需要 TypeSafe 账号。
+上面最后八行之前的所有变量都是本地的：它们配置的是你机器上的浏览器。只有「决策模型」这一组会联外，
+而且只在 `browser_goal` 真正跑起来时才会。
+
+决策模型有两条路，`JEV_PROVIDER` 指名走哪条：`typesafe` 是 Jev 自己的 API；`openrouter` 是同一个模型
+走 OpenRouter 的 decisions 路由，不需要 TypeSafe 账号，也是这个变量出现之前就有的那条路 ——
+`TYPESAFE_BASE_URL` 两种情况下都仍然覆盖 URL，并且是 `JEV_PROVIDER` 未设时用来推断 provider 的依据，
+所以在它之前写好的配置照样能用。
+
+两条路里只有 OpenRouter 还提供 chat 接口，所以只有它能被文本助手继承：设上 `JEV_PROVIDER=openrouter`，
+再用 `TEXT_MODEL` 指定一个 chat 模型，一把 `OPENROUTER_API_KEY` 就同时覆盖两个模型。Jev 自己的 API
+只回答选择题、从不写散文，所以在它下面 `TYPE_TEXT` 得另配一个 chat provider（`TEXT_MODEL_API_KEY`）。
+无论哪种情况，key 和地址永远取自同一个 provider —— 把 key 借给另一家，换来的是一个 401，而且报的
+还是你没调用过的那家公司的名字。
 
 如果你要拿它操作自己的账号，有两个值得先设上：`JEVMCP_ALLOW_DOMAINS` 把浏览器钉死在一组域名内，
 之外一律拒绝；配一个持久的 `JEVMCP_PROFILE_DIR`，让你手动登录一次，而不是把密码教给模型。

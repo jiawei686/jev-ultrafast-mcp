@@ -84,8 +84,8 @@ def main() -> int:
     cfg = Config.from_env()
     if not policy.available(cfg):
         print("skipped: no decision-model key.")
-        print("  set TYPESAFE_API_KEY, or OPENROUTER_API_KEY with")
-        print("  TYPESAFE_BASE_URL=https://openrouter.ai/api/alpha/decisions")
+        print("  set TYPESAFE_API_KEY, or JEV_PROVIDER=openrouter with OPENROUTER_API_KEY")
+        print("  (equivalently, TYPESAFE_BASE_URL=https://openrouter.ai/api/alpha/decisions)")
         return 0
 
     # Imported here, not at the top: the server reads its configuration once, at
@@ -93,9 +93,11 @@ def main() -> int:
     # they would be silently ignored.
     from jev_ultrafast_mcp.server import MANAGER, browser_goal, browser_open
 
-    print(f"decision model: {cfg.typesafe_model} via {cfg.typesafe_endpoint}")
-    text_ready = bool(cfg.text_model_key)
-    print(f"text helper   : {'configured' if text_ready else 'not configured (goal needs no typing)'}")
+    print(f"decision model: {cfg.typesafe_model} via {cfg.provider} ({cfg.typesafe_endpoint})")
+    if cfg.text_model_key:
+        print(f"text helper   : {cfg.text_model} at {cfg.text_model_base}")
+    else:
+        print("text helper   : not configured (goal needs no typing)")
     print(f"goal          : {args.goal}\n")
 
     httpd, base = serve(ROOT / "tests")

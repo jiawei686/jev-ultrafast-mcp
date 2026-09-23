@@ -1,11 +1,18 @@
 """Configuration. Everything is environment-driven so an MCP client can set it.
 
 No key is needed for the browser path: open, observe, act, assert and macro all
-run against a local Chrome and never call out. A decision model is opt-in. Set
-TYPESAFE_API_KEY to reach TypeSafe directly, or set TYPESAFE_BASE_URL to an
-OpenRouter decisions URL so OPENROUTER_API_KEY pays for it instead. Without
-either, `browser_goal` reports `turbo_unavailable` and executes nothing, while
-the rest of the surface is unaffected.
+run against a local Chrome and never call out. A decision model is opt-in, and it
+is reachable through two APIs that are both supported here:
+
+    JEV_PROVIDER=typesafe     Jev's own API, paid for with TYPESAFE_API_KEY (the default)
+    JEV_PROVIDER=openrouter   the same model through OpenRouter, paid for with
+                              OPENROUTER_API_KEY and no TypeSafe account
+
+`TYPESAFE_BASE_URL` still overrides the decisions URL for either, and is what the
+provider is inferred from when `JEV_PROVIDER` is unset, so every existing
+configuration keeps working. Without a key, `browser_goal` reports
+`turbo_unavailable` and executes nothing, while the rest of the surface is
+unaffected.
 """
 
 from __future__ import annotations
@@ -76,34 +83,137 @@ def _env_list(name: str) -> list[str]:
 TYPESAFE_ENDPOINT = "https://api.typesafe.ai/v1/systemone"
 OPENROUTER_ENDPOINT = "https://openrouter.ai/api/alpha/decisions"
 
+DEFAULT_PROVIDER = "typesafe"
+DEFAULT_TEXT_BASE = "https://api.deepseek.com/v1"
+DEFAULT_TEXT_MODEL = "deepseek-chat"
 
-def _turbo_backend() -> tuple[str, str | None]:
-    """Resolve (endpoint, api key) for the decision model.
+# Jev is reachable through more than one API, and both are first-class here rather than one
+# being the default and the other being a variable named after its competitor. Every route
+# speaks the same `{model, state, questions}` contract, so a provider is three facts: where
+# decisions are posted, which variable holds the key, and whether that provider *also* serves
+# an OpenAI-compatible chat route the text helper can borrow.
+#
+# That third fact is a separate question and is asked separately, because these are different
+# APIs rather than two URLs for one API. Jev's own API answers typed questions; it does not
+# write prose, so a text helper has nothing to inherit from it. Recording that as `None` in the
+# table is what keeps it a fact about the provider instead of a claim in a docstring: giving
+# Jev a chat route later is one line here, and until then the helper refuses by name and says
+# which provider cannot serve it.
+PROVIDERS: dict[str, dict] = {
+    "typesafe": {
+        "endpoint": TYPESAFE_ENDPOINT,
+        "key_vars": ("TYPESAFE_API_KEY",),
+        "chat_base": None,
+    },
+    "openrouter": {
+        "endpoint": OPENROUTER_ENDPOINT,
+        # Its own key, and only its own. An earlier revision accepted TYPESAFE_API_KEY here as a
+        # fallback; no working configuration ever relied on it, because a key issued by one API
+        # does not authenticate against another's host -- it 401s, and the message names the
+        # company that rejected it rather than the variable that is wrong. The fallback made the
+        # table's second column mean "some key" instead of "this provider's key", which is the
+        # one thing the table exists to keep straight.
+        "key_vars": ("OPENROUTER_API_KEY",),
+        "chat_base": "https://openrouter.ai/api/v1",
+    },
+}
 
-    TypeSafe's own endpoint is the default. Every route speaks the same
-    request/response contract -- `{model, state, questions}` in, typed
-    `answers` out -- so switching routes changes only the URL and whose
-    credits pay for it. Pointing TYPESAFE_BASE_URL at OpenRouter lets
-    OPENROUTER_API_KEY pay for the decision model, with no TypeSafe account.
 
-    That covers the *decision* model only. The text helper -- the one that
-    writes a value into a field -- is resolved separately from
-    TEXT_MODEL_API_KEY / TEXT_MODEL_BASE_URL / TEXT_MODEL, and deliberately
-    does not fall back to this key: it posts to a different API, and a key that
-    works for one provider is not evidence that it works for another. Covering
-    both with a single key therefore means pointing TEXT_MODEL_BASE_URL and
-    TEXT_MODEL at that provider too, not expecting the loader to do it.
+def _env(name: str) -> str:
+    return (os.environ.get(name) or "").strip()
+
+
+def resolve_provider() -> str:
+    """Which API pays for the decision model.
+
+    `JEV_PROVIDER` names it outright. With that unset the answer is inferred from
+    `TYPESAFE_BASE_URL`, which is how this was configured before the provider had a name:
+    pointing that variable at OpenRouter is the documented route, so a URL is as good as a
+    word and every existing configuration keeps working unchanged.
+
+    An unrecognised name is ignored rather than raised, and the inference below still runs.
+    `Config.from_env()` runs at import, so a typo in one optional variable must not take down
+    the whole server -- including the browser surface that needs no key at all. It is not
+    silent either: `provider_note()` reports it, which is where a typo belongs.
     """
-    url = os.environ.get("TYPESAFE_BASE_URL", "").strip()
+    explicit = _env("JEV_PROVIDER").lower()
+    if explicit in PROVIDERS:
+        return explicit
+    if "openrouter.ai" in _env("TYPESAFE_BASE_URL"):
+        return "openrouter"
+    return DEFAULT_PROVIDER
+
+
+def provider_endpoint(provider: str) -> str:
+    """Where decisions are posted, honouring `TYPESAFE_BASE_URL` as a custom-endpoint override.
+
+    The override outlives the provider it was named after -- a proxy, a staging host and
+    OpenRouter itself are all just a different URL -- so it is still honoured when it is set.
+
+    One case is not honoured: a URL naming a *different* provider than the one selected. That
+    is a contradiction, and the explicitly named provider wins, because the alternative is
+    sending one API's key to another API's host and reporting the 401 as if the key were bad.
+    A URL that names no provider is a proxy or a staging host and is taken at face value.
+    """
+    url = _env("TYPESAFE_BASE_URL").rstrip("/")
     if not url:
-        return TYPESAFE_ENDPOINT, os.environ.get("TYPESAFE_API_KEY")
-    url = url.rstrip("/")
-    if "openrouter.ai" in url:
-        if not url.endswith("/decisions"):
-            url += "/api/alpha/decisions"
-        key = os.environ.get("TYPESAFE_API_KEY") or os.environ.get("OPENROUTER_API_KEY")
-        return url, key
-    return url, os.environ.get("TYPESAFE_API_KEY")
+        return PROVIDERS[provider]["endpoint"]
+    for name in PROVIDERS:
+        if name != provider and name in url:
+            return PROVIDERS[provider]["endpoint"]
+    if provider == "openrouter" and not url.endswith("/decisions"):
+        return url + "/api/alpha/decisions"
+    return url
+
+
+def provider_note() -> str | None:
+    """A sentence for `browser_doctor` when `JEV_PROVIDER` names something unknown.
+
+    Unrecognised is deliberately not fatal -- see `resolve_provider` -- but it must not be
+    silent either, or a typo turns into a mystery 401 against a provider the caller never
+    chose and has no reason to suspect.
+    """
+    raw = _env("JEV_PROVIDER")
+    if raw and raw.lower() not in PROVIDERS:
+        return (f"JEV_PROVIDER={raw!r} is not a provider this build knows "
+                f"({', '.join(sorted(PROVIDERS))}); the default ({DEFAULT_PROVIDER}) is in use.")
+    return None
+
+
+def _provider_key(provider: str) -> str | None:
+    for name in PROVIDERS[provider]["key_vars"]:
+        value = _env(name)
+        if value:
+            return value
+    return None
+
+
+def _text_backend(provider: str, decision_key: str | None) -> tuple[str, str | None, str | None]:
+    """Resolve (base, key, model) for the text helper.
+
+    An explicit `TEXT_MODEL_*` configuration always wins and keeps its DeepSeek default -- that
+    is the long-standing route and it must not change under anyone who already relies on it.
+
+    With nothing set, the helper inherits *the provider the decision model is already using*,
+    and inherits both halves together: the key and the base URL come from the same provider, so
+    the request is authenticated by the API it is actually sent to. Borrowing the key alone is
+    the mistake this shape exists to prevent -- it would post to DeepSeek's URL with an
+    OpenRouter key and earn a 401 naming the wrong company, and a run diagnosed from the wrong
+    provider's error is a run nobody diagnoses.
+
+    The model slug is deliberately *not* inherited. `deepseek-chat` is not an OpenRouter slug,
+    and guessing one would turn a clear refusal into a confusing 400. Inheriting therefore
+    requires the caller to name the model, and the helper refuses by name when they have not.
+    """
+    explicit_key = _env("TEXT_MODEL_API_KEY")
+    explicit_base = _env("TEXT_MODEL_BASE_URL")
+    if explicit_key or explicit_base:
+        return (explicit_base or DEFAULT_TEXT_BASE, explicit_key,
+                _env("TEXT_MODEL") or DEFAULT_TEXT_MODEL)
+    chat_base = PROVIDERS[provider]["chat_base"]
+    if chat_base and decision_key:
+        return chat_base, decision_key, _env("TEXT_MODEL") or None
+    return DEFAULT_TEXT_BASE, None, _env("TEXT_MODEL") or DEFAULT_TEXT_MODEL
 
 
 def find_chrome(explicit: str | None = None) -> str:
@@ -162,15 +272,23 @@ class Config:
     secret_patterns: list[str] = field(default_factory=lambda: list(DEFAULT_SECRET_PATTERNS))
     typesafe_key: str | None = None
     typesafe_model: str = "jev-latest"
+    # Which API pays for the decision model: "typesafe" (Jev's own) or "openrouter".
+    # Named by JEV_PROVIDER, or inferred from TYPESAFE_BASE_URL. See PROVIDERS.
+    provider: str = DEFAULT_PROVIDER
     # Where the decision model lives. Same wire contract at every route, so the
     # only thing that changes is the URL and whose credits pay for it.
     #   TypeSafe direct : https://api.typesafe.ai/v1/systemone   (TYPESAFE_API_KEY)
     #   OpenRouter      : https://openrouter.ai/api/alpha/decisions (OPENROUTER key;
     #                     note the path is outside /api/v1)
-    typesafe_endpoint: str = "https://api.typesafe.ai/v1/systemone"
+    typesafe_endpoint: str = TYPESAFE_ENDPOINT
+    # The text helper. An explicit TEXT_MODEL_* configuration wins; otherwise both halves
+    # are inherited from `provider` together, so key and base URL never disagree.
+    # `text_model` is None only in the inherited case, where the caller has not named a
+    # model the provider actually serves -- and the helper refuses by name rather than
+    # guessing a slug.
     text_model_key: str | None = None
-    text_model_base: str = "https://api.deepseek.com/v1"
-    text_model: str = "deepseek-chat"
+    text_model_base: str = DEFAULT_TEXT_BASE
+    text_model: str | None = DEFAULT_TEXT_MODEL
     nav_timeout: float = 20.0
     call_timeout: float = 30.0
     settle_timeout: float = 4.0            # max wait for a client-rendered page to show elements
@@ -180,7 +298,10 @@ class Config:
     def from_env(cls) -> "Config":
         profile = os.environ.get("JEVMCP_PROFILE_DIR")
         attach_profile = os.environ.get("JEVMCP_ATTACH_PROFILE_DIR")
-        turbo_endpoint, turbo_key = _turbo_backend()
+        provider = resolve_provider()
+        turbo_endpoint = provider_endpoint(provider)
+        turbo_key = _provider_key(provider)
+        text_base, text_key, text_model = _text_backend(provider, turbo_key)
         window = os.environ.get("JEVMCP_WINDOW", "1280x860")
         try:
             w, h = (int(part) for part in window.lower().split("x", 1))
@@ -210,10 +331,11 @@ class Config:
             confirm_patterns=_env_list("JEVMCP_CONFIRM_PATTERNS") or list(DEFAULT_DENY_PATTERNS),
             typesafe_key=turbo_key,
             typesafe_model=os.environ.get("TYPESAFE_MODEL", "jev-latest"),
+            provider=provider,
             typesafe_endpoint=turbo_endpoint,
-            text_model_key=os.environ.get("TEXT_MODEL_API_KEY"),
-            text_model_base=os.environ.get("TEXT_MODEL_BASE_URL", "https://api.deepseek.com/v1"),
-            text_model=os.environ.get("TEXT_MODEL", "deepseek-chat"),
+            text_model_key=text_key,
+            text_model_base=text_base,
+            text_model=text_model,
             settle_timeout=float(os.environ.get("JEVMCP_SETTLE_TIMEOUT", "4.0")),
             settle_poll_ms=int(os.environ.get("JEVMCP_SETTLE_POLL_MS", "120")),
         )

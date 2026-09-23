@@ -50,8 +50,9 @@ Cline, Windsurf, Gemini CLI). MIT licensed. Requires Python ≥ 3.10 and any Chr
   tab/session tools make **no network calls and need no API key**. Nothing about the page leaves
   the machine.
 - `browser_goal` is the one part that calls out, and it is opt-in. It sends the goal and the
-  current element table to a decision model, so it needs `TYPESAFE_API_KEY`, or
-  `OPENROUTER_API_KEY` with `TYPESAFE_BASE_URL` pointed at
+  current element table to a decision model, so it needs a key for one of the two APIs that serve
+  it: `TYPESAFE_API_KEY` for Jev's own API (the default), or `OPENROUTER_API_KEY` with
+  `JEV_PROVIDER=openrouter` — equivalently `TYPESAFE_BASE_URL` pointed at
   `https://openrouter.ai/api/alpha/decisions`. Without either it reports `turbo_unavailable:` and
   executes nothing.
 - The model never emits a selector, a coordinate or JS. It picks a `ref` from the element table; the
