@@ -204,6 +204,23 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **The in-page helper's version was stated three times, and the copy that decides everything was
+  pinned by nothing.** `_ensure_helper` reads the number a page reports and re-injects
+  `js/observer.js` when it differs from `browser.HELPER_VERSION`. Three files state that number: the
+  server's constant, `chrome-extension/lib/session.js`'s export — and the `VERSION` inside the helper
+  itself, which is the one a page actually announces. The first two were held to each other by
+  `act-parity.mjs`; the third was held to nothing, and `6c6f77b` had left it at 6 while the server
+  moved to 7. Nothing warned, because the comparison looked like it was doing its job. Two
+  consequences, both silent. The helper — 25,315 bytes of source — was re-sent on every observation
+  and every input op, since the check could never be satisfied. And the early return at the top of
+  that source fired against the *old* number, so a page that already had the helper kept the one it
+  had: the behaviour change the bump was made for never reached the tabs that had been injected
+  before it, and the cost of trying was paid on every call. The number is declared once in the helper
+  now, used by both the guard and the value it reports, and `tests/test_helper_version.py` pins all
+  three copies by reading the source — the runtime parity check needs Node, and the fake page in
+  `test_session_prep.py` answers `HELPER_VERSION`, which is the right thing for a test about setup
+  commands to do and also why this went unseen for a release: a fake that agrees with the server
+  cannot disagree with the source.
 - **A screenshot could be written anywhere the process can write.** `screenshot`'s `path` was honoured
   as a *destination* when it was absolute, so `{"op": "screenshot", "path": "/tmp/x.png"}` wrote to
   `/tmp/x.png` — and to `~/.zshrc`, or anything else, with the caller's choice of name. The branch
@@ -278,7 +295,10 @@ All notable changes to this project are documented here. The format follows
   list considered it ordinary. All twenty are word-bounded now, and a test holds the two detectors to
   the same verdict on nineteen names, because this failure is invisible from either side alone.
   `HELPER_VERSION` goes to 7 — the helper's behaviour changed, so a page still carrying the old one
-  has to be re-injected — and the act fixtures were regenerated for the version they pin.
+  has to be re-injected — and the act fixtures were regenerated for the version they pin. *That
+  re-injection did not happen*: the number was raised in the server and not in the helper, so the
+  check could never be satisfied and a page kept the detector it had. See the first entry under
+  *Fixed*.
   Landing it took two attempts, both of which failed silently and are worth recording. A backslash
   typed into the script is a backslash nobody counted; and `re.subn` interprets escapes in its
   *replacement*, so the doubled backslash meant to survive into the JS was collapsed back to one. JS

@@ -18,8 +18,17 @@
  */
 (() => {
   const W = window;
+  // Which helper this is. One declaration, because two copies of a version
+  // number are two versions waiting to disagree: the guard below and the value
+  // this file reports have to be the same fact, and `browser.HELPER_VERSION`
+  // has to match both. It was three separate literals, and the server's had
+  // been bumped while these two had not -- so the check could never be
+  // satisfied, the server re-injected this whole file on every observation, and
+  // a page holding the older helper was never actually upgraded, because the
+  // early return fired on the number it already carried.
+  const VERSION = 7;
   try { if (W !== W.top) return; } catch (_) { return; }
-  if (W.__jevMcp && W.__jevMcp.version === 6) return;
+  if (W.__jevMcp && W.__jevMcp.version === VERSION) return;
 
   // Refs survive a helper re-injection, so an agent can keep referring to e37
   // across observes. `next` is monotonic: a pruned ref is never recycled.
@@ -561,7 +570,7 @@
   const stats = () => ({ refs: S.nodes.size, next: S.next, hasSnap: !!S.snap });
 
   W.__jevMcp = {
-    version: 6, readState, verify, reinspect, resolve, scrollTo, selectOption,
+    version: VERSION, readState, verify, reinspect, resolve, scrollTo, selectOption,
     settle, label, stats, keyOf, guardOf,
   };
 })();

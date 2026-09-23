@@ -32,6 +32,14 @@ from .observe import Observation
 from .safety import SafetyError, check_url, confirm_reason, is_secret
 
 HELPER_SRC = (Path(__file__).with_name("js") / "observer.js").read_text(encoding="utf-8")
+# Which helper this server expects a page to be carrying. Three files state it
+# -- here, `chrome-extension/lib/session.js`, and `js/observer.js`'s own
+# `VERSION` -- and the third is the one that decides anything: a page reports
+# the number it was compiled with, so a server number higher than the source's
+# makes the comparison below permanently true and the re-injection permanent.
+# The extension's constant was held to this one by `act-parity.mjs` and the
+# source's was held to nothing, which is how 7 here and 6 in the page survived a
+# release. `tests/test_helper_version.py` pins all three now.
 HELPER_VERSION = 7
 
 MODIFIERS = {
