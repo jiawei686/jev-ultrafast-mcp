@@ -703,7 +703,7 @@ turbo 路径移植自 [`browser-use/jev-ultrafast`](https://github.com/browser-u
 ## 不接 agent 也能试
 
 ```bash
-.venv/bin/python scripts/smoke.py             # 无头，58 项检查
+.venv/bin/python scripts/smoke.py             # 无头，61 项检查
 .venv/bin/python scripts/smoke.py --headed    # 看着它操作
 ```
 
@@ -721,7 +721,7 @@ turbo 路径移植自 [`browser-use/jev-ultrafast`](https://github.com/browser-u
   [ok  ] covered control flagged before any click  — e8 occluded=True
   [ok  ] click on a covered control is refused with a reason  — occluded
 ...
-  58/58 checks passed
+  61/61 checks passed
 ```
 
 想拿真实网站而不是夹具试：
@@ -826,7 +826,7 @@ server.json               官方 MCP registry 条目，由发布流程自动提�
 .venv/bin/pip install -e ".[dev]"
 .venv/bin/ruff check .
 .venv/bin/python -m pytest -q
-.venv/bin/python scripts/smoke.py        # 58 项，真实浏览器
+.venv/bin/python scripts/smoke.py        # 61 项，真实浏览器
 .venv/bin/python scripts/mcp_check.py    # 17 项，真实 stdio MCP
 ```
 

@@ -35,9 +35,9 @@ You need a Chromium-family browser on `PATH`, or point `JEVMCP_CHROME` at one.
 ```bash
 .venv/bin/ruff check .
 .venv/bin/python -m pytest -q
-.venv/bin/python scripts/smoke.py            # 58 checks against a real browser
+.venv/bin/python scripts/smoke.py            # 61 checks against a real browser
 .venv/bin/python scripts/mcp_check.py        # 17 checks over real stdio MCP
-.venv/bin/python scripts/extension_check.py  # 20 checks: the extension's table vs the server's
+.venv/bin/python scripts/extension_check.py  # 33 checks: the extension's table vs the server's
 ```
 
 All five must pass. `smoke.py --headed` lets you watch the browser drive.

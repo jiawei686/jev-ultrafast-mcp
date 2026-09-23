@@ -56,8 +56,8 @@ makes the first available and the second impossible. Having both is the point, b
 that makes delegating safe is the same guard that makes driving yourself safe: the model never emits
 a selector, only a ref that the server verifies against the page before acting on it.
 
-Measured over the full 14-section scenario (29 browser ops, 58 assertions): **15,443 bytes of
-observation reached the model — about 133 tokens per browser operation, page text included.**
+Measured over the full 15-section scenario (30 browser ops, 61 checks): **16,435 bytes of
+observation reached the model — about 137 tokens per browser operation, page text included.**
 A screenshot-per-step loop spends 1,000–1,500 tokens per step on the image alone.
 
 ### 2. Refs are stable; the action space is not

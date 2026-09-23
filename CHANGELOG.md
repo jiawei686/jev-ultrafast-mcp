@@ -764,7 +764,11 @@ All notable changes to this project are documented here. The format follows
 - The in-page helper version is now stated once and matched on both sides (`HELPER_VERSION` in
   `browser.py` had drifted from the `version` the injected script declares, so a page carrying an
   older observer was not always replaced).
-- Smoke is 58 checks; the README, DESIGN and CONTRIBUTING figures are refreshed from an actual run.
+- Smoke is 61 checks and the extension check 33; the README, DESIGN and CONTRIBUTING figures are
+  refreshed from an actual run. The same two figures read 58 and 20 earlier in this release, and
+  DESIGN's byte-per-operation measurement moved with them — a count in prose drifts every time a
+  section is added, which is why it is refreshed from a run rather than dropped: a reader deciding
+  whether to run the suite is owed its size.
 - **Tab references were positional and short-lived.** `switch_tab` / `close_tab` took a list index,
   and that list is renumbered whenever it changes — activating a tab alone can reorder it. Carrying
   an index across calls could close the wrong tab, and an out-of-range index raised a bare

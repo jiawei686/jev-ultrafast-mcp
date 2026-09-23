@@ -778,7 +778,7 @@ a domain allowlist and an account you do not mind breaking.
 ## Try it without an agent
 
 ```bash
-.venv/bin/python scripts/smoke.py             # headless, 58 checks
+.venv/bin/python scripts/smoke.py             # headless, 61 checks
 .venv/bin/python scripts/smoke.py --headed    # watch it drive
 ```
 
@@ -796,7 +796,7 @@ renders after `readyState` already says "complete".
   [ok  ] covered control flagged before any click  — e8 occluded=True
   [ok  ] click on a covered control is refused with a reason  — occluded
 ...
-  58/58 checks passed
+  61/61 checks passed
 ```
 
 To test against the real web rather than a fixture:
@@ -909,7 +909,7 @@ server.json               the MCP registry entry, submitted by the release workf
 .venv/bin/pip install -e ".[dev]"
 .venv/bin/ruff check .
 .venv/bin/python -m pytest -q
-.venv/bin/python scripts/smoke.py        # 58 checks, real browser
+.venv/bin/python scripts/smoke.py        # 61 checks, real browser
 .venv/bin/python scripts/mcp_check.py    # 17 checks, real stdio MCP
 ```
 
