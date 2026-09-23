@@ -503,7 +503,7 @@ e12  btn    Delete account
 | `scroll` | `dir`、`amount`、`ref` |
 | `nav` / `back` / `forward` / `reload` | `url`（`nav` 用） |
 | `wait` / `wait_for_ref` / `wait_for_text` / `wait_for_load` | `ms` / `ref`,`timeout_ms` / `text` / `timeout_ms` |
-| `screenshot` | `path`、`full`、`format`（`jpeg` 或 `png`） |
+| `screenshot` | `path`（截图目录内的文件名）、`full`、`format`（`jpeg` 或 `png`） |
 | `tab` | `action`=`list\|new\|switch\|close`、`target_id`、`index`、`url` |
 | `eval` | `js` —— 仅在 `JEVMCP_ALLOW_JS=1` 时可用 |
 
@@ -697,6 +697,10 @@ turbo 路径移植自 [`browser-use/jev-ultrafast`](https://github.com/browser-u
 它的设计前提就是「不应该被完全信任」。听起来危险的点击会以 `needs_confirmation` 返回而不是直接执行，
 `JEVMCP_ALLOW_DOMAINS` 会拒绝走到你列出的域名之外，敏感字段会脱敏，`eval` 默认关闭。建议先配一个
 域名白名单，再拿一个搞坏了也不心疼的账号试。
+
+这里**唯一默认开启、且没有边界**的能力是 `upload`：它能把本机上任意一个已存在的文件或目录交给页面，
+而只要目标主机在你的信封之内，页面就能收下它。任务不需要上传附件时，设 `JEVMCP_ALLOW_UPLOADS=0`。
+截图是它的镜像，而且**是有边界的** —— 只能写进状态目录内。
 
 ---
 

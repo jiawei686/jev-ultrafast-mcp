@@ -303,7 +303,7 @@ def browser_act(ops: list[dict], session: str = "default", dry_run: bool = False
     wait_for_ref    ref, [timeout_ms=8000]
     wait_for_text   text, [timeout_ms=8000]
     wait_for_load   [timeout_ms=20000]
-    screenshot      [path], [full=false], [format=jpeg]
+    screenshot      [path], [full=false], [format=jpeg]   (path names a file in the shots dir)
     tab             action=list|new|switch|close, [index], [url]
     eval            js                      (only when JEVMCP_ALLOW_JS=1)
 

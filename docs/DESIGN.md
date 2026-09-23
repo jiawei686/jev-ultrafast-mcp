@@ -174,8 +174,9 @@ text.
 | Confirmation rules | Clicks whose accessible name matches `pay now`, `delete account`, `unsubscribe`, … return `needs_confirmation` instead of executing; re-send the op with `"confirm": true` |
 | Secret fields | Password inputs stay **usable** (jev drops them, so it cannot log in) but their value is never serialised: rendered as `«hidden»`, required `confirm` to type into, and never written into a macro |
 | `JEVMCP_ALLOW_JS` | JS evaluation is off by default. `js` assertions and the `eval` op are unreachable without it |
+| `JEVMCP_ALLOW_UPLOADS` | **On by default**, and the `path` it takes is not bounded: `upload` hands any existing file or directory on this machine to the page, which is the one rail here that is a local-filesystem read. It is on because attaching a file is an ordinary browser task, and the switch exists for the deployments where it is not |
 | `dry_run` | `browser_act(..., dry_run=True)` reports what would happen and executes nothing |
-| Screenshots | Written to `~/.jev-ultrafast-mcp/shots/` and reported as a **path**. Base64 never enters the context |
+| Screenshots | Written to `~/.jev-ultrafast-mcp/shots/` and reported as a **path**. `path` names a file *inside* that directory — an absolute path or one with a directory component is refused with `blocked_by_policy` rather than honoured. Base64 never enters the context |
 
 ## Whose browser it is
 

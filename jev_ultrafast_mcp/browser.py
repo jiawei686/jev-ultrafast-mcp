@@ -945,10 +945,47 @@ class Session:
         result = self._call("Page.captureScreenshot", **params)
         return result, "the first capture timed out; this is the second attempt"
 
+    def _shot_name(self, requested: object, ext: str, directory: Path) -> str:
+        """The filename a screenshot op may use, or a refusal.
+
+        `path` is a **name inside** the shots directory, not a destination. It
+        used to be honoured as a destination when absolute, which made this op a
+        write-anywhere primitive for an autonomous agent -- and `docs/DESIGN.md`
+        lists "written to `~/.jev-ultrafast-mcp/shots/`" in the table of what the
+        policy envelope bounds, which was true of no absolute path. Nothing in
+        this repo passes one, so the branch served no flow; the step reports the
+        path it used, which is all a caller needs to read or upload the file.
+
+        Relative directories were flattened silently, and the two names that
+        flatten to nothing (`"."` and `".."`) reached `write_bytes` as the
+        directory itself. That raised `IsADirectoryError` *through* `_run_op`'s
+        except clause, so the tool crashed at the protocol level -- which a host
+        cannot tell apart from a bug in this server. Refusing them is the same
+        fix as for the absolute path, and it is the house rule: refuse and
+        report rather than quietly pick a different file than the caller named.
+
+        A blank `path` means "no name given", which is how the op already reads
+        an absent one, so a generated name is used rather than a refusal.
+        """
+        requested = str(requested or "").strip()
+        if not requested:
+            return f"shot-{int(time.time() * 1000)}.{ext}"
+        if requested != Path(requested).name or requested in {".", ".."}:
+            raise SafetyError(
+                f"screenshot path must be a filename, not a destination: {requested!r} "
+                f"is outside {directory}, where screenshots are written. The step "
+                "reports the path it used."
+            )
+        return requested
+
     def _do_screenshot(self, raw_op: dict) -> tuple[Path, str | None]:
         directory = self.cfg.state_dir / "shots"
         directory.mkdir(parents=True, exist_ok=True)
         fmt = str(raw_op.get("format") or "jpeg").lower()
+        # The name is settled before the capture, so a refused path costs no
+        # page work and no bytes -- a refusal that still takes the screenshot is
+        # a refusal that did the thing it was refusing.
+        name = self._shot_name(raw_op.get("path"), "png" if fmt == "png" else "jpg", directory)
         # `quality` is a JPEG-only parameter and CDP rejects an explicit null
         # for it, so it has to be absent rather than None.
         params: dict = {
@@ -959,10 +996,7 @@ class Session:
             params["quality"] = 80
         result, note = self._capture(params)
         import base64
-        name = raw_op.get("path") or f"shot-{int(time.time() * 1000)}.{'png' if fmt == 'png' else 'jpg'}"
-        path = Path(name)
-        if not path.is_absolute():
-            path = directory / path.name
+        path = directory / name
         path.write_bytes(base64.b64decode(result["data"]))
         return path, note
 

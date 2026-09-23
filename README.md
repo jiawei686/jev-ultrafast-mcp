@@ -544,7 +544,7 @@ Executes ops in order in **one round trip**, then returns a delta.
 | `scroll` | `dir`, `amount`, `ref` |
 | `nav` / `back` / `forward` / `reload` | `url` (for `nav`) |
 | `wait` / `wait_for_ref` / `wait_for_text` / `wait_for_load` | `ms` / `ref`,`timeout_ms` / `text` / `timeout_ms` |
-| `screenshot` | `path`, `full`, `format` (`jpeg` or `png`) |
+| `screenshot` | `path` (a filename inside the shots directory), `full`, `format` (`jpeg` or `png`) |
 | `tab` | `action`=`list\|new\|switch\|close`, `target_id`, `index`, `url` |
 | `eval` | `js` — only when `JEVMCP_ALLOW_JS=1` |
 
@@ -772,6 +772,11 @@ It is built assuming it should not be trusted. Destructive-sounding clicks come 
 `needs_confirmation` instead of executing, `JEVMCP_ALLOW_DOMAINS` refuses navigation outside a
 domain you list, sensitive fields are redacted, and `eval` is off unless you turn it on. Start with
 a domain allowlist and an account you do not mind breaking.
+
+The one capability here that is **on by default and not bounded** is `upload`: it hands any existing
+file or directory on this machine to the page, and a page on a host your envelope allows can then
+receive it. Set `JEVMCP_ALLOW_UPLOADS=0` if the task does not need to attach anything. Screenshots
+are the mirror image and *are* bounded — they can only be written inside the state directory.
 
 ---
 

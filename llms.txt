@@ -60,4 +60,8 @@ Cline, Windsurf, Gemini CLI). MIT licensed. Requires Python ≥ 3.10 and any Chr
   `page_changed`, `needs_confirmation`) rather than guessing.
 - Destructive-sounding clicks are held back as `needs_confirmation`, `JEVMCP_ALLOW_DOMAINS` pins
   navigation to a set of hosts, and secret-looking fields are redacted from observations.
+- Two ops touch this machine's disk. `screenshot` writes only inside the state directory — `path` is
+  a filename, and an absolute path is refused. `upload` reads any existing file or directory, is
+  **on by default**, and is the one capability here that is neither off nor bounded; set
+  `JEVMCP_ALLOW_UPLOADS=0` when the task does not need to attach anything.
 - It does not look at pixels, so a captcha or a canvas-only app is out of scope by design.

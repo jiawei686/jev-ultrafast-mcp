@@ -204,6 +204,34 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **A screenshot could be written anywhere the process can write.** `screenshot`'s `path` was honoured
+  as a *destination* when it was absolute, so `{"op": "screenshot", "path": "/tmp/x.png"}` wrote to
+  `/tmp/x.png` — and to `~/.zshrc`, or anything else, with the caller's choice of name. The branch
+  dates from the initial release and nothing in this repo ever passed an absolute path, so it served
+  no flow; meanwhile `docs/DESIGN.md` lists screenshots in the table of *what the policy envelope
+  bounds*, as "written to `~/.jev-ultrafast-mcp/shots/`", which was true of no absolute path. It is a
+  filename now: an absolute path, or one with a directory component, is refused with
+  `blocked_by_policy` — the code the domain envelope uses, and the split the extension's own comment
+  states, `blocked_by_policy` being about what the caller asked for rather than about a switch. The
+  step still reports the path it used, so reading the file and handing it to `upload` both keep
+  working. Two related shapes were worse than the hole: `"."` and `".."` flattened to the shots
+  directory itself and reached `write_bytes` as a directory, raising `IsADirectoryError` *through*
+  `_run_op`'s except clause — the third instance in this codebase of a refusal escaping as a
+  protocol-level crash, after `policy._validate`'s `AttributeError` and `browser_tabs`' uncaught
+  `SafetyError`. A blank `path` still means "no name given" and takes the generated name, and the name
+  is settled *before* the capture, so a refusal no longer costs a screenshot.
+  `tests/test_screenshot_destination.py` drives `_run_op` and `act` rather than the helper, because
+  the property is what a tool call returns; eleven of its thirteen tests fail against the old code.
+- **The answer to "is it safe?" did not mention the one capability that is on by default and
+  unbounded.** `upload` hands any existing file or directory on this machine to the page, and
+  `JEVMCP_ALLOW_UPLOADS` defaults to `1` — so the README's four rails (confirmation rules, the domain
+  envelope, secret redaction, `eval` off) read as the whole envelope while a local-filesystem read sat
+  outside it, and `docs/DESIGN.md`'s "what the policy envelope adds" table omitted it too. Nothing
+  changed in the code: the switch, its default and `browser_doctor`'s report of it were all already
+  there and honest, and the gap was that a reader had to find them. The README, the Chinese README,
+  `llms.txt` and DESIGN now say it plainly, next to the observation that `allow_js` is off by default
+  while `allow_uploads` is on — an inversion worth stating rather than leaving to be inferred. Whether
+  the default should be `0` is a behaviour decision, not a documentation one, and is left open.
 - **The placeholder a recorded secret is stored under had no name and no documentation.** Recording a
   login wrote `"text": "{{secret}}"` into the macro file — the rule that a secret never reaches disk
   worked — but `{{secret}}` appeared exactly once in the tree, at the line that creates it. Nothing
