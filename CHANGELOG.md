@@ -204,6 +204,27 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **`browser_tabs` could open a tab outside the domain envelope.** `JEVMCP_ALLOW_DOMAINS` and
+  `JEVMCP_DENY_DOMAINS` are the whole of what stands between an agent and a host it was told not to
+  visit, and `browser_doctor` advertises them as a guard — but the guard was applied at one of the
+  two places that create a target. `browser_act`'s `tab` op called `check_url`; `browser_tabs`
+  reached past `Session` to `tab.cdp.call("Target.createTarget", …)` and called nothing, so the same
+  URL was refused through one tool and accepted through the other, and the tab it opened could then
+  be switched to and driven. `browser_tabs` was also annotated `openWorldHint=False`, a claim to the
+  host that it cannot reach a new host; that was false in the same way, and it is now `WRITES` —
+  `readOnlyHint` was already false, so a host was confirming it either way and saying "local" bought
+  no fewer prompts. There is now one guarded
+  door, `Session.open_tab`, and both call sites go through it — including `_attach_page`, whose
+  `url` parameter was dead weight (`start` passed `about:blank` and then navigated, which is what
+  puts the destination through the check). The two copies had drifted in expression as well
+  (`self.background` against `not CONFIG.foreground`; the value agreed, which is why nothing caught
+  it). Refusing is also a message now rather than a crash: `browser_tabs` did not catch
+  `SafetyError`, so a refusal raised out of the tool, which a host cannot tell apart from a bug in
+  this server. `tests/test_navigation_envelope.py` drives the real `Session` with a recording CDP
+  and asserts that both doors reach the same verdict on four URLs, that the server layer issues no
+  navigation command of its own, and that `Target.createTarget` and `Page.navigate` are each issued
+  from exactly one method and that method checks. Six of its eight tests fail against the old code,
+  the structural one naming the duplicate: `['_attach_page', '_run_op']`.
 - **The page's own secret detector disagreed with the server's, in the direction that hides fields.**
   `js/observer.js` builds a regex for "this name looks like a secret" and sets the element's `secret`
   flag from it; `safety.is_secret` is the server's, and `observe.py` masks on the union of the two.

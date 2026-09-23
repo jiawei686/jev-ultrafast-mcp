@@ -126,7 +126,7 @@ class Session:
     # ------------------------------------------------------------- life cycle
 
     def start(self, url: str = "about:blank") -> "Session":
-        self._attach_page("about:blank")
+        self._attach_page()
         if url and url != "about:blank":
             self.navigate(url)
         return self
@@ -175,9 +175,14 @@ class Session:
         self.cdp.call("Page.addScriptToEvaluateOnNewDocument", session_id=self.page_session,
                       source=HELPER_SRC)
 
-    def _attach_page(self, url: str) -> None:
-        result = self.cdp.call("Target.createTarget", url=url, background=self.background)
-        self.target_id = result["targetId"]
+    def _attach_page(self) -> None:
+        """Create the session's own tab and attach to it.
+
+        The URL is not a parameter: `start` opens on `about:blank` and then
+        navigates, which is what puts the destination through `check_url`. A
+        parameter here would be a second way into a target that does not.
+        """
+        self.target_id = self.open_tab("about:blank")
         self.page_session = self.cdp.call(
             "Target.attachToTarget", targetId=self.target_id, flatten=True
         )["sessionId"]
@@ -253,6 +258,28 @@ class Session:
         self._awaiting_idle = True
         self._idle_deadline = time.monotonic() + self.cfg.settle_timeout
         self._wait_loaded(timeout)
+
+    def open_tab(self, url: str = "about:blank") -> str:
+        """Create a tab at `url`, inside the domain envelope. Returns its target id.
+
+        One place creates targets, because two places is how the guard got lost.
+        `browser_tabs` used to issue `Target.createTarget` itself and never
+        called `check_url`, so a caller could open a tab on a host the envelope
+        refuses, switch to it, and drive it from there -- while the same URL
+        through `browser_act`'s `tab` op was refused. The two copies had also
+        drifted in expression (`self.background` against `not CONFIG.foreground`),
+        which is the other reason not to keep two.
+
+        `background` is the session's, not a second reading of the config: it is
+        what `_attach_page` uses, and a tab opened by a tool that disagrees with
+        the tab the session opened is a window that steals focus or does not.
+        """
+        check_url(self.cfg, url)
+        target_id = self.cdp.call(
+            "Target.createTarget", url=url, background=self.background
+        )["targetId"]
+        self._refresh_tabs()
+        return target_id
 
     def _wait_loaded(self, timeout: float | None = None) -> bool:
         deadline = time.monotonic() + (timeout or self.cfg.nav_timeout)
@@ -820,9 +847,7 @@ class Session:
                 elif action == "close":
                     self.close_tab(index, target_id=target_id)
                 elif action == "new":
-                    url = str(raw_op.get("url") or "about:blank")
-                    check_url(self.cfg, url)
-                    self.cdp.call("Target.createTarget", url=url, background=self.background)
+                    self.open_tab(str(raw_op.get("url") or "about:blank"))
                 self._refresh_tabs()
                 which = target_id or (index if index is not None else "current")
                 target_label = f"{action} tab {which}"

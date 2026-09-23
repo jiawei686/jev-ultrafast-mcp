@@ -60,10 +60,17 @@ def test_the_writes_do_not_pretend_to_be_reads():
 
 
 def test_open_world_marks_what_leaves_the_page_you_are_on():
-    """nav/act can reach any host the envelope allows; observing cannot."""
+    """A tool with one action that reaches a new host is an open-world tool.
+
+    `browser_tabs` is in the first group for `action="new"` alone: it creates a
+    target at a caller-supplied URL, which is what `browser_open` does. It was
+    annotated local until the envelope fix, and the claim was false -- the same
+    URL was refused through `browser_act` and accepted through this tool.
+    """
     tools = _tools()
-    for name in ("browser_open", "browser_act", "browser_goal", "browser_macro"):
+    for name in ("browser_open", "browser_act", "browser_goal", "browser_macro",
+                 "browser_tabs"):
         assert tools[name].annotations.open_world_hint is True, name
     for name in ("browser_observe", "browser_assert", "browser_sessions",
-                 "browser_doctor", "browser_tabs", "browser_close"):
+                 "browser_doctor", "browser_close"):
         assert tools[name].annotations.open_world_hint is False, name

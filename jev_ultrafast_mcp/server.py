@@ -84,6 +84,14 @@ atexit.register(MANAGER.shutdown)
 # (observe, assert, sessions, doctor). Declaring reads as reads is what lets a
 # host stop interrupting them, and the hint is cheap insurance even where the
 # client ignores it.
+#
+# `openWorldHint` is per tool, and a tool with one action that reaches a new host
+# is an open-world tool: `browser_act` can `wait`, and it is still `WRITES`.
+# `browser_tabs` was `WRITES_LOCAL` because listing and closing tabs are local,
+# but `action="new"` creates a target at a caller-supplied URL — the same thing
+# `browser_open` does, and it is annotated open-world. It already declares
+# `readOnlyHint=False`, so a host is confirming it either way; saying "local"
+# bought no fewer prompts and was simply untrue.
 READ_ONLY = ToolAnnotations(
     readOnlyHint=True, idempotentHint=True, openWorldHint=False,
 )
@@ -610,7 +618,7 @@ def browser_goal(goal: str, url: str = "", session: str = "default", max_steps: 
         return _error(exc)
 
 
-@SERVER.tool(annotations=WRITES_LOCAL)
+@SERVER.tool(annotations=WRITES)
 def browser_tabs(session: str = "default", action: str = "list", index: int = -1,
                  target_id: str = "", url: str = "about:blank") -> str:
     """List, open, switch to, or close tabs.
@@ -620,14 +628,16 @@ def browser_tabs(session: str = "default", action: str = "list", index: int = -1
     positional and get renumbered whenever the tab list changes, so an index
     read a call ago can address a different tab. `index` is a convenience when
     listing and acting in the same breath; omit both to mean "the current tab".
+
+    `url` is checked against the domain envelope, like every other way of
+    choosing a destination.
     """
     try:
         tab = _session(session)
         if action == "list":
             return _tabs_list(tab)
         if action == "new":
-            tab.cdp.call("Target.createTarget", url=url, background=not CONFIG.foreground)
-            tab._refresh_tabs()
+            tab.open_tab(url)
             return "opened new tab\n" + _tabs_list(tab)
         which = index if index >= 0 else None
         if action == "switch":
@@ -638,7 +648,7 @@ def browser_tabs(session: str = "default", action: str = "list", index: int = -1
             tab.close_tab(which, target_id=target_id or None)
             return f"closed tab {target_id or which or 'current'}"
         return f"unknown tab action {action!r}"
-    except (ChromeLaunchError, CdpError, PageStale) as exc:
+    except (ChromeLaunchError, SafetyError, CdpError, PageStale) as exc:
         return _error(exc)
 
 
