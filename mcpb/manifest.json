@@ -1,0 +1,108 @@
+{
+  "manifest_version": "0.4",
+  "name": "jev-ultrafast-mcp",
+  "display_name": "jev-ultrafast-mcp",
+  "version": "0.1.5",
+  "description": "Hand a whole browser task off in one call: a server-side decision model drives the page.",
+  "long_description": "An MCP server that drives the page for your agent instead of making the agent do the driving.\n\nA browser task goes over whole -- the URL, the goal, and the check that proves it -- and the loop runs on the server. One tool call instead of twenty. The page never enters your agent's context, and nothing is sent as a screenshot: the server reads a ref-based element table and acts on refs from it.\n\nIt never invents a target. It picks from what the page actually has, and refuses with a reason rather than guessing. `browser_open`, `browser_observe` and `browser_assert` are direct, free and keyless, so reading a page stays cheap; the handoff is for work that changes the page.\n\nSpeaks the Chrome DevTools Protocol to the Chrome you already have. No Playwright, no Selenium, no browser harness.",
+  "author": {
+    "name": "jiawei686",
+    "url": "https://github.com/jiawei686"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jiawei686/jev-ultrafast-mcp"
+  },
+  "homepage": "https://github.com/jiawei686/jev-ultrafast-mcp",
+  "documentation": "https://github.com/jiawei686/jev-ultrafast-mcp/blob/main/docs/DESIGN.md",
+  "support": "https://github.com/jiawei686/jev-ultrafast-mcp/issues",
+  "icon": "icon.png",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "browser-automation",
+    "browser-agent",
+    "chrome-devtools-protocol",
+    "cdp",
+    "ai-agents",
+    "agent-tools",
+    "web-automation"
+  ],
+  "server": {
+    "type": "uv",
+    "entry_point": "server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--directory", "${__dirname}", "jev-ultrafast-mcp"],
+      "env": {
+        "TYPESAFE_API_KEY": "${user_config.typesafe_api_key}",
+        "OPENROUTER_API_KEY": "${user_config.openrouter_api_key}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "browser_open",
+      "description": "Open a URL in its own tab and return the element table."
+    },
+    {
+      "name": "browser_observe",
+      "description": "Re-read the page: a delta by default, or the full element table on demand."
+    },
+    {
+      "name": "browser_act",
+      "description": "Run a list of ops in one round trip, then return a delta."
+    },
+    {
+      "name": "browser_assert",
+      "description": "Deterministic checks on the page, with no model judgement about whether it worked."
+    },
+    {
+      "name": "browser_macro",
+      "description": "Record a flow once, then replay it with zero model calls."
+    },
+    {
+      "name": "browser_goal",
+      "description": "Hand the whole task over: a decision model drives the page to the end server-side, and code checks the result."
+    },
+    {
+      "name": "browser_tabs",
+      "description": "List, open, switch and close tabs."
+    },
+    {
+      "name": "browser_sessions",
+      "description": "List the live browser sessions."
+    },
+    {
+      "name": "browser_close",
+      "description": "Tear a session down."
+    },
+    {
+      "name": "browser_doctor",
+      "description": "Self-check: which browser was found, and whether it is reachable."
+    }
+  ],
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  },
+  "user_config": {
+    "typesafe_api_key": {
+      "type": "string",
+      "title": "Decision-model key (Jev)",
+      "description": "Only needed for browser_goal. Every other tool works without a key. Leave blank to keep the reading tools keyless.",
+      "sensitive": true,
+      "required": false
+    },
+    "openrouter_api_key": {
+      "type": "string",
+      "title": "Decision-model key (OpenRouter)",
+      "description": "Alternative to the above. Setting this selects the OpenRouter provider, which also needs TEXT_MODEL set to an OpenRouter slug such as deepseek/deepseek-chat.",
+      "sensitive": true,
+      "required": false
+    }
+  }
+}

@@ -8,6 +8,34 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **A Claude Desktop bundle, and the entry point that would have shipped broken.** `mcpb/` plus
+  `scripts/build_mcpb.py` pack the server as a `.mcpb`, the format Claude Desktop installs by
+  double-click. The manifest declares `server.type: "uv"` rather than `"python"`, because the MCPB
+  spec is explicit that a `python` bundle cannot portably carry compiled dependencies, and this
+  project's `mcp` SDK pulls in pydantic, which is compiled — a `python` bundle would install and
+  then die on the user's machine, which is the worst place to find out.
+  The first version of the manifest pointed `entry_point` at `jev_ultrafast_mcp/server.py`, and that
+  cannot work: the module uses relative imports, so running it as a script fails with "attempted
+  relative import with no known parent package". The manifest validated against its schema anyway,
+  because the schema only asks whether the field is a string. It was found by unpacking the bundle
+  and running the entry point — which is now what `scripts/check_bundle.py` does in CI, and why
+  `tests/test_mcpb.py` builds the archive and asserts the file the manifest names is inside it.
+  `build_mcpb.py` refuses to build when the manifest's version disagrees with `pyproject.toml`, and
+  warns (or, with `--require-release`, fails) when `HEAD` is not the tag that version claims to be:
+  `main` normally carries unreleased commits, so a bundle built from it declares a version whose
+  code it does not contain. The workflow validates and uploads, but deliberately does not attach the
+  file to a release — that is a distribution decision, not a build artefact.
+- **`smithery.yaml`**, so a Smithery listing can start the server from PyPI with no checkout. Its
+  config schema requires nothing: the reading tools are keyless and only `browser_goal` needs a
+  decision-model key. The command function builds `env` conditionally rather than emitting empty
+  strings, because an env var that is present but blank is not the same thing as one that was never
+  set — this server reads the provider as a fact about the configuration.
+- **The READMEs' machine-readable surfaces.** `## Configuration` gained a `Required` column and
+  `## Tools` now opens with a `| Tool | Description |` table, which is the shape the directory
+  crawlers parse. The PyPI install path also moved out of a collapsed `<details>` block into a real
+  `## Installation` section, where a reader can actually see it. Nothing about the project changed:
+  it was already installable from PyPI and the one-liners were already written, just folded shut.
+
 - **The macro resolver the extension replays with — ported, and held to Python.** A replay needs a
   resolver and the server already has one, so `chrome-extension/lib/macro.js` is a port of
   `macros.py` rather than a second opinion about it: the same scoring rules, the same three

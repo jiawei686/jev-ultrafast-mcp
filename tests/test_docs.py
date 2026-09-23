@@ -142,12 +142,18 @@ def test_every_version_in_the_tree_agrees():
     The extension's manifest is here for the same reason: Chrome shows that version next to the
     name, and the extension ships the server's observer, so the two numbers describing one thing
     should not be able to disagree.
+
+    The bundle manifest is here for a third version of the same reason. It is the one site a
+    *person* sees without reading any code -- Claude Desktop shows it on the install dialog -- and
+    it is the only one that travels as a downloadable file, so a bundle whose number disagrees with
+    the package inside it is a file that lies about itself after it has already been handed over.
     """
     entry = json.loads((ROOT / "server.json").read_text(encoding="utf-8"))
     init = (ROOT / "jev_ultrafast_mcp" / "__init__.py").read_text(encoding="utf-8")
     server = (ROOT / "jev_ultrafast_mcp" / "server.py").read_text(encoding="utf-8")
     manifest = json.loads(
         (ROOT / "chrome-extension" / "manifest.json").read_text(encoding="utf-8"))
+    bundle = json.loads((ROOT / "mcpb" / "manifest.json").read_text(encoding="utf-8"))
 
     versions = {
         "pyproject.toml": _pyproject()["project"]["version"],
@@ -156,6 +162,7 @@ def test_every_version_in_the_tree_agrees():
         "__init__.py": re.search(r'__version__ = "([^"]+)"', init).group(1),
         "server.py": re.search(r'version="([^"]+)"', server).group(1),
         "chrome-extension/manifest.json": manifest["version"],
+        "mcpb/manifest.json": bundle["version"],
     }
 
     assert len(set(versions.values())) == 1, versions

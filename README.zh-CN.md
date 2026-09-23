@@ -48,6 +48,40 @@ Windsurf、Gemini CLI，并按各家要求的格式写配置 —— 它是**合�
 **重启后没看到工具？** 有的客户端要你手动批准一次。WorkBuddy 是在 *连接器 → 自定义连接器 →
 **信任***。这个批准是记在配置本身上的，所以你之后改了配置，它会再问一次。
 
+## 安装
+
+不想克隆也可以，直接当包装。已经上 PyPI 了，有名字就够：
+
+```bash
+uvx jev-ultrafast-mcp                  # 直接从 PyPI 跑，什么都不用装
+pip install jev-ultrafast-mcp          # 或者自己装进环境
+```
+
+客户端配置要的是一个稳定的解释器路径，而不是 `uvx` 的缓存，所以：
+
+```bash
+python3 -m venv ~/.jev-ultrafast-mcp/venv
+~/.jev-ultrafast-mcp/venv/bin/pip install jev-ultrafast-mcp
+```
+
+这会给你一个 `jev-ultrafast-mcp` 命令，以及一个可以填进客户端配置的稳定解释器路径 —— 已在
+Python 3.13 + 最新 `mcp` SDK 上实测：十个工具全部正常列出。
+
+`scripts/install.py` 是另一半：它会找到你机器上的 MCP 客户端，按各自期望的格式写入配置，
+**合并**进现有文件，并且先存一份 `.bak`。
+
+```bash
+python scripts/install.py --list              # 看装了哪些、各自读哪个文件
+python scripts/install.py --print             # 只打印将要写入的配置，不动任何文件
+python scripts/install.py -c cursor,codex     # 只装这两个
+python scripts/install.py --headed            # 保留可见的浏览器窗口
+python scripts/install.py --allow-domains example.com,*.example.org
+python scripts/install.py --uninstall         # 把条目删回去
+```
+
+运行时只依赖 `mcp`、`websockets`、`httpx` —— 不用 Playwright、不用 Selenium、不用
+browser-harness。
+
 ---
 
 ## 便宜又快
@@ -95,40 +129,6 @@ verified: PASS
 | 出错时 | 点错元素，通常无声无息 | **服务端拒绝执行，并给出原因** |
 | 怎么知道做成了 | 模型自己说 | **代码核对的断言，且冲突时断言说了算** |
 | 第二次做同一件事 | 再跑一遍模型 | **回放宏，零模型调用** |
-
-<details>
-<summary><b>当包装装、以及安装脚本的各个开关</b></summary>
-
-不想克隆也可以，直接当包装。已经上 PyPI 了，有名字就够：
-
-```bash
-uvx jev-ultrafast-mcp                  # 直接从 PyPI 跑，什么都不用装
-pip install jev-ultrafast-mcp          # 或者自己装进环境
-```
-
-客户端配置要的是一个稳定的解释器路径，而不是 `uvx` 的缓存，所以：
-
-```bash
-python3 -m venv ~/.jev-ultrafast-mcp/venv
-~/.jev-ultrafast-mcp/venv/bin/pip install jev-ultrafast-mcp
-```
-
-这会给你一个 `jev-ultrafast-mcp` 命令，以及一个可以填进客户端配置的稳定解释器路径 —— 已在
-Python 3.13 + 最新 `mcp` SDK 上实测：十个工具全部正常列出。
-
-```bash
-python scripts/install.py --list              # 看装了哪些、各自读哪个文件
-python scripts/install.py --print             # 只打印将要写入的配置，不动任何文件
-python scripts/install.py -c cursor,codex     # 只装这两个
-python scripts/install.py --headed            # 保留可见的浏览器窗口
-python scripts/install.py --allow-domains example.com,*.example.org
-python scripts/install.py --uninstall         # 把条目删回去
-```
-
-运行时只依赖 `mcp`、`websockets`、`httpx` —— 不用 Playwright、不用 Selenium、不用
-browser-harness。
-
-</details>
 
 ---
 
@@ -482,6 +482,19 @@ e12  btn    Delete account
 
 一共十个，多数会话只会用到其中四个。
 
+| 工具 | 说明 |
+|---|---|
+| `browser_open` | 在自有标签页里打开 URL，并返回元素表 |
+| `browser_observe` | 重读页面：出增量，或按需给全量 |
+| `browser_act` | 在一次往返里按顺序执行一组 ops，然后返回增量 |
+| `browser_assert` | 对页面做确定性断言，不靠模型判断 |
+| `browser_macro` | 录一次流程，之后回放，零模型调用 |
+| `browser_goal` | 把整个任务交出去：由决策模型驱动页面 |
+| `browser_tabs` | 列出、新建、切换、关闭标签页 |
+| `browser_sessions` | 列出当前存活的浏览器会话 |
+| `browser_close` | 收尾一个会话 |
+| `browser_doctor` | 自检：找到的是哪个浏览器、能不能连上 |
+
 ### `browser_open(url, session="default", hint="")`
 在自有标签页里打开 URL，返回完整元素表。`hint` 用一句话重述目标，会被原样回显。
 
@@ -579,35 +592,35 @@ decisions 路由）。给了 `verify` 检查时返回 `verified: PASS/FAIL`。
 
 全部可选，默认值就是设计意图。
 
-| 环境变量 | 默认 | 含义 |
-|---|---|---|
-| `JEVMCP_CHROME` | 自动探测 | Chrome/Chromium/Edge/Brave 可执行文件 |
-| `JEVMCP_MODE` | `launch` | `launch` 自己启动，或 `attach` 到已运行的 CDP |
-| `JEVMCP_CDP_URL` | — | `mode=attach` 时填 `http://127.0.0.1:9222`；也可以直接给 `ws://` 地址跳过发现步骤 |
-| `JEVMCP_ATTACH_PROFILE_DIR` | *(各浏览器默认位置)* | 被 attach 的那个浏览器的 data 目录；自动找不到 `DevToolsActivePort` 时用 |
-| `JEVMCP_HEADLESS` | `1` | `0` 显示窗口 |
-| `JEVMCP_FOREGROUND` | `0` | `1` 激活自有标签页 |
-| `JEVMCP_SANDBOX` | `auto` | 浏览器启动即崩时，`auto` 会用 `--no-sandbox` 重试 |
-| `JEVMCP_WINDOW` | `1280x860` | 浏览器窗口尺寸 |
-| `JEVMCP_PROFILE_DIR` | `~/.jev-ultrafast-mcp/chrome-profile` | 持久化 profile —— 手动登录一次，之后一直保持 |
-| `JEVMCP_ALLOW_DOMAINS` | *（不限）* | 逗号分隔；导航到其他域名会被拒绝 |
-| `JEVMCP_DENY_DOMAINS` | *（无）* | 逗号分隔黑名单 |
-| `JEVMCP_CONFIRM_PATTERNS` | pay / delete / unsubscribe … | 命中这些词的操作需要 `"confirm": true` |
-| `JEVMCP_ALLOW_JS` | `0` | 打开 `eval` 与 js 断言 |
-| `JEVMCP_ALLOW_UPLOADS` | `1` | 控制 `upload` op |
-| `JEVMCP_MAX_ACTIONS` | `250` | 元素表条数上限，按有用程度裁剪 |
-| `JEVMCP_MAX_TEXT` | `6000` | 单次观测的可见文本上限 |
-| `JEVMCP_SETTLE_TIMEOUT` | `4.0` | 打开网址后最多等多久：等页面停止发请求、且元素表不再变化 |
-| `JEVMCP_SETTLE_POLL_MS` | `120` | 等待期间多久重读一次 |
-| `JEVMCP_STATE_DIR` | `~/.jev-ultrafast-mcp` | profile、宏、截图的存放位置 |
-| `JEV_PROVIDER` | `typesafe` | 决策模型由谁付费：`typesafe`（Jev 自己的 API）或 `openrouter` |
-| `TYPESAFE_API_KEY` | — | Jev 自己 API 的 key |
-| `TYPESAFE_BASE_URL` | `https://api.typesafe.ai/v1/systemone` | 决策模型在哪；既是自定义端点，也是 `JEV_PROVIDER` 未设时推断 provider 的依据 |
-| `OPENROUTER_API_KEY` | — | `JEV_PROVIDER=openrouter` 时，OpenRouter decisions 路由的 key |
-| `TYPESAFE_MODEL` | `jev-latest` | 决策模型的 slug |
-| `TEXT_MODEL_API_KEY` | — | 可选；只给 `browser_goal` 用的小文本助手（往输入框里写值）。不设时该助手继承决策模型的 provider |
-| `TEXT_MODEL_BASE_URL` | `https://api.deepseek.com/v1` | 该助手的地址；设了它**或** `TEXT_MODEL_API_KEY` 就等于放弃继承决策模型的 provider |
-| `TEXT_MODEL` | `deepseek-chat` | 该助手用的模型；助手继承 provider 时必须显式指定（`deepseek-chat` 不是 OpenRouter 的 slug） |
+| 环境变量 | 必需 | 默认 | 说明 |
+|---|---|---|---|
+| 否 | `JEVMCP_CHROME` | 自动探测 | Chrome/Chromium/Edge/Brave 可执行文件 |
+| 否 | `JEVMCP_MODE` | `launch` | `launch` 自己启动，或 `attach` 到已运行的 CDP |
+| 否 | `JEVMCP_CDP_URL` | — | `mode=attach` 时填 `http://127.0.0.1:9222`；也可以直接给 `ws://` 地址跳过发现步骤 |
+| 否 | `JEVMCP_ATTACH_PROFILE_DIR` | *(各浏览器默认位置)* | 被 attach 的那个浏览器的 data 目录；自动找不到 `DevToolsActivePort` 时用 |
+| 否 | `JEVMCP_HEADLESS` | `1` | `0` 显示窗口 |
+| 否 | `JEVMCP_FOREGROUND` | `0` | `1` 激活自有标签页 |
+| 否 | `JEVMCP_SANDBOX` | `auto` | 浏览器启动即崩时，`auto` 会用 `--no-sandbox` 重试 |
+| 否 | `JEVMCP_WINDOW` | `1280x860` | 浏览器窗口尺寸 |
+| 否 | `JEVMCP_PROFILE_DIR` | `~/.jev-ultrafast-mcp/chrome-profile` | 持久化 profile —— 手动登录一次，之后一直保持 |
+| 否 | `JEVMCP_ALLOW_DOMAINS` | *（不限）* | 逗号分隔；导航到其他域名会被拒绝 |
+| 否 | `JEVMCP_DENY_DOMAINS` | *（无）* | 逗号分隔黑名单 |
+| 否 | `JEVMCP_CONFIRM_PATTERNS` | pay / delete / unsubscribe … | 命中这些词的操作需要 `"confirm": true` |
+| 否 | `JEVMCP_ALLOW_JS` | `0` | 打开 `eval` 与 js 断言 |
+| 否 | `JEVMCP_ALLOW_UPLOADS` | `1` | 控制 `upload` op |
+| 否 | `JEVMCP_MAX_ACTIONS` | `250` | 元素表条数上限，按有用程度裁剪 |
+| 否 | `JEVMCP_MAX_TEXT` | `6000` | 单次观测的可见文本上限 |
+| 否 | `JEVMCP_SETTLE_TIMEOUT` | `4.0` | 打开网址后最多等多久：等页面停止发请求、且元素表不再变化 |
+| 否 | `JEVMCP_SETTLE_POLL_MS` | `120` | 等待期间多久重读一次 |
+| 否 | `JEVMCP_STATE_DIR` | `~/.jev-ultrafast-mcp` | profile、宏、截图的存放位置 |
+| 否 | `JEV_PROVIDER` | `typesafe` | 决策模型由谁付费：`typesafe`（Jev 自己的 API）或 `openrouter` |
+| 否 | `TYPESAFE_API_KEY` | — | Jev 自己 API 的 key |
+| 否 | `TYPESAFE_BASE_URL` | `https://api.typesafe.ai/v1/systemone` | 决策模型在哪；既是自定义端点，也是 `JEV_PROVIDER` 未设时推断 provider 的依据 |
+| 否 | `OPENROUTER_API_KEY` | — | `JEV_PROVIDER=openrouter` 时，OpenRouter decisions 路由的 key |
+| 否 | `TYPESAFE_MODEL` | `jev-latest` | 决策模型的 slug |
+| 否 | `TEXT_MODEL_API_KEY` | — | 可选；只给 `browser_goal` 用的小文本助手（往输入框里写值）。不设时该助手继承决策模型的 provider |
+| 否 | `TEXT_MODEL_BASE_URL` | `https://api.deepseek.com/v1` | 该助手的地址；设了它**或** `TEXT_MODEL_API_KEY` 就等于放弃继承决策模型的 provider |
+| 否 | `TEXT_MODEL` | `deepseek-chat` | 该助手用的模型；助手继承 provider 时必须显式指定（`deepseek-chat` 不是 OpenRouter 的 slug） |
 
 `JEVMCP_MODE=attach` 是「用我已经开着的那个浏览器」这条路 —— 需要的登录态本来就在你自己的 profile
 里时，走这条。Chrome 144+ 是用 `chrome://inspect/#remote-debugging` 开它的，而那个服务对

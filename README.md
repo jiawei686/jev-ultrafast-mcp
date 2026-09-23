@@ -53,6 +53,42 @@ Restart the client, and then just say what you want:
 WorkBuddy that is *Connectors → Custom connectors → **Trust***. The approval is remembered against
 the config itself, so if you later edit the config it asks once more.
 
+## Installation
+
+No checkout needed if you would rather install it as a package. It is on PyPI, so the name is
+enough:
+
+```bash
+uvx jev-ultrafast-mcp                  # run it straight from PyPI, nothing installed
+pip install jev-ultrafast-mcp          # or install it yourself
+```
+
+A client config wants a stable interpreter path rather than `uvx`'s cache, so:
+
+```bash
+python3 -m venv ~/.jev-ultrafast-mcp/venv
+~/.jev-ultrafast-mcp/venv/bin/pip install jev-ultrafast-mcp
+```
+
+That gives you a `jev-ultrafast-mcp` console script and a stable interpreter path to put in a
+client config — verified against the latest `mcp` SDK on Python 3.13, every one of the ten tools
+listed.
+
+`scripts/install.py` is the other half: it finds your MCP clients and writes the config each one
+expects, merging into the existing file and saving a `.bak` first.
+
+```bash
+python scripts/install.py --list              # what is installed, and the file each one reads
+python scripts/install.py --print             # show the config it would write, change nothing
+python scripts/install.py -c cursor,codex     # only these two
+python scripts/install.py --headed            # keep a visible browser window
+python scripts/install.py --allow-domains example.com,*.example.org
+python scripts/install.py --uninstall         # take the entry back out
+```
+
+Runtime dependencies: `mcp`, `websockets`, `httpx`. No Playwright, no Selenium, no
+`browser-harness`.
+
 ---
 
 ## Cheap and fast, and here is the bill
@@ -102,42 +138,6 @@ The division of labour is the whole design decision, so it is yours to make per 
 | If it goes wrong | a wrong click, usually silent | **the server refuses, with the reason** |
 | Knowing it worked | the model's summary | **code-checked assertion, which wins the disagreement** |
 | Second time around | run the model again | **macro replay, zero model calls** |
-
-<details>
-<summary><b>Installing it as a package, and the installer's flags</b></summary>
-
-No checkout needed if you would rather install it as a package. It is on PyPI, so the name is
-enough:
-
-```bash
-uvx jev-ultrafast-mcp                  # run it straight from PyPI, nothing installed
-pip install jev-ultrafast-mcp          # or install it yourself
-```
-
-A client config wants a stable interpreter path rather than `uvx`'s cache, so:
-
-```bash
-python3 -m venv ~/.jev-ultrafast-mcp/venv
-~/.jev-ultrafast-mcp/venv/bin/pip install jev-ultrafast-mcp
-```
-
-That gives you a `jev-ultrafast-mcp` console script and a stable interpreter path to put in a
-client config — verified against the latest `mcp` SDK on Python 3.13, every one of the ten tools
-listed.
-
-```bash
-python scripts/install.py --list              # what is installed, and the file each one reads
-python scripts/install.py --print             # show the config it would write, change nothing
-python scripts/install.py -c cursor,codex     # only these two
-python scripts/install.py --headed            # keep a visible browser window
-python scripts/install.py --allow-domains example.com,*.example.org
-python scripts/install.py --uninstall         # take the entry back out
-```
-
-Runtime dependencies: `mcp`, `websockets`, `httpx`. No Playwright, no Selenium, no
-`browser-harness`.
-
-</details>
 
 ---
 
@@ -522,6 +522,19 @@ the model re-reads only the part of the page that moved.
 
 Ten tools. Most sessions need four of them.
 
+| Tool | Description |
+|---|---|
+| `browser_open` | Open a URL in its own tab, and return the element table |
+| `browser_observe` | Re-read the page: a delta, or the full table on demand |
+| `browser_act` | Run a list of ops in one round trip, then return a delta |
+| `browser_assert` | Deterministic checks on the page, with no model judgement |
+| `browser_macro` | Record a flow once, then replay it with zero model calls |
+| `browser_goal` | Hand the whole task over: the decision model drives the page |
+| `browser_tabs` | List, open, switch and close tabs |
+| `browser_sessions` | List the live browser sessions |
+| `browser_close` | Tear a session down |
+| `browser_doctor` | Self-check: which browser was found, and whether it answers |
+
 ### `browser_open(url, session="default", hint="")`
 Opens a URL in its own tab and returns the full element table. `hint` restates your goal in one
 line and is echoed back.
@@ -633,35 +646,35 @@ reports which browser was found and whether it is reachable.
 
 All optional; the defaults are the point.
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `JEVMCP_CHROME` | auto-detected | Chrome/Chromium/Edge/Brave executable |
-| `JEVMCP_MODE` | `launch` | `launch` a browser, or `attach` to a running CDP endpoint |
-| `JEVMCP_CDP_URL` | — | `http://127.0.0.1:9222` when `mode=attach`, or a `ws://` URL to skip discovery |
-| `JEVMCP_ATTACH_PROFILE_DIR` | *(browser defaults)* | data directory of the browser being attached to, if `DevToolsActivePort` is not found automatically |
-| `JEVMCP_HEADLESS` | `1` | `0` for a visible window |
-| `JEVMCP_FOREGROUND` | `0` | `1` activates the owned tab |
-| `JEVMCP_SANDBOX` | `auto` | `auto` retries with `--no-sandbox` if the browser aborts on startup |
-| `JEVMCP_WINDOW` | `1280x860` | browser window size |
-| `JEVMCP_PROFILE_DIR` | `~/.jev-ultrafast-mcp/chrome-profile` | persistent profile — log in once, stay logged in |
-| `JEVMCP_ALLOW_DOMAINS` | *(all)* | comma-separated; navigation elsewhere is refused |
-| `JEVMCP_DENY_DOMAINS` | *(none)* | comma-separated blocklist |
-| `JEVMCP_CONFIRM_PATTERNS` | pay / delete / unsubscribe … | clicks matching these need `"confirm": true` |
-| `JEVMCP_ALLOW_JS` | `0` | enables `eval` and `js` assertions |
-| `JEVMCP_ALLOW_UPLOADS` | `1` | gates the `upload` op |
-| `JEVMCP_MAX_ACTIONS` | `250` | element-table cap, applied by usefulness |
-| `JEVMCP_MAX_TEXT` | `6000` | visible-text cap per observation |
-| `JEVMCP_SETTLE_TIMEOUT` | `4.0` | after opening a URL, how long to wait for the page to stop fetching and its element table to stop changing |
-| `JEVMCP_SETTLE_POLL_MS` | `120` | how often to re-read while waiting |
-| `JEVMCP_STATE_DIR` | `~/.jev-ultrafast-mcp` | profile, macros and screenshots |
-| `JEV_PROVIDER` | `typesafe` | which API pays for the decision model: `typesafe` (Jev's own) or `openrouter` |
-| `TYPESAFE_API_KEY` | — | key for Jev's own API |
-| `TYPESAFE_BASE_URL` | `https://api.typesafe.ai/v1/systemone` | where the decision model lives; a custom endpoint, and what the provider is inferred from when `JEV_PROVIDER` is unset |
-| `OPENROUTER_API_KEY` | — | key for OpenRouter's decisions route, when `JEV_PROVIDER=openrouter` |
-| `TYPESAFE_MODEL` | `jev-latest` | decision-model slug |
-| `TEXT_MODEL_API_KEY` | — | optional; only for the small text helper `browser_goal` uses to type a value into a field. Unset, the helper inherits the decision model's provider |
-| `TEXT_MODEL_BASE_URL` | `https://api.deepseek.com/v1` | endpoint for that helper; setting it *or* `TEXT_MODEL_API_KEY` is what opts out of inheriting the decision model's provider |
-| `TEXT_MODEL` | `deepseek-chat` | model for that helper; required when the helper inherits a provider, since `deepseek-chat` is not an OpenRouter slug |
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| No | `JEVMCP_CHROME` | auto-detected | Chrome/Chromium/Edge/Brave executable |
+| No | `JEVMCP_MODE` | `launch` | `launch` a browser, or `attach` to a running CDP endpoint |
+| No | `JEVMCP_CDP_URL` | — | `http://127.0.0.1:9222` when `mode=attach`, or a `ws://` URL to skip discovery |
+| No | `JEVMCP_ATTACH_PROFILE_DIR` | *(browser defaults)* | data directory of the browser being attached to, if `DevToolsActivePort` is not found automatically |
+| No | `JEVMCP_HEADLESS` | `1` | `0` for a visible window |
+| No | `JEVMCP_FOREGROUND` | `0` | `1` activates the owned tab |
+| No | `JEVMCP_SANDBOX` | `auto` | `auto` retries with `--no-sandbox` if the browser aborts on startup |
+| No | `JEVMCP_WINDOW` | `1280x860` | browser window size |
+| No | `JEVMCP_PROFILE_DIR` | `~/.jev-ultrafast-mcp/chrome-profile` | persistent profile — log in once, stay logged in |
+| No | `JEVMCP_ALLOW_DOMAINS` | *(all)* | comma-separated; navigation elsewhere is refused |
+| No | `JEVMCP_DENY_DOMAINS` | *(none)* | comma-separated blocklist |
+| No | `JEVMCP_CONFIRM_PATTERNS` | pay / delete / unsubscribe … | clicks matching these need `"confirm": true` |
+| No | `JEVMCP_ALLOW_JS` | `0` | enables `eval` and `js` assertions |
+| No | `JEVMCP_ALLOW_UPLOADS` | `1` | gates the `upload` op |
+| No | `JEVMCP_MAX_ACTIONS` | `250` | element-table cap, applied by usefulness |
+| No | `JEVMCP_MAX_TEXT` | `6000` | visible-text cap per observation |
+| No | `JEVMCP_SETTLE_TIMEOUT` | `4.0` | after opening a URL, how long to wait for the page to stop fetching and its element table to stop changing |
+| No | `JEVMCP_SETTLE_POLL_MS` | `120` | how often to re-read while waiting |
+| No | `JEVMCP_STATE_DIR` | `~/.jev-ultrafast-mcp` | profile, macros and screenshots |
+| No | `JEV_PROVIDER` | `typesafe` | which API pays for the decision model: `typesafe` (Jev's own) or `openrouter` |
+| No | `TYPESAFE_API_KEY` | — | key for Jev's own API |
+| No | `TYPESAFE_BASE_URL` | `https://api.typesafe.ai/v1/systemone` | where the decision model lives; a custom endpoint, and what the provider is inferred from when `JEV_PROVIDER` is unset |
+| No | `OPENROUTER_API_KEY` | — | key for OpenRouter's decisions route, when `JEV_PROVIDER=openrouter` |
+| No | `TYPESAFE_MODEL` | `jev-latest` | decision-model slug |
+| No | `TEXT_MODEL_API_KEY` | — | optional; only for the small text helper `browser_goal` uses to type a value into a field. Unset, the helper inherits the decision model's provider |
+| No | `TEXT_MODEL_BASE_URL` | `https://api.deepseek.com/v1` | endpoint for that helper; setting it *or* `TEXT_MODEL_API_KEY` is what opts out of inheriting the decision model's provider |
+| No | `TEXT_MODEL` | `deepseek-chat` | model for that helper; required when the helper inherits a provider, since `deepseek-chat` is not an OpenRouter slug |
 
 `JEVMCP_MODE=attach` is the "use the browser I already have open" route — the one to take when the
 login you need already lives in your own profile. Chrome 144+ exposes that through

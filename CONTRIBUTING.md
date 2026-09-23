@@ -219,17 +219,21 @@ in a user's client.
 
 ### What to keep in sync when releasing
 
-Four places name the project or its version, and stale copies are the ones that mislead a search
-engine or a client:
+Seven version strings across six files name the project or its version, and stale copies are the
+ones that mislead a search engine or a client:
 
 - `pyproject.toml` — `version`, and the `description` / `keywords` / `classifiers` that are also what
   a search result shows.
-- `server.json` — `version`, and the package version it references.
+- `__init__.py` and `server.py` — the version the package reports, and the one a client sees in the
+  `initialize` reply.
+- `server.json` — `version`, and the package version it references. Two strings, one file.
 - `chrome-extension/manifest.json` — `version`, which tracks the package because the extension ships
   the package's observer and Chrome shows that number next to the name.
-- `CHANGELOG.md` — the release section, which is the page people land on from the releases tab.
+- `mcpb/manifest.json` — `version`, the number Claude Desktop shows on the install dialog and the
+  only copy that travels as a downloadable file.
 
-`tests/test_docs.py` fails if any of those disagree, `__init__.py` and `server.py` included.
+`tests/test_docs.py` fails if any of those disagree. `CHANGELOG.md` is the other thing a release
+touches, and it is the one nothing asserts, because prose cannot be compared to a number.
 
 ## Security
 

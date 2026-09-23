@@ -1,0 +1,41 @@
+# Smithery configuration file: https://smithery.ai/docs/build/project-config
+#
+# Smithery reads this to learn how to start the server and what to ask the user for. The package is
+# on PyPI, so `uvx` runs it with no checkout.
+#
+# Every option below is optional on purpose. The reading tools -- `browser_open`,
+# `browser_observe`, `browser_assert` -- are keyless and free, so a working install needs no
+# credentials at all. A key is only needed for `browser_goal`, which is the one tool that hands a
+# goal to a decision model.
+#
+# The command function builds `env` conditionally rather than emitting empty strings: this server
+# treats "which provider am I talking to" as a fact about the configuration, and an env var that is
+# present but blank is not the same thing as one that was never set.
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    description: >-
+      No configuration is needed to start the server. Add a decision-model key only if you want
+      browser_goal.
+    properties:
+      typesafeApiKey:
+        type: string
+        description: Key for Jev's own decision-model API. Needed only for browser_goal.
+      openrouterApiKey:
+        type: string
+        description: >-
+          Alternative decision-model key. Setting this selects the OpenRouter provider, which also
+          needs TEXT_MODEL set to an OpenRouter slug.
+  commandFunction: |-
+    (config) => {
+      const env = {};
+      if (config.typesafeApiKey) env.TYPESAFE_API_KEY = config.typesafeApiKey;
+      if (config.openrouterApiKey) {
+        env.OPENROUTER_API_KEY = config.openrouterApiKey;
+        env.JEV_PROVIDER = 'openrouter';
+      }
+      return { command: 'uvx', args: ['jev-ultrafast-mcp'], env };
+    }
+  exampleConfig: {}

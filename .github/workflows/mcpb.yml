@@ -1,0 +1,60 @@
+name: mcpb
+
+# Builds the Claude Desktop bundle (.mcpb) and proves the packed server actually runs.
+#
+# This workflow deliberately does NOT attach the bundle to a release. Publishing is a separate,
+# deliberate act in this repository -- see `publish.yml`, which cannot fire on an ordinary push --
+# and a file appearing on a release page is a distribution decision rather than a build artefact.
+# Attaching it is a one-line addition here once that decision is made.
+#
+# It runs on pull requests that touch the bundle so a broken manifest or a dead entry point is
+# caught while it is still a diff, rather than at the moment someone tries to release.
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - "mcpb/**"
+      - "scripts/build_mcpb.py"
+      - "scripts/check_bundle.py"
+      - "pyproject.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `build_mcpb.py` asks git whether HEAD is the release tag, so it needs the tags.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install the package
+        run: pip install .
+
+      # Only a tag build has to be a release; a pull request is allowed to be work in progress.
+      # The flag is what turns "this bundle declares 0.1.5" into an error rather than a warning.
+      - name: Build the bundle
+        run: >-
+          python scripts/build_mcpb.py
+          ${{ startsWith(github.ref, 'refs/tags/') && '--require-release' || '' }}
+
+      - name: Validate the manifest with the official CLI
+        run: npx --yes @anthropic-ai/mcpb validate mcpb/manifest.json
+
+      - name: Prove the packed server answers a stdio handshake
+        run: python scripts/check_bundle.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jev-ultrafast-mcp-mcpb
+          path: dist/*.mcpb
+          if-no-files-found: error
