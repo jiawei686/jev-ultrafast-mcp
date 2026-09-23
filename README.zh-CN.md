@@ -499,7 +499,7 @@ e12  btn    Delete account
 | `select` | `ref`、`value`（选项 value 或 label） |
 | `toggle` | `ref`、`state`（不填则翻转） |
 | `hover` / `upload` | `ref` / `ref`、`path` |
-| `keys` | `key`（`"Enter"`、`"Meta+A"`、`"ArrowDown"`） |
+| `keys` | `key`（`"Enter"`、`"Meta+A"`、`"ArrowDown"`），或 `keys`（列表）—— **单个字符是文本**而不是按键，会打进当前焦点所在的字段，因此遇到值不许离开页面的字段会被拒绝 |
 | `scroll` | `dir`、`amount`、`ref` |
 | `nav` / `back` / `forward` / `reload` | `url`（`nav` 用） |
 | `wait` / `wait_for_ref` / `wait_for_text` / `wait_for_load` | `ms` / `ref`,`timeout_ms` / `text` / `timeout_ms` |
@@ -697,6 +697,12 @@ turbo 路径移植自 [`browser-use/jev-ultrafast`](https://github.com/browser-u
 它的设计前提就是「不应该被完全信任」。听起来危险的点击会以 `needs_confirmation` 返回而不是直接执行，
 `JEVMCP_ALLOW_DOMAINS` 会拒绝走到你列出的域名之外，敏感字段会脱敏，`eval` 默认关闭。建议先配一个
 域名白名单，再拿一个搞坏了也不心疼的账号试。
+
+值不许离开页面的字段，在元素表里会被遮成掩码、要带 `"confirm": true` 才允许 `type`、写进宏时存成
+`{{secret}}` 而不是明文。但能往里写字的 op 有**两个**，第二个很容易漏掉：`keys` 传单个字符时
+（`{"op": "keys", "keys": "a"}`）走的是 `Input.insertText` 而不是按键，于是它会打进「当前焦点所在
+的」那个字段。这个 op 遇到敏感字段是**直接拒绝**，而不是要一个 `confirm` —— 它不带 ref，而宏记录的
+是一串字符，`{{secret}}` 是一个字符串，回放时没有地方能把字符装回去。请改用带 ref 的 `type`。
 
 这里**唯一默认开启、且没有边界**的能力是 `upload`：它能把本机上任意一个已存在的文件或目录交给页面，
 而只要目标主机在你的信封之内，页面就能收下它。任务不需要上传附件时，设 `JEVMCP_ALLOW_UPLOADS=0`。

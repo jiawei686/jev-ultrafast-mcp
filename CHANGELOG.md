@@ -204,6 +204,28 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **`keys` was a second way to type, and every rail that guards `type` was written against `type`.**
+  `_dispatch_keys` sends a bare single character with `Input.insertText` rather than as a key press —
+  reasonable in itself, and documented nowhere, so nothing else in the server knew that `keys` can put
+  text on the page. Two consequences, from one op. `type` demands `confirm` before writing into a
+  field whose value must not leave the page, and `keys` did not: a password went in a character at a
+  time, unasked. And `_record` masks a secret `type`'s text to `{{secret}}` on the way to disk while
+  keying off `op == "type"`, so a recording that filled a password wrote the password into the macro
+  file verbatim. `docs/DESIGN.md` claimed both rails held for password fields; they held for one of
+  the two ops that can fill one. The op is now **refused** on such a field rather than confirmed, and
+  the refusal names `type`: it carries no ref, and a macro stores a character sequence where
+  `{{secret}}` is a single string, so there is no placeholder a replay could put the characters back
+  through. `_inserts_text` and `_dispatch_keys` share one parse and one predicate, because the rail is
+  only as good as their agreement, and a test drives both against the same payloads. The focus
+  question is answered by a new `active()` in the observer, which reads the same three functions the
+  element table does, so the field `keys` refuses is the field the table masks — and it answers
+  `{unknown: true}` when focus sits in a frame it cannot read, because "I could not look" is not "the
+  field is ordinary". Two further shapes came out of the same branch: `{"keys": 5}` raised `TypeError`
+  *through* `_run_op`'s except clause, the fourth refusal here to escape as a protocol-level crash and
+  a divergence from the extension, which reports it as `invalid_request`; and `{"keys": {"a": 1}}` was
+  worse than either, because a dict iterates, so it pressed "a" and reported success. Both are
+  `invalid_request` on both sides now. `HELPER_VERSION` goes to 8, and this time the page's copy moves
+  with it.
 - **The in-page helper's version was stated three times, and the copy that decides everything was
   pinned by nothing.** `_ensure_helper` reads the number a page reports and re-injects
   `js/observer.js` when it differs from `browser.HELPER_VERSION`. Three files state that number: the

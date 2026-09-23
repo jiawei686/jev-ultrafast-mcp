@@ -26,7 +26,7 @@
   // satisfied, the server re-injected this whole file on every observation, and
   // a page holding the older helper was never actually upgraded, because the
   // early return fired on the number it already carried.
-  const VERSION = 7;
+  const VERSION = 8;
   try { if (W !== W.top) return; } catch (_) { return; }
   if (W.__jevMcp && W.__jevMcp.version === VERSION) return;
 
@@ -567,10 +567,48 @@
     return e && e.isConnected ? clean(nameOf(e)).slice(0, 120) : '';
   };
 
+  // What has focus, in the shape the server's secret check reads.
+  //
+  // `keys` puts text on the page: a bare single character with no modifier goes
+  // out as `Input.insertText`, not as a key press. That makes it a second way to
+  // type, and it has no ref -- the field it writes into is whatever happens to
+  // be focused. The rail that guards `type` therefore has to be able to ask this
+  // question, and it could not: a password could be filled a character at a time
+  // with no confirmation, and the characters were written into a recorded macro
+  // verbatim. `secret` is the same expression the element table uses, so the
+  // field `keys` refuses is the field whose value the table masks.
+  //
+  // Three answers, because two would collapse cases that need different
+  // handling: `{focused: true, ...}` for a field, `{focused: false}` when
+  // nothing is focused and the text would go nowhere, and `{unknown: true}` when
+  // focus is inside a frame this document cannot read. That last one is not a
+  // claim that the field is ordinary. Neither sentinel is `null`, because a
+  // `null` from the page and a failed evaluation look the same to the caller.
+  const active = () => {
+    let e = document.activeElement;
+    try {
+      for (let hops = 0; e && e.tagName === 'IFRAME' && hops < 10; hops += 1) {
+        const inner = e.contentDocument;
+        if (!inner) return { unknown: true };
+        e = inner.activeElement;
+      }
+    } catch (_) { return { unknown: true }; }
+    if (!e || e === e.ownerDocument.body || e === e.ownerDocument.documentElement) {
+      return { focused: false };
+    }
+    const name = clean(nameOf(e)).slice(0, 120);
+    return {
+      focused: true,
+      name,
+      role: roleOf(e) || '',
+      secret: typeOf(e) === 'password' || (SECRET_HINT.test(name) && isEditable(e)),
+    };
+  };
+
   const stats = () => ({ refs: S.nodes.size, next: S.next, hasSnap: !!S.snap });
 
   W.__jevMcp = {
     version: VERSION, readState, verify, reinspect, resolve, scrollTo, selectOption,
-    settle, label, stats, keyOf, guardOf,
+    settle, label, active, stats, keyOf, guardOf,
   };
 })();

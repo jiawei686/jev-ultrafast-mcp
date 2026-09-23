@@ -309,6 +309,11 @@ def browser_act(ops: list[dict], session: str = "default", dry_run: bool = False
 
     Actions matching the confirmation rules (pay, delete account, …) return
     needs_confirmation; re-send that op with "confirm": true to proceed.
+
+    A bare single character in `keys` is text, not a key press -- it goes into
+    whatever has focus -- so it is refused (blocked_by_policy) on a field whose
+    value must not leave the page rather than confirmed. Use `type` with that
+    field's ref, which asks for "confirm": true and records {{secret}}.
     """
     try:
         tab = _session(session)

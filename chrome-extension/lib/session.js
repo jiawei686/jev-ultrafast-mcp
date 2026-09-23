@@ -23,9 +23,12 @@ import {
 } from './render.js';
 import { DEFAULT_THRESHOLD, pythonRepr, resolve as resolveSteps } from './macro.js';
 
-/* Must equal `browser.py`'s `HELPER_VERSION`. The helper announces its own version, and a mismatch
- * means the page is carrying an observer this code was not written against, so it is reinstalled. */
-export const HELPER_VERSION = 7;
+/* Must equal `browser.py`'s `HELPER_VERSION` *and* the `VERSION` inside `lib/observer.js`, which is
+ * the number a page actually announces. The first pair is held together by `act-parity.mjs`; the
+ * third is held by `tests/test_helper_version.py`, because a server number above the helper's makes
+ * the comparison below permanently true -- the observer is reinstalled on every call, and a page
+ * carrying the shipped one is never actually upgraded. */
+export const HELPER_VERSION = 8;
 
 /* `browser.py`'s tables, verbatim. They are data, not logic, and getting one key code wrong is a
  * keystroke that lands as the wrong character with nothing in the report to say so. */
@@ -54,6 +57,27 @@ export const CLICKABLE_KINDS = new Set(['click', 'type', 'select', 'toggle', 'ho
 export const NAV_KINDS = new Set(
   ['nav', 'back', 'forward', 'reload', 'new_tab', 'close_tab', 'switch_tab']);
 export const REQUIRES_REF = new Set([...CLICKABLE_KINDS, 'scroll_to', 'wait_for_ref']);
+
+/** `browser.py`'s `_key_parts` — the key name and modifier mask a combo resolves to. */
+export function keyParts(combo) {
+  const parts = String(combo).replace(/-/g, '+').split('+')
+    .map((part) => part.trim().toLowerCase()).filter(Boolean);
+  let modifiers = 0;
+  while (parts.length && Object.prototype.hasOwnProperty.call(MODIFIERS, parts[0])) {
+    modifiers |= MODIFIERS[parts.shift()];
+  }
+  return { name: parts.length ? parts[parts.length - 1] : '', modifiers };
+}
+
+/** `browser.py`'s `_inserts_text` — whether a payload puts text on the page.
+ *
+ * `keys` is documented as key presses, and for every named key and every combination it is. A bare
+ * single character is not: it goes out as `Input.insertText`, which makes `keys` a second way to
+ * type. `dispatchKeys` calls this for its own branch, so the answer and the behaviour cannot drift.
+ */
+export function insertsText(name, modifiers) {
+  return !modifiers && Array.from(name).length === 1;
+}
 
 /* Geometry failures a scroll can fix. Frame reasons are here because an element can sit perfectly
  * inside its own frame and still be below the top-level fold. */
@@ -249,6 +273,17 @@ export function createSession(driver, {
     }
   }
 
+  /** `Session._focused` — what the page says has focus, in the shape `isSecret` reads.
+   *
+   * `{unknown: true}` when the page will not say, because "I could not look" is not "the field is
+   * ordinary" and the caller treats the two differently. A page with nothing focused answers
+   * `{focused: false}`, which is its own answer rather than a refusal.
+   */
+  async function focused() {
+    const found = await safeEval('window.__jevMcp.active()');
+    return (found && typeof found === 'object') ? found : { unknown: true };
+  }
+
   async function ensureHelper() {
     if (!helperSource) return;
     const version = await safeEval('(window.__jevMcp && window.__jevMcp.version) || 0');
@@ -419,15 +454,9 @@ export function createSession(driver, {
   }
 
   async function dispatchKeys(combo) {
-    const parts = String(combo).replace(/-/g, '+').split('+')
-      .map((part) => part.trim().toLowerCase()).filter(Boolean);
-    let modifiers = 0;
-    while (parts.length && Object.prototype.hasOwnProperty.call(MODIFIERS, parts[0])) {
-      modifiers |= MODIFIERS[parts.shift()];
-    }
-    if (!parts.length) return;
-    const name = parts[parts.length - 1];
-    if (Array.from(name).length === 1 && !modifiers) {
+    const { name, modifiers } = keyParts(combo);
+    if (!name) return;
+    if (insertsText(name, modifiers)) {
       await driver.call('Input.insertText', { text: name });
       return;
     }
@@ -615,11 +644,41 @@ export function createSession(driver, {
           + 'server, or drop the file on the input yourself');
 
       } else if (op === 'keys') {
-        const sequence = rawOp.keys || rawOp.key;
+        // `raw_op.get("keys") or raw_op.get("key")` -- Python's `or` takes the right side for any
+        // falsy value, and an empty array is falsy there and truthy here.
+        const given = rawOp.keys;
+        const empty = given === undefined || given === null || given === ''
+          || (Array.isArray(given) && !given.length);
+        const sequence = empty ? rawOp.key : given;
         if (!sequence) throw new TypeError("keys needs 'key' or 'keys'");
+        let keys;
+        if (typeof sequence === 'string') keys = [sequence];
+        else if (Array.isArray(sequence)) keys = sequence.map(String);
+        else throw new TypeError('keys must be a string or a list of strings');
+        // A bare single character is not a key press; see `insertsText`. This op is a second way to
+        // type and it carries no ref, so the field it writes into is whatever has focus. `type`
+        // demands `confirm` for a field whose value must not leave the page and records it as a
+        // placeholder; a `keys` step can do neither, so this is refused rather than confirmed.
+        const typing = keys.some((key) => {
+          const parts = keyParts(key);
+          return insertsText(parts.name, parts.modifiers);
+        });
+        if (typing) {
+          const where = await focused();
+          if (where.unknown) {
+            throw new PolicyError('keys would type into whatever has focus, and the page will '
+              + "not say what that is. Use `type` with the field's ref.");
+          }
+          if (where.focused && (where.secret
+              || isSecret(where.name || '', where.role || '', secretPatterns))) {
+            throw new PolicyError('keys would type into a field whose value must not leave the '
+              + "page. Use `type` with the field's ref and \"confirm\": true, which records it "
+              + 'as a placeholder rather than in the clear.');
+          }
+        }
         if (dryRun) return stepOf({ op, ok: true, detail: 'dry run' });
-        for (const key of (typeof sequence === 'string' ? [sequence] : sequence)) {
-          await dispatchKeys(String(key));
+        for (const key of keys) {
+          await dispatchKeys(key);
         }
         target = String(sequence);
         await afterInput('fast');

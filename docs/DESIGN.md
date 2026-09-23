@@ -172,7 +172,7 @@ text.
 |---|---|
 | `JEVMCP_ALLOW_DOMAINS` / `JEVMCP_DENY_DOMAINS` | Navigation outside the envelope is refused with `blocked_by_policy` |
 | Confirmation rules | Clicks whose accessible name matches `pay now`, `delete account`, `unsubscribe`, … return `needs_confirmation` instead of executing; re-send the op with `"confirm": true` |
-| Secret fields | Password inputs stay **usable** (jev drops them, so it cannot log in) but their value is never serialised: rendered as `«hidden»`, required `confirm` to type into, and never written into a macro |
+| Secret fields | Password inputs stay **usable** (jev drops them, so it cannot log in) but their value is never serialised: rendered as `«hidden»`, required `confirm` to type into, and never written into a macro. There are two ops that can put text into one and only one of them can honour that: `type` takes a ref, asks, and stores `{{secret}}`, while `keys` with a bare single character goes out as `Input.insertText` into whatever has focus and has no way to record a placeholder — so it is **refused** on a sensitive field, with the refusal naming `type` |
 | `JEVMCP_ALLOW_JS` | JS evaluation is off by default. `js` assertions and the `eval` op are unreachable without it |
 | `JEVMCP_ALLOW_UPLOADS` | **On by default**, and the `path` it takes is not bounded: `upload` hands any existing file or directory on this machine to the page, which is the one rail here that is a local-filesystem read. It is on because attaching a file is an ordinary browser task, and the switch exists for the deployments where it is not |
 | `dry_run` | `browser_act(..., dry_run=True)` reports what would happen and executes nothing |
@@ -210,7 +210,7 @@ not a reason to quit a browser it never started.
 |---|---|
 | `browser_open` | Open a URL in an owned tab, return the element table |
 | `browser_observe` | Re-read: delta by default, `full` / `delta` forced, optional JSON copy |
-| `browser_act` | Batch of ops (`click` `type` `select` `toggle` `hover` `upload` `keys` `scroll` `nav` `back` `wait` `wait_for_ref` `wait_for_text` `screenshot` `tab` `eval`) then a delta |
+| `browser_act` | Batch of ops (`click` `type` `select` `toggle` `hover` `upload` `keys` `scroll` `nav` `back` `wait` `wait_for_ref` `wait_for_text` `screenshot` `tab` `eval`) then a delta. `keys` presses keys — a bare single character is text and is refused on a sensitive field |
 | `browser_assert` | Deterministic checks → `pass` / `fail` |
 | `browser_macro` | `record_start` · `record_stop` · `run` · `list` · `inspect` · `delete` |
 | `browser_goal` | Hand the whole goal over: run the loop server-side through Jev — TypeSafe's own API, or OpenRouter's decisions route under `JEV_PROVIDER=openrouter` (needs that provider's key) |

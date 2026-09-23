@@ -1176,6 +1176,231 @@
       }
     },
     {
+      "why": "a bare character into an ordinary field",
+      "platform": "mac",
+      "op": {
+        "op": "keys",
+        "keys": "a"
+      },
+      "dry_run": false,
+      "script": {
+        "focused": {
+          "focused": true,
+          "name": "Search",
+          "role": "searchbox",
+          "secret": false
+        }
+      },
+      "expected": {
+        "step": {
+          "op": "keys",
+          "ok": true,
+          "target": "a"
+        },
+        "calls": [
+          {
+            "method": "Input.insertText",
+            "params": {
+              "text": "a"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "why": "a bare character into a password field",
+      "platform": "mac",
+      "op": {
+        "op": "keys",
+        "keys": [
+          "a",
+          "b"
+        ]
+      },
+      "dry_run": false,
+      "script": {
+        "focused": {
+          "focused": true,
+          "name": "Password",
+          "role": "textbox",
+          "secret": true
+        }
+      },
+      "expected": {
+        "step": {
+          "op": "keys",
+          "ok": false,
+          "error": "blocked_by_policy",
+          "detail": "keys would type into a field whose value must not leave the page. Use `type` with the field's ref and \"confirm\": true, which records it as a placeholder rather than in the clear."
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "a bare character into a field the server calls a secret by name",
+      "platform": "mac",
+      "op": {
+        "op": "keys",
+        "keys": "a"
+      },
+      "dry_run": false,
+      "script": {
+        "focused": {
+          "focused": true,
+          "name": "API key",
+          "role": "textbox",
+          "secret": false
+        }
+      },
+      "expected": {
+        "step": {
+          "op": "keys",
+          "ok": false,
+          "error": "blocked_by_policy",
+          "detail": "keys would type into a field whose value must not leave the page. Use `type` with the field's ref and \"confirm\": true, which records it as a placeholder rather than in the clear."
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "a bare character with the page unable to say what is focused",
+      "platform": "mac",
+      "op": {
+        "op": "keys",
+        "keys": "a"
+      },
+      "dry_run": false,
+      "script": {
+        "focused": {
+          "unknown": true
+        }
+      },
+      "expected": {
+        "step": {
+          "op": "keys",
+          "ok": false,
+          "error": "blocked_by_policy",
+          "detail": "keys would type into whatever has focus, and the page will not say what that is. Use `type` with the field's ref."
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "a named key while a password field has focus",
+      "platform": "mac",
+      "op": {
+        "op": "keys",
+        "key": "Enter"
+      },
+      "dry_run": false,
+      "script": {
+        "focused": {
+          "focused": true,
+          "name": "Password",
+          "role": "textbox",
+          "secret": true
+        }
+      },
+      "expected": {
+        "step": {
+          "op": "keys",
+          "ok": true,
+          "target": "Enter"
+        },
+        "calls": [
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "rawKeyDown",
+              "key": "Enter",
+              "code": "Enter",
+              "windowsVirtualKeyCode": 13,
+              "nativeVirtualKeyCode": 13,
+              "modifiers": 0
+            }
+          },
+          {
+            "method": "Input.dispatchKeyEvent",
+            "params": {
+              "type": "keyUp",
+              "key": "Enter",
+              "code": "Enter",
+              "windowsVirtualKeyCode": 13,
+              "nativeVirtualKeyCode": 13,
+              "modifiers": 0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "why": "keys with a number to press",
+      "platform": "mac",
+      "op": {
+        "op": "keys",
+        "keys": 5
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "keys",
+          "ok": false,
+          "error": "invalid_request",
+          "detail": "keys must be a string or a list of strings"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "keys with a list of nothing",
+      "platform": "mac",
+      "op": {
+        "op": "keys",
+        "keys": []
+      },
+      "dry_run": false,
+      "script": {},
+      "expected": {
+        "step": {
+          "op": "keys",
+          "ok": false,
+          "error": "invalid_request",
+          "detail": "keys needs 'key' or 'keys'"
+        },
+        "calls": []
+      }
+    },
+    {
+      "why": "keys with a character into nothing at all",
+      "platform": "mac",
+      "op": {
+        "op": "keys",
+        "keys": "a"
+      },
+      "dry_run": false,
+      "script": {
+        "focused": {
+          "focused": false
+        }
+      },
+      "expected": {
+        "step": {
+          "op": "keys",
+          "ok": true,
+          "target": "a"
+        },
+        "calls": [
+          {
+            "method": "Input.insertText",
+            "params": {
+              "text": "a"
+            }
+          }
+        ]
+      }
+    },
+    {
       "why": "scrolling with a ref it will not read",
       "platform": "mac",
       "op": {
@@ -1570,7 +1795,7 @@
     }
   ],
   "tables": {
-    "helper_version": 7,
+    "helper_version": 8,
     "threshold": 0.7,
     "modifiers": {
       "alt": 1,

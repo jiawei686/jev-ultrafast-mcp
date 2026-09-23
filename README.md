@@ -540,7 +540,7 @@ Executes ops in order in **one round trip**, then returns a delta.
 | `select` | `ref`, `value` (option value or label) |
 | `toggle` | `ref`, `state` (omit to flip) |
 | `hover` / `upload` | `ref` / `ref`, `path` |
-| `keys` | `key` (`"Enter"`, `"Meta+A"`, `"ArrowDown"`) |
+| `keys` | `key` (`"Enter"`, `"Meta+A"`, `"ArrowDown"`), or `keys` (a list) — a **bare single character is text**, not a key press, so it is typed into whatever has focus and is refused on a field whose value must not leave the page |
 | `scroll` | `dir`, `amount`, `ref` |
 | `nav` / `back` / `forward` / `reload` | `url` (for `nav`) |
 | `wait` / `wait_for_ref` / `wait_for_text` / `wait_for_load` | `ms` / `ref`,`timeout_ms` / `text` / `timeout_ms` |
@@ -772,6 +772,14 @@ It is built assuming it should not be trusted. Destructive-sounding clicks come 
 `needs_confirmation` instead of executing, `JEVMCP_ALLOW_DOMAINS` refuses navigation outside a
 domain you list, sensitive fields are redacted, and `eval` is off unless you turn it on. Start with
 a domain allowlist and an account you do not mind breaking.
+
+A field whose value must not leave the page is redacted in the table, needs `"confirm": true` to
+type into, and is written into a macro as `{{secret}}` rather than in the clear. There are two ops
+that can put text into one, and the second is easy to miss: `keys` with a bare single character
+(`{"op": "keys", "keys": "a"}`) sends `Input.insertText`, not a key press, so it types into whatever
+has focus. That op is refused on a sensitive field rather than confirmed — it carries no ref and a
+macro records a character sequence, so there is no placeholder a replay could put back. Use `type`
+with the field's ref.
 
 The one capability here that is **on by default and not bounded** is `upload`: it hands any existing
 file or directory on this machine to the page, and a page on a host your envelope allows can then

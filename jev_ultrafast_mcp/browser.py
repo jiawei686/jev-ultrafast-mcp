@@ -40,7 +40,7 @@ HELPER_SRC = (Path(__file__).with_name("js") / "observer.js").read_text(encoding
 # The extension's constant was held to this one by `act-parity.mjs` and the
 # source's was held to nothing, which is how 7 here and 6 in the page survived a
 # release. `tests/test_helper_version.py` pins all three now.
-HELPER_VERSION = 7
+HELPER_VERSION = 8
 
 MODIFIERS = {
     "alt": 1, "option": 1,
@@ -63,6 +63,35 @@ KEY_SPECS = {
 CLICKABLE_KINDS = {"click", "type", "select", "toggle", "hover", "upload"}
 NAV_KINDS = {"nav", "back", "forward", "reload", "new_tab", "close_tab", "switch_tab"}
 REQUIRES_REF = CLICKABLE_KINDS | {"scroll_to", "wait_for_ref"}
+
+
+def _key_parts(combo: str) -> tuple[str, int]:
+    """The key name and modifier mask a combo resolves to. `""` means nothing to press.
+
+    Shared with the caller that has to decide whether a `keys` op is a key press
+    or a way of typing, because that decision and the dispatch below have to be
+    made from the same parse.
+    """
+    parts = [part.strip().lower()
+             for part in str(combo).replace("-", "+").split("+") if part.strip()]
+    modifiers = 0
+    while parts and parts[0] in MODIFIERS:
+        modifiers |= MODIFIERS[parts.pop(0)]
+    return (parts[-1] if parts else ""), modifiers
+
+
+def _inserts_text(name: str, modifiers: int) -> bool:
+    """Whether a payload puts *text* on the page rather than pressing a key.
+
+    `keys` is documented as key presses, and for every named key and every
+    combination it is. A bare single character is not: it goes out as
+    `Input.insertText`, which makes `keys` a second way to type -- and the rail
+    that guards `type` did not know about it, so a password could be filled a
+    character at a time with no `confirm` and the characters were written into a
+    recorded macro verbatim. `_dispatch_keys` calls this function for its own
+    branch, so the answer and the behaviour cannot drift apart.
+    """
+    return not modifiers and len(name) == 1
 
 # Geometry failures that a scroll can fix. Frame reasons are included because
 # an element can be perfectly placed inside its own frame and still be below
@@ -738,10 +767,46 @@ class Session:
                 sequence = raw_op.get("keys") or raw_op.get("key")
                 if not sequence:
                     raise ValueError("keys needs 'key' or 'keys'")
+                if isinstance(sequence, str):
+                    keys = [sequence]
+                elif isinstance(sequence, (list, tuple)):
+                    keys = [str(key) for key in sequence]
+                else:
+                    # Iterating a number raised `TypeError` *through* this
+                    # method's except clause, which is the fourth time a refusal
+                    # has escaped as a protocol-level crash -- and the extension
+                    # reports it as `invalid_request`, so the two sides disagreed
+                    # about the same op. `keys: {"a": 1}` was quietly worse: a
+                    # dict iterates, so it pressed "a" and reported success.
+                    raise ValueError("keys must be a string or a list of strings")
+                # A bare single character is not a key press; see `_inserts_text`.
+                # This op is a second way to type, and it carries no ref, so the
+                # field it writes into is whatever has focus. `type` demands
+                # `confirm` for a field whose value must not leave the page and
+                # records it as a placeholder; a `keys` step can do neither, a
+                # macro records a character sequence and `{{secret}}` is one
+                # string. So this is refused rather than confirmed, and the
+                # refusal names the op that can do it safely.
+                if any(_inserts_text(*_key_parts(key)) for key in keys):
+                    focused = self._focused()
+                    if focused.get("unknown"):
+                        raise SafetyError(
+                            "keys would type into whatever has focus, and the page will not "
+                            "say what that is. Use `type` with the field's ref."
+                        )
+                    if focused.get("focused") and (
+                            focused.get("secret")
+                            or is_secret(self.cfg, focused.get("name") or "",
+                                         focused.get("role") or "")):
+                        raise SafetyError(
+                            "keys would type into a field whose value must not leave the "
+                            "page. Use `type` with the field's ref and \"confirm\": true, "
+                            "which records it as a placeholder rather than in the clear."
+                        )
                 if dry_run:
                     return Step(op=op, ok=True, detail="dry run")
-                for key in ([sequence] if isinstance(sequence, str) else sequence):
-                    self._dispatch_keys(str(key))
+                for key in keys:
+                    self._dispatch_keys(key)
                 target_label = str(sequence)
                 self._after_input("fast")
 
@@ -1017,14 +1082,10 @@ class Session:
                        **({"commands": ["selectAll"]} if event == "keyDown" else {}))
 
     def _dispatch_keys(self, combo: str) -> None:
-        parts = [part.strip().lower() for part in combo.replace("-", "+").split("+") if part.strip()]
-        modifiers = 0
-        while parts and parts[0] in MODIFIERS:
-            modifiers |= MODIFIERS[parts.pop(0)]
-        if not parts:
+        name, modifiers = _key_parts(combo)
+        if not name:
             return
-        name = parts[-1]
-        if len(name) == 1 and not modifiers:
+        if _inserts_text(name, modifiers):
             self._call("Input.insertText", text=name)
             return
         if name in KEY_SPECS:
@@ -1039,6 +1100,19 @@ class Session:
                        nativeVirtualKeyCode=virtual, modifiers=modifiers)
         self._call("Input.dispatchKeyEvent", type="rawKeyDown", **payload)
         self._call("Input.dispatchKeyEvent", type="keyUp", **payload)
+
+    def _focused(self) -> dict:
+        """What the page says has focus, in the shape `is_secret` reads.
+
+        `{"unknown": True}` rather than an empty answer when the page will not
+        say -- the helper is missing, the context is mid-navigation, or focus
+        sits in a frame this document cannot read. "I could not look" is not
+        "the field is ordinary", and the caller treats them differently. A page
+        with nothing focused answers `{"focused": False}`, which is its own
+        answer and not a refusal.
+        """
+        found = self._safe_eval("window.__jevMcp.active()")
+        return found if isinstance(found, dict) else {"unknown": True}
 
     def _after_input(self, settle_kind: str) -> None:
         """Settle in-page, then absorb a navigation if one was triggered."""

@@ -154,6 +154,9 @@ class ScriptedCdp:
         self.label = "Search"
         self.guard: dict = {"ok": True}
         self.select: dict = {"ok": True, "value": "3", "label": "3 adults"}
+        # What the page says has focus. `keys` asks, because a bare single character is text and
+        # the field it would land in is whatever is focused.
+        self.focused: dict = {"focused": False}
 
     # `Session._call` and `Session._safe_eval` are the only two entry points used.
     def call(self, method, session_id=None, timeout=None, **params):
@@ -175,6 +178,8 @@ def reply_for(cdp: ScriptedCdp, expression: str):
         return {"ok": True, "x": 10, "y": 20}
     if "label(" in expression:
         return cdp.label
+    if "active(" in expression:
+        return cdp.focused
     if "selectOption(" in expression:
         return cdp.select
     if "__jevRefs.nodes.get(" in expression:
@@ -224,6 +229,27 @@ SCENARIOS: list[dict] = [
     {"why": "a key combination", "op": {"op": "keys", "keys": "ctrl+shift+k"}},
     {"why": "a named key", "op": {"op": "keys", "key": "Enter"}},
     {"why": "keys with nothing to press", "op": {"op": "keys"}},
+    # `keys` is a second way to type, and these four are the cases that says so: a bare character
+    # goes out as `Input.insertText`, so the field it lands in is whatever has focus, and the rail
+    # that guards `type` has to be able to ask which field that is.
+    {"why": "a bare character into an ordinary field",
+     "op": {"op": "keys", "keys": "a"},
+     "focused": {"focused": True, "name": "Search", "role": "searchbox", "secret": False}},
+    {"why": "a bare character into a password field",
+     "op": {"op": "keys", "keys": ["a", "b"]},
+     "focused": {"focused": True, "name": "Password", "role": "textbox", "secret": True}},
+    {"why": "a bare character into a field the server calls a secret by name",
+     "op": {"op": "keys", "keys": "a"},
+     "focused": {"focused": True, "name": "API key", "role": "textbox", "secret": False}},
+    {"why": "a bare character with the page unable to say what is focused",
+     "op": {"op": "keys", "keys": "a"}, "focused": {"unknown": True}},
+    {"why": "a named key while a password field has focus",
+     "op": {"op": "keys", "key": "Enter"},
+     "focused": {"focused": True, "name": "Password", "role": "textbox", "secret": True}},
+    {"why": "keys with a number to press", "op": {"op": "keys", "keys": 5}},
+    {"why": "keys with a list of nothing", "op": {"op": "keys", "keys": []}},
+    {"why": "keys with a character into nothing at all",
+     "op": {"op": "keys", "keys": "a"}, "focused": {"focused": False}},
     {"why": "scrolling with a ref it will not read", "op": {"op": "scroll", "ref": "e5", "amount": 100}},
     {"why": "scrolling up", "op": {"op": "scroll", "dir": "up", "amount": 250}},
     {"why": "a wait of zero ms", "op": {"op": "wait", "ms": 0}},
@@ -311,6 +337,8 @@ def scenario_case(scenario: dict) -> dict:
         cdp.guard = scenario["guard"]
     if "select" in scenario:
         cdp.select = scenario["select"]
+    if "focused" in scenario:
+        cdp.focused = scenario["focused"]
     platform = scenario.get("platform", "mac")
     session = browser.Session(name="fixture", cfg=Config(), cdp=cdp)
     with platform_as(platform):
@@ -329,7 +357,8 @@ def scenario_case(scenario: dict) -> dict:
         "op": scenario["op"],
         "dry_run": scenario.get("dry_run", False),
         # What the scripted page had to say, so the other side can set up the same page.
-        "script": {key: scenario[key] for key in ("label", "guard", "select") if key in scenario},
+        "script": {key: scenario[key] for key in ("label", "guard", "select", "focused")
+                   if key in scenario},
         "expected": {
             "step": report,
             # The commands themselves, minus the two coordinates the extension sources differently.
