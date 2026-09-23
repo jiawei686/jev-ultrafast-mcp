@@ -208,8 +208,21 @@ def _answers(result: object, question_id: str) -> dict:
 
 
 def _validate(answer: dict, ids: set[str]) -> dict:
+    """Refuse anything but the documented answer, and refuse it as a refusal.
+
+    `probabilities` is whatever the route sent back, and the routes include a gateway
+    and a proxy: a list, a string or null is an ordinary thing to receive. Reading
+    `.values()` off one of those raises `AttributeError`, which the narrow catch below
+    did not cover -- so a differently-shaped envelope crashed the tool instead of
+    reporting that no action had been executed, which is the one outcome the caller
+    cannot tell apart from a bug in this server. The type is checked first, where the
+    message can say what the contract is, and the catch below stays narrow enough that
+    a mistake in this function still raises.
+    """
+    probabilities = answer.get("probabilities")
+    if not isinstance(probabilities, dict):
+        raise TurboUnavailable("Decision model returned a malformed answer; no action executed.")
     try:
-        probabilities = answer["probabilities"]
         numbers = [*probabilities.values(), answer["confidence"]]
         valid = (
             answer["choice"] in ids

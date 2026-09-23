@@ -204,6 +204,21 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **The guard that decides whether the decision model can be trusted crashed on four shapes of
+  malformed answer.** `policy._validate` reads `answer["probabilities"].values()`, and `probabilities`
+  is whatever the route sent back — a list, a string, a number or null is an ordinary thing to receive
+  from a gateway or a proxy. All four raise `AttributeError`, and the `except` clause caught only
+  `KeyError`, `TypeError` and `ValueError`, so a differently-shaped envelope escaped as a
+  protocol-level crash. That is the one outcome `tests/test_turbo_resilience.py`'s own docstring rules
+  out: the host cannot tell "the model refused" from "the server has a bug", and does not learn that
+  the page is untouched. The type is checked where the message can name the contract, and the catch
+  under it stays narrow so a mistake in the function still raises.
+  Found the same way as the assertions below: the measurement said `_validate`'s whole body had never
+  executed. Nothing in the suite or in `smoke.py` reached it, because every case in that file stops at
+  the first of the two questions — so the happy path is covered now too, and a well-formed pair of
+  answers resolves to a target end to end. `turbo_check.py` would have exercised it, and CI sets no
+  model key, so it never ran there either. 12 tests added, 4 of which fail against the old code;
+  `policy.py` goes from 72.8% to 85.7% of its statements.
 - **Three check types passed without looking at anything, and `checked` asserted the opposite of what
   it was told.** An assertion is the one part of this product that judges a run without asking the
   model — `browser_goal`'s `verify` is the same code — so a check that cannot fail is worse here than

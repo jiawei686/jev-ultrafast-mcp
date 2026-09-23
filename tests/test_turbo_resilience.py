@@ -88,6 +88,115 @@ def test_a_malformed_answer_says_which_question_went_unanswered(monkeypatch):
     assert "operation" in str(caught.value)
 
 
+def _post_answering(choice_for, corrupt=None):
+    """A provider that answers every question the server asks, and answers it validly.
+
+    Two questions come back to back -- the operation, then the target for that operation
+    -- and their ids are whatever the server offered, so the answers are built from the
+    request body rather than written out here. `corrupt` mutates the operation answer,
+    which is where a wrong-shaped envelope does its damage.
+    """
+    def post(url, key, body):
+        answers = {}
+        for name, question in body["questions"].items():
+            ids = sorted(question["criteria"])
+            choice = choice_for(name, ids)
+            if len(ids) == 1:
+                probabilities = {ids[0]: 1.0}
+            else:
+                share = 0.4 / (len(ids) - 1)
+                probabilities = {item: (0.6 if item == choice else share) for item in ids}
+            answer = {"choice": choice, "confidence": 0.9, "probabilities": probabilities}
+            answers[name] = corrupt(answer) if corrupt and name == "operation" else answer
+        return {"answers": answers}
+    return post
+
+
+def _clicking(name, ids):
+    return "CLICK" if name == "operation" else ids[0]
+
+
+def test_a_well_formed_answer_resolves_to_a_target(monkeypatch):
+    """The happy path of the paid route, which nothing reached before.
+
+    Every other case in this file stops at the first question, so `_validate`'s body and
+    the target resolution under it had never been executed at all -- by the suite or by
+    `smoke.py`. `turbo_check.py` would, and CI sets no model key, so it never ran there
+    either.
+    """
+    monkeypatch.setattr(policy, "_post", _post_answering(_clicking))
+
+    decision = policy.choose(_cfg(), _observation(), "search for something", [])
+
+    assert decision["operation"] == "CLICK"
+    assert decision["ref"] == "e1"
+    assert decision["target"] == "Search"
+    assert decision["latency_ms"] >= 0
+
+
+@pytest.mark.parametrize(
+    "probabilities",
+    [[0.9, 0.1], "0.9", None, 1],
+    ids=["list", "string", "null", "number"],
+)
+def test_a_wrong_shaped_probabilities_is_a_typed_failure_not_a_traceback(monkeypatch, probabilities):
+    """`.values()` is not free on whatever the route sent back.
+
+    A list, a string or null raises AttributeError, and `_validate` caught only
+    KeyError/TypeError/ValueError -- so a proxy answering with a differently-shaped
+    envelope crashed the tool instead of reporting that nothing had been executed, which
+    is the one outcome the caller cannot tell apart from a bug in this server.
+    """
+    monkeypatch.setattr(policy, "_post", _post_answering(
+        _clicking, corrupt=lambda answer: {**answer, "probabilities": probabilities}))
+
+    with pytest.raises(policy.TurboUnavailable):
+        policy.choose(_cfg(), _observation(), "search for something", [])
+
+
+def _without(key):
+    def mutate(answer):
+        return {item: value for item, value in answer.items() if item != key}
+    return mutate
+
+
+def _not_the_argmax(answer):
+    """A distribution over the real ids in which the chosen one is not the largest."""
+    ids = sorted(answer["probabilities"])
+    other = next(item for item in ids if item != answer["choice"])
+    probabilities = {item: 0.1 / (len(ids) - 1) for item in ids}
+    probabilities[other] = 0.9
+    return {**answer, "probabilities": probabilities}
+
+
+def _scaled(factor):
+    def mutate(answer):
+        return {**answer, "probabilities": {item: value * factor
+                                            for item, value in answer["probabilities"].items()}}
+    return mutate
+
+
+@pytest.mark.parametrize("mutate", [
+    _without("choice"),
+    _without("confidence"),
+    lambda answer: {**answer, "confidence": 2},
+    lambda answer: {**answer, "choice": "NOT_AN_ID"},
+    lambda answer: {**answer, "probabilities": {}},
+    _not_the_argmax,
+    _scaled(0.5),
+], ids=["no-choice", "no-confidence", "confidence-out-of-range", "choice-not-offered",
+        "no-ids", "not-the-argmax", "sum-not-1"])
+def test_an_inconsistent_answer_is_refused(monkeypatch, mutate):
+    """The consistency rules the guard exists for, reachable only through it."""
+    monkeypatch.setattr(policy, "_post", _post_answering(_clicking, corrupt=mutate))
+
+    with pytest.raises(policy.TurboUnavailable) as caught:
+        policy.choose(_cfg(), _observation(), "search for something", [])
+
+    assert "malformed answer" in str(caught.value)
+    assert "no action executed" in str(caught.value)
+
+
 class _Body:
     """A 200 response whose body is not JSON — a proxy or gateway error page."""
 
