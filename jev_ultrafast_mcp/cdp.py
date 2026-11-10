@@ -8,6 +8,7 @@ call has no concurrency to exploit and blocking keeps failures obvious.
 
 from __future__ import annotations
 
+import inspect
 import itertools
 import json
 import os
@@ -65,8 +66,13 @@ class Cdp:
         # `open_timeout` is separate because Chrome gates each debugging client
         # behind a user-approval dialog: the handshake waits on a person, not on
         # the network, so it gets more room than the calls that follow it.
-        self._ws = connect(ws_url, max_size=max_size, open_timeout=open_timeout or timeout,
-                           close_timeout=5, max_queue=64)
+        options = {"max_size": max_size, "open_timeout": open_timeout or timeout, "close_timeout": 5}
+        parameters = inspect.signature(connect).parameters
+        if "max_queue" in parameters:
+            options["max_queue"] = 64
+        if "ping_interval" in parameters:
+            options["ping_interval"] = None
+        self._ws = connect(ws_url, **options)
         self.events: deque[dict] = deque(maxlen=400)
 
     @property
@@ -81,7 +87,10 @@ class Cdp:
         reachable" -- that is the difference between one failed call and every
         call failing forever.
         """
-        return self._ws.state is State.OPEN
+        state = getattr(self._ws, "state", None)
+        if state is None:
+            state = self._ws.protocol.state
+        return state is State.OPEN
 
     def call(self, method: str, session_id: str | None = None, timeout: float | None = None, **params):
         """Issue a CDP command and return its `result` object."""

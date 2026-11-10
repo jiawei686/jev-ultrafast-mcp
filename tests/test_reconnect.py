@@ -15,11 +15,18 @@ rather than a second one started beside it.
 
 from __future__ import annotations
 
+import inspect
 import json
+from functools import wraps
 from pathlib import Path
+from threading import Event, Thread
 
 import pytest
+from websockets.frames import Opcode
 from websockets.protocol import State
+from websockets.server import ServerProtocol
+from websockets.sync.client import connect as websocket_connect
+from websockets.sync.server import serve
 
 from jev_ultrafast_mcp import browser as browser_module
 from jev_ultrafast_mcp import cdp as cdp_module
@@ -117,6 +124,40 @@ def test_a_live_socket_is_reused_rather_than_rebuilt(monkeypatch, tmp_path) -> N
     manager._cdp = live
     monkeypatch.setattr(cdp_module, "Cdp", lambda *a, **k: pytest.fail("reconnected anyway"))
     assert manager.cdp is live
+
+
+def test_idle_cdp_connection_survives_a_browser_that_does_not_answer_pings(monkeypatch) -> None:
+    receive_frame = ServerProtocol.recv_frame
+
+    def ignore_ping(protocol, frame):
+        if frame.opcode != Opcode.PING:
+            receive_frame(protocol, frame)
+
+    @wraps(websocket_connect)
+    def short_keepalive_connect(*args, **kwargs):
+        if "ping_interval" in inspect.signature(websocket_connect).parameters:
+            kwargs.setdefault("ping_interval", 0.02)
+            kwargs.setdefault("ping_timeout", 0.02)
+        return websocket_connect(*args, **kwargs)
+
+    def reply(socket):
+        for raw in socket:
+            message = json.loads(raw)
+            socket.send(json.dumps({"id": message["id"], "result": {"product": "Chrome/test"}}))
+
+    monkeypatch.setattr(ServerProtocol, "recv_frame", ignore_ping)
+    monkeypatch.setattr(cdp_module, "connect", short_keepalive_connect)
+    with serve(reply, "127.0.0.1", 0) as endpoint:
+        worker = Thread(target=endpoint.serve_forever, daemon=True)
+        worker.start()
+        port = endpoint.socket.getsockname()[1]
+        connection = Cdp(f"ws://127.0.0.1:{port}", timeout=1)
+        try:
+            Event().wait(0.2)
+            assert connection.alive
+            assert connection.call("Browser.getVersion")["product"] == "Chrome/test"
+        finally:
+            connection.close()
 
 
 # --- a dead socket is dropped and replaced -----------------------------------
