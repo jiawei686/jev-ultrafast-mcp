@@ -73,6 +73,8 @@ class Cdp:
         if "ping_interval" in parameters:
             options["ping_interval"] = None
         self._ws = connect(ws_url, **options)
+        self._needs_probe = False
+        self._unusable = False
         self.events: deque[dict] = deque(maxlen=400)
 
     @property
@@ -85,12 +87,21 @@ class Cdp:
         server that keeps one of these for the life of the process therefore
         cannot use "the object exists" as a stand-in for "the browser is
         reachable" -- that is the difference between one failed call and every
-        call failing forever.
+        call failing forever. After a command times out, a read-only browser
+        command probes the connection before it is reused.
         """
         state = getattr(self._ws, "state", None)
         if state is None:
             state = self._ws.protocol.state
-        return state is State.OPEN
+        if state is not State.OPEN or getattr(self, "_unusable", False):
+            return False
+        if getattr(self, "_needs_probe", False):
+            try:
+                self.call("Browser.getVersion", timeout=min(self.timeout, 2.0))
+            except CdpError:
+                self._unusable = True
+                return False
+        return True
 
     def call(self, method: str, session_id: str | None = None, timeout: float | None = None, **params):
         """Issue a CDP command and return its `result` object."""
@@ -101,23 +112,28 @@ class Cdp:
         try:
             self._ws.send(json.dumps(payload))
         except Exception as exc:  # noqa: BLE001 - transport died; re-raised as a CdpError below
+            self._unusable = True
             raise CdpError(f"{method}: transport closed ({exc})") from None
         deadline = time.monotonic() + (timeout or self.timeout)
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
+                self._needs_probe = True
                 raise CdpError(f"{method}: timed out after {timeout or self.timeout:.1f}s")
             try:
                 raw = self._ws.recv(timeout=remaining)
             except TimeoutError:
+                self._needs_probe = True
                 raise CdpError(f"{method}: timed out after {timeout or self.timeout:.1f}s") from None
             except Exception as exc:  # noqa: BLE001 - any recv failure is a dead transport
+                self._unusable = True
                 raise CdpError(f"{method}: transport closed ({exc})") from None
             message = json.loads(raw)
             if message.get("id") != message_id:
                 if "method" in message:
                     self.events.append(message)
                 continue
+            self._needs_probe = False
             if "error" in message:
                 error = message["error"]
                 raise CdpError(f"{method}: {error.get('message')} ({error.get('code')})")

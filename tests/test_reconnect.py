@@ -32,7 +32,7 @@ from jev_ultrafast_mcp import browser as browser_module
 from jev_ultrafast_mcp import cdp as cdp_module
 from jev_ultrafast_mcp import server
 from jev_ultrafast_mcp.browser import BrowserManager
-from jev_ultrafast_mcp.cdp import Cdp, ChromeLaunchError, _read_active_port, reattach_chrome
+from jev_ultrafast_mcp.cdp import Cdp, CdpError, ChromeLaunchError, _read_active_port, reattach_chrome
 from jev_ultrafast_mcp.config import Config
 
 
@@ -181,6 +181,66 @@ def test_the_old_sessions_do_not_survive_the_socket(fresh_socket, monkeypatch, t
 
     manager.cdp
     assert manager._sessions == {}, "a session outlived the socket it was bound to"
+
+
+@pytest.mark.parametrize("probe_responds", [True, False])
+def test_timeout_probes_connection_before_reuse(monkeypatch, probe_responds) -> None:
+    class Ws:
+        state = State.OPEN
+
+        def __init__(self):
+            self.methods = []
+            self.message_id = None
+
+        def send(self, payload):
+            message = json.loads(payload)
+            self.methods.append(message["method"])
+            self.message_id = message["id"]
+
+        def recv(self, timeout):
+            if self.methods[-1] != "Browser.getVersion" or not probe_responds:
+                raise TimeoutError
+            return json.dumps({"id": self.message_id, "result": {"product": "Chrome/test"}})
+
+        def close(self):
+            self.state = State.CLOSED
+
+    socket = Ws()
+
+    def connect(uri, *, max_size, open_timeout, close_timeout, max_queue=64, ping_interval=None):
+        return socket
+
+    monkeypatch.setattr(cdp_module, "connect", connect)
+    connection = Cdp("ws://example.test", timeout=0.01)
+    with pytest.raises(CdpError, match="timed out"):
+        connection.call("Input.dispatchMouseEvent")
+
+    assert connection.alive is probe_responds
+    assert socket.methods == ["Input.dispatchMouseEvent", "Browser.getVersion"]
+    assert connection.alive is probe_responds
+    assert len(socket.methods) == 2
+
+
+@pytest.mark.parametrize("failed_operation", ["send", "recv"])
+def test_transport_failure_marks_open_socket_unusable(monkeypatch, failed_operation) -> None:
+    class Ws:
+        state = State.OPEN
+
+        def send(self, payload):
+            if failed_operation == "send":
+                raise OSError("send failed")
+
+        def recv(self, timeout):
+            raise OSError("receive failed")
+
+    def connect(uri, *, max_size, open_timeout, close_timeout):
+        return Ws()
+
+    monkeypatch.setattr(cdp_module, "connect", connect)
+    connection = Cdp("ws://example.test")
+    with pytest.raises(CdpError, match="transport closed"):
+        connection.call("Browser.getVersion")
+    assert not connection.alive
 
 
 def test_the_rebuild_does_not_cost_a_second_handshake_when_one_is_unnecessary() -> None:
