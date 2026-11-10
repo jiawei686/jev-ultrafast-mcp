@@ -250,8 +250,7 @@ def browser_open(url: str, session: str = "default", hint: str = "") -> str:
     step has the goal in context without re-reading this call.
     """
     try:
-        tab = _session(session)
-        tab.navigate(url)
+        tab = MANAGER.start(session or "default", url)
         observation = _first_read(tab)
         head = f"opened {_brief(observation)}"
         if hint:
@@ -726,7 +725,7 @@ def browser_doctor() -> str:
                 "The socket to the browser dropped — Chrome quit, the machine slept, or a "
                 "keepalive went unanswered. Nothing needs setting up: the next call opens a "
                 "fresh socket, adopting the browser already running rather than starting a "
-                "second one."
+                "second one. Lost sessions must be reopened with browser_open."
             )
         elif CONFIG.mode == "attach":
             report["hints"].append(

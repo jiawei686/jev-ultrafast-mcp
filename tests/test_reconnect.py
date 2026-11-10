@@ -15,17 +15,24 @@ rather than a second one started beside it.
 
 from __future__ import annotations
 
+import inspect
 import json
+from functools import wraps
 from pathlib import Path
+from threading import Event, Thread
 
 import pytest
+from websockets.frames import Opcode
 from websockets.protocol import State
+from websockets.server import ServerProtocol
+from websockets.sync.client import connect as websocket_connect
+from websockets.sync.server import serve
 
 from jev_ultrafast_mcp import browser as browser_module
 from jev_ultrafast_mcp import cdp as cdp_module
 from jev_ultrafast_mcp import server
 from jev_ultrafast_mcp.browser import BrowserManager
-from jev_ultrafast_mcp.cdp import Cdp, ChromeLaunchError, _read_active_port, reattach_chrome
+from jev_ultrafast_mcp.cdp import Cdp, CdpError, ChromeLaunchError, _read_active_port, reattach_chrome
 from jev_ultrafast_mcp.config import Config
 
 
@@ -119,6 +126,40 @@ def test_a_live_socket_is_reused_rather_than_rebuilt(monkeypatch, tmp_path) -> N
     assert manager.cdp is live
 
 
+def test_idle_cdp_connection_survives_a_browser_that_does_not_answer_pings(monkeypatch) -> None:
+    receive_frame = ServerProtocol.recv_frame
+
+    def ignore_ping(protocol, frame):
+        if frame.opcode != Opcode.PING:
+            receive_frame(protocol, frame)
+
+    @wraps(websocket_connect)
+    def short_keepalive_connect(*args, **kwargs):
+        if "ping_interval" in inspect.signature(websocket_connect).parameters:
+            kwargs.setdefault("ping_interval", 0.02)
+            kwargs.setdefault("ping_timeout", 0.02)
+        return websocket_connect(*args, **kwargs)
+
+    def reply(socket):
+        for raw in socket:
+            message = json.loads(raw)
+            socket.send(json.dumps({"id": message["id"], "result": {"product": "Chrome/test"}}))
+
+    monkeypatch.setattr(ServerProtocol, "recv_frame", ignore_ping)
+    monkeypatch.setattr(cdp_module, "connect", short_keepalive_connect)
+    with serve(reply, "127.0.0.1", 0) as endpoint:
+        worker = Thread(target=endpoint.serve_forever, daemon=True)
+        worker.start()
+        port = endpoint.socket.getsockname()[1]
+        connection = Cdp(f"ws://127.0.0.1:{port}", timeout=1)
+        try:
+            Event().wait(0.2)
+            assert connection.alive
+            assert connection.call("Browser.getVersion")["product"] == "Chrome/test"
+        finally:
+            connection.close()
+
+
 # --- a dead socket is dropped and replaced -----------------------------------
 
 def test_the_manager_rebuilds_a_socket_that_died(fresh_socket, monkeypatch, tmp_path) -> None:
@@ -140,6 +181,175 @@ def test_the_old_sessions_do_not_survive_the_socket(fresh_socket, monkeypatch, t
 
     manager.cdp
     assert manager._sessions == {}, "a session outlived the socket it was bound to"
+
+
+def test_cached_session_is_refused_until_explicitly_reopened(
+    fresh_socket, monkeypatch, tmp_path,
+) -> None:
+    class Session:
+        def __init__(self, *, cdp, **kwargs):
+            self.cdp = cdp
+
+        def start(self, url):
+            self.url = url
+
+        def navigate(self, url):
+            self.url = url
+
+    manager = _attach_manager(monkeypatch, tmp_path)
+    _profile_with_active_port(tmp_path)
+    dead = Socket(alive=False)
+    manager._cdp = dead
+    stale = object()
+    manager._sessions["default"] = stale
+    manager._sessions["other"] = object()
+    monkeypatch.setattr(browser_module, "Session", Session)
+
+    for name in ("default", "default", "other"):
+        with pytest.raises(CdpError, match="was lost.*browser_open"):
+            manager.session(name)
+
+    session = manager.start("default", "https://example.com")
+    assert session is not stale
+    assert session.cdp is fresh_socket
+    assert session.url == "https://example.com"
+    assert dead.closed is True
+    assert manager.session() is session
+    with pytest.raises(CdpError, match="was lost"):
+        manager.session("other")
+
+
+def test_assertion_cannot_succeed_on_a_replacement_blank_page(fresh_socket, monkeypatch, tmp_path) -> None:
+    manager = _attach_manager(monkeypatch, tmp_path)
+    _profile_with_active_port(tmp_path)
+    manager._cdp = Socket(alive=False)
+    manager._sessions["default"] = object()
+    monkeypatch.setattr(server, "MANAGER", manager)
+    monkeypatch.setattr(browser_module, "Session", lambda **kwargs: pytest.fail("created a blank session"))
+
+    for _ in range(2):
+        result = server.browser_assert([{"type": "text_absent", "text": "Error"}])
+        assert result.startswith("browser_error:")
+        assert "browser_open" in result
+
+
+def test_lost_session_is_reported_without_reconnecting(monkeypatch, tmp_path) -> None:
+    manager = _attach_manager(monkeypatch, tmp_path)
+    manager._cdp = Socket(alive=False)
+    manager._sessions["default"] = object()
+    monkeypatch.setattr(browser_module, "attach_chrome", lambda *args, **kwargs: pytest.fail("reconnected"))
+
+    for _ in range(2):
+        with pytest.raises(CdpError, match="was lost.*browser_open"):
+            manager.session()
+
+
+def test_failed_reopen_does_not_restore_a_lost_session(fresh_socket, monkeypatch, tmp_path) -> None:
+    class Session:
+        def __init__(self, **kwargs):
+            pass
+
+        def start(self, url):
+            pass
+
+        def navigate(self, url):
+            raise CdpError("navigation failed")
+
+    manager = _attach_manager(monkeypatch, tmp_path)
+    _profile_with_active_port(tmp_path)
+    manager._cdp = Socket(alive=False)
+    manager._sessions["default"] = object()
+    monkeypatch.setattr(browser_module, "Session", Session)
+
+    with pytest.raises(CdpError, match="navigation failed"):
+        manager.start("default", "https://example.com")
+    with pytest.raises(CdpError, match="was lost"):
+        manager.session()
+
+
+def test_browser_open_explicitly_reopens_a_lost_session(fresh_socket, monkeypatch, tmp_path) -> None:
+    class Session:
+        def __init__(self, **kwargs):
+            self.url = ""
+
+        def start(self, url):
+            pass
+
+        def navigate(self, url):
+            self.url = url
+
+    manager = _attach_manager(monkeypatch, tmp_path)
+    _profile_with_active_port(tmp_path)
+    manager._cdp = Socket(alive=False)
+    manager._sessions["default"] = object()
+    monkeypatch.setattr(server, "MANAGER", manager)
+    monkeypatch.setattr(browser_module, "Session", Session)
+    monkeypatch.setattr(server, "_first_read", lambda tab: tab)
+    monkeypatch.setattr(server, "_brief", lambda observation: observation.url)
+    monkeypatch.setattr(server, "_view", lambda observation, **kwargs: "page")
+
+    assert server.browser_open("https://example.com") == "opened https://example.com\n\npage"
+    assert manager.session().url == "https://example.com"
+
+
+@pytest.mark.parametrize("probe_responds", [True, False])
+def test_timeout_probes_connection_before_reuse(monkeypatch, probe_responds) -> None:
+    class Ws:
+        state = State.OPEN
+
+        def __init__(self):
+            self.methods = []
+            self.message_id = None
+
+        def send(self, payload):
+            message = json.loads(payload)
+            self.methods.append(message["method"])
+            self.message_id = message["id"]
+
+        def recv(self, timeout):
+            if self.methods[-1] != "Browser.getVersion" or not probe_responds:
+                raise TimeoutError
+            return json.dumps({"id": self.message_id, "result": {"product": "Chrome/test"}})
+
+        def close(self):
+            self.state = State.CLOSED
+
+    socket = Ws()
+
+    def connect(uri, *, max_size, open_timeout, close_timeout, max_queue=64, ping_interval=None):
+        return socket
+
+    monkeypatch.setattr(cdp_module, "connect", connect)
+    connection = Cdp("ws://example.test", timeout=0.01)
+    with pytest.raises(CdpError, match="timed out"):
+        connection.call("Input.dispatchMouseEvent")
+
+    assert connection.alive is probe_responds
+    assert socket.methods == ["Input.dispatchMouseEvent", "Browser.getVersion"]
+    assert connection.alive is probe_responds
+    assert len(socket.methods) == 2
+
+
+@pytest.mark.parametrize("failed_operation", ["send", "recv"])
+def test_transport_failure_marks_open_socket_unusable(monkeypatch, failed_operation) -> None:
+    class Ws:
+        state = State.OPEN
+
+        def send(self, payload):
+            if failed_operation == "send":
+                raise OSError("send failed")
+
+        def recv(self, timeout):
+            raise OSError("receive failed")
+
+    def connect(uri, *, max_size, open_timeout, close_timeout):
+        return Ws()
+
+    monkeypatch.setattr(cdp_module, "connect", connect)
+    connection = Cdp("ws://example.test")
+    with pytest.raises(CdpError, match="transport closed"):
+        connection.call("Browser.getVersion")
+    assert not connection.alive
 
 
 def test_the_rebuild_does_not_cost_a_second_handshake_when_one_is_unnecessary() -> None:
