@@ -756,6 +756,12 @@ print port 9222). jev does not rely on it: when `/json/version` does not answer,
 the browser WebSocket path out of Chrome's `DevToolsActivePort` file. If your browser keeps its data
 directory somewhere unusual, point `JEVMCP_ATTACH_PROFILE_DIR` at it.
 
+**What happens if the browser connection drops?**
+The server reconnects without deliberately starting another browser when the existing one is still
+running. Sessions tied to the old connection are reported as lost: use `browser_open` to start the
+affected session again. Previous tabs may still be open. A timed-out input action is not automatically
+retried, since it may already have taken effect.
+
 **Nothing is happening and the page looks empty.**
 A page that renders from JavaScript can briefly look empty. After it opens a URL the server waits for
 the page to stop fetching *and* for its element table to stop changing (up to `JEVMCP_SETTLE_TIMEOUT`)

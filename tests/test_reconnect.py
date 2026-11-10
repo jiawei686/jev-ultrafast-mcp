@@ -183,6 +183,115 @@ def test_the_old_sessions_do_not_survive_the_socket(fresh_socket, monkeypatch, t
     assert manager._sessions == {}, "a session outlived the socket it was bound to"
 
 
+def test_cached_session_is_refused_until_explicitly_reopened(
+    fresh_socket, monkeypatch, tmp_path,
+) -> None:
+    class Session:
+        def __init__(self, *, cdp, **kwargs):
+            self.cdp = cdp
+
+        def start(self, url):
+            self.url = url
+
+        def navigate(self, url):
+            self.url = url
+
+    manager = _attach_manager(monkeypatch, tmp_path)
+    _profile_with_active_port(tmp_path)
+    dead = Socket(alive=False)
+    manager._cdp = dead
+    stale = object()
+    manager._sessions["default"] = stale
+    manager._sessions["other"] = object()
+    monkeypatch.setattr(browser_module, "Session", Session)
+
+    for name in ("default", "default", "other"):
+        with pytest.raises(CdpError, match="was lost.*browser_open"):
+            manager.session(name)
+
+    session = manager.start("default", "https://example.com")
+    assert session is not stale
+    assert session.cdp is fresh_socket
+    assert session.url == "https://example.com"
+    assert dead.closed is True
+    assert manager.session() is session
+    with pytest.raises(CdpError, match="was lost"):
+        manager.session("other")
+
+
+def test_assertion_cannot_succeed_on_a_replacement_blank_page(fresh_socket, monkeypatch, tmp_path) -> None:
+    manager = _attach_manager(monkeypatch, tmp_path)
+    _profile_with_active_port(tmp_path)
+    manager._cdp = Socket(alive=False)
+    manager._sessions["default"] = object()
+    monkeypatch.setattr(server, "MANAGER", manager)
+    monkeypatch.setattr(browser_module, "Session", lambda **kwargs: pytest.fail("created a blank session"))
+
+    for _ in range(2):
+        result = server.browser_assert([{"type": "text_absent", "text": "Error"}])
+        assert result.startswith("browser_error:")
+        assert "browser_open" in result
+
+
+def test_lost_session_is_reported_without_reconnecting(monkeypatch, tmp_path) -> None:
+    manager = _attach_manager(monkeypatch, tmp_path)
+    manager._cdp = Socket(alive=False)
+    manager._sessions["default"] = object()
+    monkeypatch.setattr(browser_module, "attach_chrome", lambda *args, **kwargs: pytest.fail("reconnected"))
+
+    for _ in range(2):
+        with pytest.raises(CdpError, match="was lost.*browser_open"):
+            manager.session()
+
+
+def test_failed_reopen_does_not_restore_a_lost_session(fresh_socket, monkeypatch, tmp_path) -> None:
+    class Session:
+        def __init__(self, **kwargs):
+            pass
+
+        def start(self, url):
+            pass
+
+        def navigate(self, url):
+            raise CdpError("navigation failed")
+
+    manager = _attach_manager(monkeypatch, tmp_path)
+    _profile_with_active_port(tmp_path)
+    manager._cdp = Socket(alive=False)
+    manager._sessions["default"] = object()
+    monkeypatch.setattr(browser_module, "Session", Session)
+
+    with pytest.raises(CdpError, match="navigation failed"):
+        manager.start("default", "https://example.com")
+    with pytest.raises(CdpError, match="was lost"):
+        manager.session()
+
+
+def test_browser_open_explicitly_reopens_a_lost_session(fresh_socket, monkeypatch, tmp_path) -> None:
+    class Session:
+        def __init__(self, **kwargs):
+            self.url = ""
+
+        def start(self, url):
+            pass
+
+        def navigate(self, url):
+            self.url = url
+
+    manager = _attach_manager(monkeypatch, tmp_path)
+    _profile_with_active_port(tmp_path)
+    manager._cdp = Socket(alive=False)
+    manager._sessions["default"] = object()
+    monkeypatch.setattr(server, "MANAGER", manager)
+    monkeypatch.setattr(browser_module, "Session", Session)
+    monkeypatch.setattr(server, "_first_read", lambda tab: tab)
+    monkeypatch.setattr(server, "_brief", lambda observation: observation.url)
+    monkeypatch.setattr(server, "_view", lambda observation, **kwargs: "page")
+
+    assert server.browser_open("https://example.com") == "opened https://example.com\n\npage"
+    assert manager.session().url == "https://example.com"
+
+
 @pytest.mark.parametrize("probe_responds", [True, False])
 def test_timeout_probes_connection_before_reuse(monkeypatch, probe_responds) -> None:
     class Ws:

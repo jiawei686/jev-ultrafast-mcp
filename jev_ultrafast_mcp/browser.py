@@ -1251,6 +1251,7 @@ class BrowserManager:
         self._process = None
         self._profile: Path | None = None
         self._sessions: dict[str, Session] = {}
+        self._lost_sessions: set[str] = set()
 
     @property
     def cdp(self) -> Cdp:
@@ -1261,8 +1262,8 @@ class BrowserManager:
         reconnects, so the stored object goes on looking like a connection while
         answering nothing. Without this check the first hiccup is permanent:
         every later call fails with `transport closed` and no way back short of
-        restarting the process. Checking here instead makes the failure one
-        call wide, and it heals on the next one.
+        restarting the process. Checking here permits a fresh connection while
+        reporting that any sessions bound to the old one were lost.
         """
         if self._cdp is not None and not self._cdp.alive:
             self._drop_connection()
@@ -1285,6 +1286,7 @@ class BrowserManager:
         except Exception:  # noqa: BLE001 - the socket is already gone, which is the point
             pass
         self._cdp = None
+        self._lost_sessions.update(self._sessions)
         self._sessions.clear()
 
     def _connect(self) -> None:
@@ -1308,19 +1310,30 @@ class BrowserManager:
         self._cdp, self._process, self._profile = launch_chrome(
             self.cfg, allow_extensions=self.allow_extensions)
 
-    def session(self, name: str = "default") -> Session:
+    def session(self, name: str = "default", *, reopen: bool = False) -> Session:
+        connection = self._cdp
+        if connection is not None and not connection.alive:
+            self._drop_connection()
+            connection = None
+        if name in self._lost_sessions and not reopen:
+            raise CdpError(
+                f"Session {name!r} was lost when the browser connection dropped; "
+                "use browser_open to start it again. Previous tabs may still be open."
+            )
+        if connection is None:
+            connection = self.cdp
         session = self._sessions.get(name)
         if session is None:
-            session = Session(name=name, cfg=self.cfg, cdp=self.cdp,
+            session = Session(name=name, cfg=self.cfg, cdp=connection,
                               background=not self.cfg.foreground)
             session.start("about:blank")
             self._sessions[name] = session
         return session
 
     def start(self, name: str, url: str) -> Session:
-        session = self.session(name)
-        if url and url != "about:blank":
-            session.navigate(url)
+        session = self.session(name, reopen=True)
+        session.navigate(url)
+        self._lost_sessions.discard(name)
         return session
 
     def close(self, name: str | None = None) -> list[str]:
@@ -1331,6 +1344,10 @@ class BrowserManager:
             session.close()
             self._sessions.pop(key, None)
             closed.append(key)
+        if name:
+            self._lost_sessions.discard(name)
+        else:
+            self._lost_sessions.clear()
         return closed
 
     @property
@@ -1351,6 +1368,7 @@ class BrowserManager:
             except Exception:  # noqa: BLE001 - teardown must not mask the result
                 pass
         self._sessions.clear()
+        self._lost_sessions.clear()
         if self._cdp is not None:
             if self.owns_browser:
                 try:
